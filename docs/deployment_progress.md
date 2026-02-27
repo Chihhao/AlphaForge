@@ -1,4 +1,4 @@
-# TW-STOCK-168 專案開發與部署進度紀錄
+# AlphaForge 專案開發與部署進度紀錄
 
 ## 部署目標
 將全端專案（React/Next.js 前端 + Python FastAPI 後端）部署至家用 Synology NAS 伺服器，並於區域網路內提供服務。

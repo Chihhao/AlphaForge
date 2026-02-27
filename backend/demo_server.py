@@ -5,7 +5,7 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-app = FastAPI(title="TW-STOCK-168 Demo Server")
+app = FastAPI(title="AlphaForge Demo Server")
 
 app.add_middleware(
     CORSMiddleware,

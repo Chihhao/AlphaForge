@@ -1,4 +1,4 @@
-# TW Stock 168 - Frontend
+# AlphaForge - Frontend
 
 台灣股市分析與模擬交易平台的前端應用
 

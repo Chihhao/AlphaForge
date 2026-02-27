@@ -76,7 +76,7 @@ export default function Home() {
       <header className="bg-gray-900/80 backdrop-blur-md shadow-md border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold text-gold-500 tracking-tight hover:text-gold-400 transition-colors">
-            TW Stock 168
+            AlphaForge
           </Link>
           <nav className="flex gap-6">
             <Link href="/" className="text-gray-100 font-semibold hover:text-gold-400 transition-colors">
@@ -200,7 +200,7 @@ export default function Home() {
       <footer className="bg-black text-gray-300 py-12 border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-300 mb-4 tracking-tight">TW Stock 168</h2>
+            <h2 className="text-2xl font-bold text-gray-300 mb-4 tracking-tight">AlphaForge</h2>
             <p className="text-gray-400 text-base max-w-2xl mx-auto leading-relaxed">
               本平台僅用於軟體工程展示、教育與模擬交易用途，絕非任何形式之投資建議。投資有風險，任何交易前應謹慎評估。
             </p>

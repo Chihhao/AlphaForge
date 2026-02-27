@@ -1,5 +1,5 @@
 #!/bin/bash
-cat << 'DOCKERFILE' > ~/tw-stock-168-deploy/frontend/Dockerfile
+cat << 'DOCKERFILE' > ~/alphaforge-deploy/frontend/Dockerfile
 FROM node:18-alpine
 
 WORKDIR /app

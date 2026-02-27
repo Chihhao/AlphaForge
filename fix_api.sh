@@ -1,5 +1,5 @@
 #!/bin/bash
-cat << 'API_FILE' > ~/tw-stock-168-deploy/frontend/lib/api.ts
+cat << 'API_FILE' > ~/alphaforge-deploy/frontend/lib/api.ts
 import axios from 'axios';
 
 // Get the base URL from the browser if we are running in the browser
