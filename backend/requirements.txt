@@ -16,3 +16,4 @@ python-multipart
 email-validator
 pytest
 httpx
+twstock

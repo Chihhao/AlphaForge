@@ -14,6 +14,11 @@ COPY . .
 # Build the Next.js application
 # Ignore ESLint and TypeScript errors during build if any exist to ensure successful build on NAS
 ENV NEXT_TELEMETRY_DISABLED 1
+
+# Provide the API URL at build time for Next.js static generation
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build
 
 EXPOSE 3000

@@ -19,15 +19,15 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Pass the local IP so Next.js bakes it during build time
+        NEXT_PUBLIC_API_URL: http://10.0.4.3:8000
     container_name: tw-stock-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - TZ=Asia/Taipei
-      # When deployed, it should point to the DDNS or NAS local IP
-      # If using Reverse Proxy later, this usually points to https://twstock168.synology.me/api or similar
-      # For now using internal docker network
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://10.0.4.3:8000
     depends_on:
       - backend
