@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tw-stock-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Map the local database file to persist data if any
+      - ./backend/stock_data.db:/app/stock_data.db
+    environment:
+      - TZ=Asia/Taipei
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tw-stock-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - TZ=Asia/Taipei
+      # When deployed, it should point to the DDNS or NAS local IP
+      # If using Reverse Proxy later, this usually points to https://twstock168.synology.me/api or similar
+      # For now using internal docker network
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
