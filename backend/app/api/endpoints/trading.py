@@ -8,7 +8,7 @@ from app.services.trading_service import TradingService
 from app.models.user import User
 
 
-router = APIRouter(prefix="/api/trading", tags=["trading"])
+router = APIRouter(prefix="/trading", tags=["trading"])
 
 
 @router.post("/orders", response_model=Order)

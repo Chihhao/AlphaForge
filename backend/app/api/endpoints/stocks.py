@@ -8,7 +8,7 @@ from app.services.stock_service import StockService
 from app.models.user import Stock as StockModel
 
 
-router = APIRouter(prefix="/api/stocks", tags=["stocks"])
+router = APIRouter(prefix="/stocks", tags=["stocks"])
 
 
 @router.get("/search")

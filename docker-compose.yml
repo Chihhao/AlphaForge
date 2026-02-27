@@ -20,14 +20,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Pass the local IP so Next.js bakes it during build time
-        NEXT_PUBLIC_API_URL: http://10.0.4.3:8000
+        # Relative path - browser will call via HTTPS through reverse proxy
+        NEXT_PUBLIC_API_URL: /api
     container_name: alphaforge-frontend
     restart: unless-stopped
     ports:
       - "3001:3000"
     environment:
       - TZ=Asia/Taipei
-      - NEXT_PUBLIC_API_URL=http://10.0.4.3:8000
+      - NEXT_PUBLIC_API_URL=/api
+      - INTERNAL_API_URL=http://backend:8000
     depends_on:
       - backend

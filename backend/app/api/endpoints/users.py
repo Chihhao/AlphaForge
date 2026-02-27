@@ -9,7 +9,7 @@ from app.core.security import create_access_token
 from app.core.config import settings
 
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/register", response_model=User)
