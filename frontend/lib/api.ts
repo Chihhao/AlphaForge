@@ -3,7 +3,7 @@ import axios from 'axios';
 // Use empty baseURL so that existing /api/stocks/... call paths work as-is.
 // Next.js rewrites in next.config.js will intercept /api/* and proxy to backend:8000.
 const getBaseUrl = () => {
-    return '';
+    return process.env.NEXT_PUBLIC_API_URL || '';
 };
 
 const api = axios.create({

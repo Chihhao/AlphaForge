@@ -18,7 +18,7 @@ export default function Home() {
       try {
         const enriched = await Promise.all(defaultIds.map(async (id) => {
           try {
-            const q = await api.get(`/api/stocks/${id}/quote`)
+            const q = await api.get(`/stocks/${id}/quote`)
             const qd = q.data
             return {
               id: id,
@@ -52,7 +52,7 @@ export default function Home() {
 
     setLoading(true)
     try {
-      const res = await api.get(`/api/stocks/search?q=${encodeURIComponent(q)}`)
+      const res = await api.get(`/stocks/search?q=${encodeURIComponent(q)}`)
       const data = res.data
       const results = data.results || []
 

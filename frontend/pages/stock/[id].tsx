@@ -35,11 +35,11 @@ export default function StockDetail() {
 
         // Only fetch quote once if not already fetched
         if (!quote) {
-          const qres = await api.get(`/api/stocks/${id}/quote`)
+          const qres = await api.get(`/stocks/${id}/quote`)
           setQuote(qres.data)
         }
 
-        const kres = await api.get(`/api/stocks/${id}/kline?period=${apiPeriod}&interval=${apiInterval}`)
+        const kres = await api.get(`/stocks/${id}/kline?period=${apiPeriod}&interval=${apiInterval}`)
         const kd = kres.data
         const data = (kd.data || []).map((r: any) => {
           const ts = Math.floor(new Date(r.date).getTime() / 1000);
@@ -61,7 +61,7 @@ export default function StockDetail() {
 
         setChartData(uniqueData)
 
-        const ires = await api.get(`/api/stocks/${id}/indicators?period=${apiPeriod}&interval=${apiInterval}`)
+        const ires = await api.get(`/stocks/${id}/indicators?period=${apiPeriod}&interval=${apiInterval}`)
         const indData = ires.data
         if (indData.data && indData.data.length > 0) {
           // Get the most recent valid indicators

@@ -24,21 +24,23 @@
 1. **儲存檔案**：在 VSCode 儲存修改，確認 Mac 上的 Synology Drive 已同步。
 2. **連線 NAS**：開啟 Mac 終端機，SSH 登入 NAS：
    ```bash
-   ssh chihhaolai@10.0.4.3
-   ```
-3. **進入專案目錄**：
-   ```bash
-   cd /volume1/homes/chihhaolai/Drive/Documents_Mac_Lai/GitHub/AlphaForge
-   ```
-4. **設定環境變數**(DSM 的 Docker 路徑問題)：
-   ```bash
-   export PATH=/usr/local/bin:$PATH
-   ```
-5. **🔥 秒速重構與重啟前端**：
-   ```bash
-   sudo docker-compose up -d --build frontend
-   ```
-   > **說明**：這行指令會「只針對」frontend 進行重構。如果只有程式碼改動，Docker 會直接命中 1~8 步的快取，只需數十秒鐘跑 `npm run build`，然後無縫重啟。
+1.  **儲存檔案**：在 VSCode 儲存修改，確認 Mac 上的 Synology Drive 已同步。
+2.  **連線 NAS**：開啟 Mac 終端機，SSH 登入 NAS：
+    ```bash
+    ssh chihhaolai@10.0.4.3
+    ```
+3.  **進入專案目錄**：
+    ```bash
+    cd /volume1/homes/chihhaolai/Drive/Documents_Mac_Lai/GitHub/AlphaForge
+    ```
+4.  **設定環境變數**(DSM 的 Docker 路徑問題)：
+    ```bash
+    export PATH=/usr/local/bin:$PATH
+    # 🔥 終極加速部署指令 (確保 BuildKit 啟動且環境變數傳遞)
+    env DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 sudo -E docker-compose up -d --build frontend
+    ```
+    > **說明**：這行指令會「只針對」frontend 進行重構。如果只有程式碼改動，Docker 會直接命中 1~8 步的快取，只需數十秒鐘跑 `npm run build`，然後無縫重啟。
+    > **⚡️ 加速密技**：我們已啟用 **Docker BuildKit 緩存掛載**。即使層級失效，已下載過的套件將直接從快取讀取，不重新下載。
 
 ---
 

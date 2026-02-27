@@ -1,27 +1,33 @@
-FROM node:18-alpine
-
+# Stage 1: Dependencies
+FROM node:18-alpine AS deps
 WORKDIR /app
-
-# Copy package.json and package-lock.json (if available)
 COPY package.json package-lock.json* ./
+# Use BuildKit cache mount for faster npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
 
-# Install dependencies
-RUN npm install
-
-# Copy all files
+# Stage 2: Builder
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build the Next.js application
-# Ignore ESLint and TypeScript errors during build if any exist to ensure successful build on NAS
 ENV NEXT_TELEMETRY_DISABLED 1
-
-# Provide the API URL at build time for Next.js static generation
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-
 RUN npm run build
+
+# Stage 3: Runner
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Copy only necessary files for production
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.js ./next.config.js
 
 EXPOSE 3000
 
-# Start the application
 CMD ["npm", "start"]
