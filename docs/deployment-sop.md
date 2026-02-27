@@ -8,6 +8,14 @@
 2. **善用 Docker 快取**：只要你沒有去修改 `package.json` (前端加套件) 或 `requirements.txt` (後端加套件)，重新打包的過程會利用快取，瞬間完成。
 3. **分離前後端更新**：前端改了就只更新前端，不需要動到後端。
 
+## 💻 NAS 伺服器環境配置 (初次設定時使用)
+
+為了確保部署順利，請確認 NAS 上已完成以下設定：
+
+1. **SSH 權限**：於 DSM 控制台開啟 SSH 服務。
+2. **免密碼 sudo**：為了讓 Docker 指令自動化執行，已設定 `/etc/sudoers.d/chihhaolai` 檔案，賦予帳號執行 `sudo` 時無需輸入密碼 (`NOPASSWD`)。
+3. **目錄結構**：專案位於 `/volume1/homes/chihhaolai/Drive/Documents_Mac_Lai/GitHub/AlphaForge`。
+
 ---
 
 ## 🚀 情況一：只有修改「前端」程式碼 (最常見)
