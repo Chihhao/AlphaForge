@@ -13,6 +13,12 @@ node_modules/
 out/
 build/
 .env*.local
+*.tsbuildinfo
+
+# Build and Archives
+*.tar.gz
+*.zip
+*.sh
 
 # OS
 .DS_Store

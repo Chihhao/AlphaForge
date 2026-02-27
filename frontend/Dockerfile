@@ -14,7 +14,9 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-RUN npm run build
+# Use cache mount for .next/cache to speed up builds
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
 
 # Stage 3: Runner
 FROM node:18-alpine AS runner
@@ -22,12 +24,12 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Copy only necessary files for production
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/next.config.js ./next.config.js
+# Note: Standalone mode doesn't need node_modules in the runner
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Next.js standalone server starts with server.js
+CMD ["node", "server.js"]
+

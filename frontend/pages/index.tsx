@@ -82,9 +82,9 @@ export default function Home() {
             <Link href="/" className="text-gray-100 font-semibold hover:text-gold-400 transition-colors">
               首頁
             </Link>
-            <Link href="/trading" className="text-gray-400 hover:text-gold-400 font-medium transition-colors">
+            {/* <Link href="/trading" className="text-gray-400 hover:text-gold-400 font-medium transition-colors">
               模擬交易
-            </Link>
+            </Link> */} {/* Timed Test */}
             <Link href="/portfolio" className="text-gray-400 hover:text-gold-400 font-medium transition-colors">
               投資組合
             </Link>
