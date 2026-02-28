@@ -33,11 +33,9 @@ export default function StockDetail() {
         const apiPeriod = periodMap[activeTab] || '1mo'
         const apiInterval = activeTab === '1d' ? '5m' : '1d' // For 1 day period, use 5min interval for better line chart
 
-        // Only fetch quote once if not already fetched
-        if (!quote) {
-          const qres = await api.get(`/stocks/${id}/quote`)
-          setQuote(qres.data)
-        }
+        // Fetch quote data for the current id
+        const qres = await api.get(`/stocks/${id}/quote`)
+        setQuote(qres.data)
 
         const kres = await api.get(`/stocks/${id}/kline?period=${apiPeriod}&interval=${apiInterval}`)
         const kd = kres.data
@@ -83,19 +81,10 @@ export default function StockDetail() {
   const displayChange = quote?.change_percent ?? 0
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
-      {/* Header */}
-      <header className="bg-gray-800 shadow-md border-b border-gray-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/" className="text-gold-500 hover:text-gold-400">
-            ← 返回首頁
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="flex-grow">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Stock Header */}
-        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-6">
+        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
           <div className="flex justify-between items-start mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-100">{displayName}</h1>
@@ -142,7 +131,7 @@ export default function StockDetail() {
         </div>
 
         {/* Chart Section */}
-        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-6">
+        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-gray-100 mb-4">K線圖表</h2>
             <div className="flex gap-2 mb-6">
@@ -178,7 +167,7 @@ export default function StockDetail() {
         </div>
 
         {/* Technical Indicators */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
           <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
             <h2 className="text-xl font-bold text-gray-100 mb-4">主圖指標</h2>
             <div className="space-y-3">
