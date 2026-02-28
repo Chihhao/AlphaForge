@@ -12,20 +12,9 @@ const COLORS = ['#4f46e5', '#ec4899', '#10b981']
 
 export default function Portfolio() {
   return (
-    <div className="min-h-screen bg-brand-dark text-gray-100">
-      {/* Header */}
-      <header className="bg-gray-800 shadow-md border-b border-gray-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <Link href="/" className="text-gold-500 hover:text-gold-400">
-              ← 返回首頁
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-100 mt-2">投資組合分析</h1>
-          </div>
-        </div>
-      </header>
-
+    <div className="flex-grow">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-bold text-gray-100 mb-8 border-l-4 border-emerald-400 pl-4">投資組合分析</h1>
         {/* Performance Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-xl border border-zinc-800/50 p-6 hover:border-zinc-700/80 transition-all">

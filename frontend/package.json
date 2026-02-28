@@ -10,6 +10,8 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "@mdi/react": "^1.6.1",
     "axios": "^1.6.0",
     "lightweight-charts": "^5.1.0",
     "next": "^14.0.0",

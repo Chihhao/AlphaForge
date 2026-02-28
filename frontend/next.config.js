@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   basePath: '/alphaforge',
+  transpilePackages: ['@mdi/react', '@mdi/js'],
   async rewrites() {
     return [
       {

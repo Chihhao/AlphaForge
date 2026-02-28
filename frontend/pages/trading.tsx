@@ -27,20 +27,9 @@ export default function Trading() {
   const [activeTab, setActiveTab] = useState<'portfolio' | 'orders'>('portfolio')
 
   return (
-    <div className="min-h-screen bg-brand-dark text-gray-100">
-      {/* Header */}
-      <header className="bg-gray-800 shadow-md border-b border-gray-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <Link href="/" className="text-gold-500 hover:text-gold-400">
-              ← 返回首頁
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-100 mt-2">模擬交易</h1>
-          </div>
-        </div>
-      </header>
-
+    <div className="flex-grow">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-bold text-gray-100 mb-8 border-l-4 border-emerald-400 pl-4">模擬交易</h1>
         {/* Account Summary */}
         <div className="bg-gradient-to-br from-zinc-900/60 to-black/80 backdrop-blur-lg rounded-lg shadow-2xl border border-zinc-800/50 p-8 text-gray-100 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
