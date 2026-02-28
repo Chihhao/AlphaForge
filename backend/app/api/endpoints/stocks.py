@@ -4,11 +4,21 @@ from typing import List
 
 from app.db.database import get_db
 from app.schemas.stock import Stock, StockCreate, StockQuote
+from app.schemas.market import MarketRankingResponse
 from app.services.stock_service import StockService
+from app.services.market_service import MarketService
 from app.models.user import Stock as StockModel
 
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
+
+@router.get("/rankings", response_model=MarketRankingResponse)
+def get_market_rankings(limit: int = 5):
+    """
+    取得市場概況排行榜
+    包含每日漲幅、跌幅、成交量排行榜。
+    """
+    return MarketService.get_market_rankings(limit=limit)
 
 
 @router.get("/search")

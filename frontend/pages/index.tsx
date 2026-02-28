@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import StockSearch from '../components/StockSearch'
 import StockCard from '../components/StockCard'
+import MarketRanking from '../components/MarketRanking'
 import api from '../lib/api'
 
 export default function Home() {
@@ -123,8 +124,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Main Content */}
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
+      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full border-t border-gray-800/50">
+
+        {/* 新增: 市場概況與學習排行榜 */}
+        <section className="mb-24">
+          <div className="flex flex-col sm:flex-row justify-between items-baseline mb-8 gap-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-100 border-l-4 border-gold-500 pl-4 tracking-tight">市場概況</h2>
+            <p className="text-gray-400 sm:text-lg font-medium">即時掌握台股資金動向與市場情緒</p>
+          </div>
+          <MarketRanking />
+        </section>
+
         {/* Featured Stocks */}
         <section className="mb-20">
           <div className="flex flex-col sm:flex-row justify-between items-baseline mb-10 gap-4">
