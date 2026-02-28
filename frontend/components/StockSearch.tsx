@@ -34,7 +34,7 @@ export default function StockSearch({ onSearch }: StockSearchProps) {
 
         <button
           type="submit"
-          className="h-full px-6 sm:px-10 bg-gold-600 text-gray-900 font-semibold hover:bg-gold-500 transition-colors duration-300 text-lg sm:text-xl"
+          className="h-full px-6 sm:px-10 bg-gold-600 text-gray-900 font-semibold hover:bg-gold-500 transition-colors duration-300 text-lg sm:text-xl flex-shrink-0 whitespace-nowrap"
         >
           搜尋
         </button>

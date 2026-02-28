@@ -93,22 +93,14 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100 py-24 sm:py-32 overflow-hidden shadow-xl border-b border-gray-800">
-        {/* Decorative background shapes */}
+      {/* Compact Search Bar Section */}
+      <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100 py-8 sm:py-12 overflow-hidden shadow-md border-b border-gray-800">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -left-40 w-96 h-96 bg-gold-900 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute top-20 -right-20 w-[30rem] h-[30rem] bg-yellow-900 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }}></div>
-          <div className="absolute -bottom-40 left-1/2 w-96 h-96 bg-gold-800 rounded-full mix-blend-screen filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '4s' }}></div>
+          <div className="absolute -top-20 -left-20 w-64 h-64 bg-gold-900 rounded-full mix-blend-screen filter blur-[100px] opacity-30"></div>
+          <div className="absolute top-0 -right-20 w-64 h-64 bg-yellow-900 rounded-full mix-blend-screen filter blur-[100px] opacity-20"></div>
         </div>
 
-        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight mb-8">
-            掌握台股先機，<span className="text-transparent bg-clip-text bg-gradient-to-r from-gold-400 to-yellow-200">精準投資</span>
-          </h1>
-          <p className="text-lg sm:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto font-light leading-relaxed">
-            即時報價、專業 K 線圖、技術指標分析及真實模擬交易，您的全方位台股投資利器。
-          </p>
+        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center">
           <div className="w-full">
             <StockSearch onSearch={handleSearch} />
           </div>
