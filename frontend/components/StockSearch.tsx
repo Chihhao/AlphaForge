@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 interface StockSearchProps {
   onSearch: (symbol: string) => void
@@ -6,6 +6,21 @@ interface StockSearchProps {
 
 export default function StockSearch({ onSearch }: StockSearchProps) {
   const [input, setInput] = useState('')
+  const [placeholder, setPlaceholder] = useState('輸入股票代號或名稱 (例：2330)')
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640) {
+        setPlaceholder('輸入股票代號或名稱')
+      } else {
+        setPlaceholder('輸入股票代號或名稱 (例：2330)')
+      }
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -17,24 +32,25 @@ export default function StockSearch({ onSearch }: StockSearchProps) {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-3xl mx-auto group">
-      <div className="relative flex items-center w-full h-16 sm:h-20 rounded-full focus-within:shadow-2xl bg-gray-800 overflow-hidden shadow-lg transition-all duration-300 border border-gray-700">
-        <div className="grid place-items-center h-full w-16 sm:w-20 text-gray-400 group-focus-within:text-gold-500 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 sm:h-8 sm:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      <div className="relative flex items-center w-full h-16 sm:h-20 rounded-2xl bg-brand-dark overflow-hidden transition-all duration-300 border border-zinc-800 focus-within:border-emerald-500/50">
+        <div className="grid place-items-center h-full w-16 sm:w-20 text-neutral-500 group-focus-within:text-emerald-400 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 sm:h-7 sm:w-7">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </div>
 
         <input
-          className="peer h-full w-full outline-none text-lg sm:text-xl text-gray-100 bg-transparent pr-2 placeholder-gray-500"
+          className="peer h-full w-full outline-none text-xl sm:text-2xl text-neutral-50 bg-transparent pr-2 placeholder-neutral-600 font-mono"
           type="text"
-          placeholder="輸入股票代號或名稱 (例：2330 或 台積電)"
+          placeholder={placeholder}
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
 
         <button
           type="submit"
-          className="h-full px-6 sm:px-10 bg-gold-600 text-gray-900 font-semibold hover:bg-gold-500 transition-colors duration-300 text-lg sm:text-xl flex-shrink-0 whitespace-nowrap"
+          className="h-full px-6 sm:px-10 bg-neutral-50 text-black font-bold hover:bg-neutral-200 active:bg-neutral-300 transition-all duration-300 text-xl sm:text-2xl flex-shrink-0 whitespace-nowrap"
         >
           搜尋
         </button>

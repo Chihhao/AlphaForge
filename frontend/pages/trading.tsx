@@ -27,7 +27,7 @@ export default function Trading() {
   const [activeTab, setActiveTab] = useState<'portfolio' | 'orders'>('portfolio')
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen bg-brand-dark text-gray-100">
       {/* Header */}
       <header className="bg-gray-800 shadow-md border-b border-gray-700 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
@@ -42,7 +42,7 @@ export default function Trading() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Account Summary */}
-        <div className="bg-gradient-to-r from-gray-800 to-black rounded-lg shadow-lg border border-gray-700 p-8 text-gray-100 mb-8">
+        <div className="bg-gradient-to-br from-zinc-900/60 to-black/80 backdrop-blur-lg rounded-lg shadow-2xl border border-zinc-800/50 p-8 text-gray-100 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div>
               <p className="text-gold-400 text-sm">帳戶餘額</p>
@@ -68,8 +68,8 @@ export default function Trading() {
           <button
             onClick={() => setActiveTab('portfolio')}
             className={`px-4 py-2 font-semibold border-b-2 transition ${activeTab === 'portfolio'
-                ? 'text-gold-500 border-gold-500'
-                : 'text-gray-400 border-transparent hover:text-gray-200'
+              ? 'text-gold-500 border-gold-500'
+              : 'text-gray-400 border-transparent hover:text-gray-200'
               }`}
           >
             持股組合
@@ -77,8 +77,8 @@ export default function Trading() {
           <button
             onClick={() => setActiveTab('orders')}
             className={`px-4 py-2 font-semibold border-b-2 transition ${activeTab === 'orders'
-                ? 'text-gold-500 border-gold-500'
-                : 'text-gray-400 border-transparent hover:text-gray-200'
+              ? 'text-gold-500 border-gold-500'
+              : 'text-gray-400 border-transparent hover:text-gray-200'
               }`}
           >
             訂單紀錄
@@ -87,7 +87,7 @@ export default function Trading() {
 
         {/* Portfolio Tab */}
         {activeTab === 'portfolio' && (
-          <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+          <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-2xl border border-zinc-800/50 overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-700 border-b border-gray-600">
                 <tr>
@@ -126,7 +126,7 @@ export default function Trading() {
 
         {/* Orders Tab */}
         {activeTab === 'orders' && (
-          <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+          <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-2xl border border-zinc-800/50 overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-700 border-b border-gray-600">
                 <tr>
@@ -145,8 +145,8 @@ export default function Trading() {
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 rounded text-sm font-semibold ${order.type === 'buy'
-                            ? 'bg-green-900/40 text-green-400'
-                            : 'bg-red-900/40 text-red-400'
+                          ? 'bg-green-900/40 text-green-400'
+                          : 'bg-red-900/40 text-red-400'
                           }`}
                       >
                         {order.type === 'buy' ? '買入' : '賣出'}
@@ -158,8 +158,8 @@ export default function Trading() {
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 rounded text-sm font-semibold ${order.status === 'filled'
-                            ? 'bg-blue-900/40 text-blue-400'
-                            : 'bg-yellow-900/40 text-yellow-400'
+                          ? 'bg-blue-900/40 text-blue-400'
+                          : 'bg-yellow-900/40 text-yellow-400'
                           }`}
                       >
                         {order.status === 'filled' ? '已成交' : '待成交'}

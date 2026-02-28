@@ -6,8 +6,9 @@
 
 - **前端 (Frontend)**: Next.js (TypeScript), Tailwind CSS.
   - **重要**: 前端路徑有 `basePath` 設定，存取網址必須包含 `/alphaforge`。
-  - **啟動指令**: `INTERNAL_API_URL=http://localhost:8000 npm run dev`
-- **後端 (Backend)**: FastAPI (Python 3.12+), Uvicorn.
+- **啟動指令**: `INTERNAL_API_URL=http://localhost:8000 npm run dev`
+  - **最佳實踐**: 強烈建議在**獨立終端機**視窗中保持執行 `npm run dev`，這能確保最穩定的 HMR (熱更新) 且避免背景程序衝突。
+  - **清理指令**: 若遇到 404 異常重整，請執行 `npm run clean` 後再重啟。
   - **啟動指令**: `./.venv/bin/python main.py`
   - **預設網址**: `http://localhost:8000`
 - **數據交換**: 前端透過 Axios 與後端 API 通訊，需透過環境變數指定 API URL。
@@ -34,3 +35,16 @@ AlphaForge 部署於 Synology NAS，採用 Docker 容器化技術。
 1. **學習型工具**: 保持「白話文」風格，將複雜數據轉化為易懂的教育提示。
 2. **優先局部更新**: 除非變動套件 (`package.json`, `requirements.txt`)，否則應使用局部更新指令以節省 build 時間。
 3. **路徑一致性**: 確保所有 API 調用與連結都考慮到 `/alphaforge` 這個 subpath。
+
+## 🐛 常見除錯與測試經驗 (Debugging & Testing)
+
+1. **Next.js 404 無限重整 (Missing required error components)**:
+   - **原因**: 當背景同時執行 `npm run dev` (熱更新) 與 `npm run build` 時，Next.js 的 `.next` 快取資料夾會發生讀寫衝突與錯亂，導致找不到必要的編譯檔案。
+   - **解法**: 必須徹底清除快取。
+     ```bash
+     cd frontend
+     killall -9 node     # 砍掉所有卡死的 Node 程序
+     rm -rf .next        # 刪除損壞的快取資料夾
+     npm run dev &       # 重新啟動乾淨的開發伺服器
+     ```
+     然後在瀏覽器手動重新整理網頁即可恢復。

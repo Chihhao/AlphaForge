@@ -38,7 +38,7 @@ export default function MarketRanking() {
     if (loading) {
         return (
             <div className="w-full flex justify-center items-center py-16">
-                <div className="animate-spin h-8 w-8 text-gold-500 rounded-full border-b-2 border-gold-500"></div>
+                <div className="animate-spin h-8 w-8 text-emerald-400 rounded-full border-b-2 border-emerald-400"></div>
             </div>
         );
     }
@@ -46,44 +46,45 @@ export default function MarketRanking() {
     if (!data) return null;
 
     const renderList = (title: string, hintTitle: string, hintDesc: string, items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
-        <div className="bg-gray-800/80 backdrop-blur-md rounded-2xl p-5 border border-gray-700 shadow-xl flex flex-col h-full hover:border-gray-600 transition-colors">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700">
-                <h3 className="text-xl font-bold text-gray-100 flex items-center">
+        <div className="bg-gradient-to-b from-zinc-900/50 to-zinc-950/80 backdrop-blur-md p-6 rounded-xl flex flex-col h-full border border-zinc-800/50 hover:border-zinc-700/80 transition-all duration-500 shadow-2xl group/card">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900">
+                <h3 className="text-2xl font-bold text-neutral-50 flex items-center tracking-tight">
                     {title}
                     <EducationalHint title={hintTitle} description={hintDesc} />
                 </h3>
-                {type === 'gainer' && <span className="text-red-500/80 text-xl text-shadow">🔥</span>}
-                {type === 'loser' && <span className="text-green-500/80 text-xl text-shadow">❄️</span>}
-                {type === 'volume' && <span className="text-blue-400/80 text-xl text-shadow">🌊</span>}
             </div>
 
-            <div className="flex-grow flex flex-col gap-2">
+            <div className="flex-grow flex flex-col gap-3">
                 {items.map((item, index) => {
                     const isGainer = item.change_percent >= 0;
-                    const valueColor = isGainer ? 'text-red-500' : 'text-green-500';
-                    const bgHighlight = index < 3 ? 'bg-gray-700/40' : '';
-                    const borderHighlight = index === 0 ? 'border-l-2 border-l-gold-500' : '';
+                    const valueColor = isGainer ? 'text-emerald-400' : 'text-rose-500';
+                    const bgHighlight = index < 3 ? 'bg-zinc-900/50' : '';
+                    const borderHighlight = index === 0 ? 'border-l-4 border-l-cyan-400' : 'border-l-4 border-l-transparent';
 
                     return (
-                        <Link key={item.stock_id} href={`/stock/${item.stock_id}`} className={`flex items-center justify-between p-3 rounded-xl transition-all hover:bg-gray-700/80 hover:shadow-md ${bgHighlight} ${borderHighlight}`}>
-                            <div className="flex items-center gap-3">
-                                <span className={`font-mono font-bold text-lg w-6 text-center ${index < 3 ? 'text-gold-400' : 'text-gray-500'}`}>
+                        <Link
+                            key={item.stock_id}
+                            href={`/stock/${item.stock_id}`}
+                            className={`flex items-center justify-between p-4 transition-all hover:bg-white/5 active:scale-[0.98] ${bgHighlight} ${borderHighlight}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <span className={`font-mono font-bold text-xl w-6 text-center ${index < 3 ? 'text-cyan-400' : 'text-neutral-600'}`}>
                                     {index + 1}
                                 </span>
                                 <div className="flex flex-col">
-                                    <span className="font-bold text-gray-100 text-[15px]">{item.stock_name}</span>
-                                    <span className="text-xs text-gray-400 font-mono">{item.stock_id}</span>
+                                    <span className="font-bold text-neutral-100 text-xl tracking-wide">{item.stock_name}</span>
+                                    <span className="text-base text-neutral-500 font-mono tracking-widest mt-1">{item.stock_id}</span>
                                 </div>
                             </div>
                             <div className="text-right flex flex-col justify-center">
-                                <span className="font-bold text-gray-100 text-[15px]">{item.price.toFixed(2)}</span>
+                                <span className="font-bold text-neutral-50 text-xl font-mono">{item.price.toFixed(2)}</span>
                                 {type === 'volume' ? (
-                                    <span className="text-sm font-mono text-blue-400">
+                                    <span className="text-base font-mono text-cyan-500 font-medium tracking-widest mt-1">
                                         {(item.volume / 1000).toFixed(1)}K 張
                                     </span>
                                 ) : (
-                                    <span className={`text-sm font-mono font-semibold ${valueColor}`}>
-                                        {isGainer ? '+' : ''}{item.change_percent.toFixed(2)}%
+                                    <span className={`text-base font-mono font-bold tracking-widest mt-1 ${valueColor}`}>
+                                        {isGainer ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
                                     </span>
                                 )}
                             </div>
@@ -91,7 +92,7 @@ export default function MarketRanking() {
                     );
                 })}
                 {items.length === 0 && (
-                    <div className="text-gray-500 text-center py-8 text-sm bg-gray-800/50 rounded-xl border border-dashed border-gray-700">
+                    <div className="text-neutral-500 text-center py-10 text-base bg-zinc-900/20 border border-dashed border-zinc-800/50 rounded-lg">
                         目前無資料
                     </div>
                 )}
@@ -100,7 +101,7 @@ export default function MarketRanking() {
     );
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 w-full">
             {renderList(
                 "強勢漲幅榜",
                 "什麼是強勢漲幅？",

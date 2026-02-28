@@ -12,7 +12,7 @@ const COLORS = ['#4f46e5', '#ec4899', '#10b981']
 
 export default function Portfolio() {
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen bg-brand-dark text-gray-100">
       {/* Header */}
       <header className="bg-gray-800 shadow-md border-b border-gray-700 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
@@ -28,7 +28,7 @@ export default function Portfolio() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Performance Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-gray-800 rounded-lg shadow border border-gray-700 p-6">
+          <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-xl border border-zinc-800/50 p-6 hover:border-zinc-700/80 transition-all">
             <p className="text-gray-400 text-sm mb-1">報酬率</p>
             <p className="text-3xl font-bold text-green-500">+5.00%</p>
             <p className="text-xs text-gray-500 mt-2">自開始交易以來</p>
@@ -53,7 +53,7 @@ export default function Portfolio() {
         {/* Portfolio Composition */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Pie Chart */}
-          <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
+          <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-2xl border border-zinc-800/50 p-6">
             <h2 className="text-xl font-bold text-gray-100 mb-6">資產配置</h2>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -77,7 +77,7 @@ export default function Portfolio() {
           </div>
 
           {/* Statistics */}
-          <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
+          <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-2xl border border-zinc-800/50 p-6">
             <h2 className="text-xl font-bold text-gray-100 mb-6">績效統計</h2>
             <div className="space-y-4">
               <div className="flex justify-between">
@@ -113,7 +113,7 @@ export default function Portfolio() {
         </div>
 
         {/* Holdings Detail */}
-        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+        <div className="bg-zinc-900/40 backdrop-blur-md rounded-lg shadow-2xl border border-zinc-800/50 overflow-hidden">
           <div className="p-6 border-b border-gray-700">
             <h2 className="text-xl font-bold text-gray-100">持股詳情</h2>
           </div>
