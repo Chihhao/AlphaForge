@@ -101,7 +101,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <title>AlphaForge_ | 專業級台股策略鍛造平台</title>
                 <meta name="description" content="AlphaForge 為投資者提供最強大的台股策略研發與回測工具，助您鍛造出高勝率的投資組合。" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <link rel="icon" type="image/svg+xml" href="/alphaforge/favicon.svg" />
+                <link rel="icon" type="image/svg+xml" href="/alphaforge/favicon.svg?v=3" />
+                <link rel="shortcut icon" href="/alphaforge/favicon.svg?v=3" />
             </Head>
 
             <header className="bg-[#101827]/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800/50">
