@@ -35,6 +35,7 @@ AlphaForge 部署於 Synology NAS，採用 Docker 容器化技術。
 1. **學習型工具**: 保持「白話文」風格，將複雜數據轉化為易懂的教育提示。
 2. **優先局部更新**: 除非變動套件 (`package.json`, `requirements.txt`)，否則應使用局部更新指令以節省 build 時間。
 3. **路徑一致性**: 確保所有 API 調用與連結都考慮到 `/alphaforge` 這個 subpath。
+4. 即時更新文件: 每次添加新功能後，即時更新readme.md等相關文件
 
 ## 🐛 常見除錯與測試經驗 (Debugging & Testing)
 

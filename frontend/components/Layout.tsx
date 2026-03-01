@@ -103,6 +103,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <link rel="icon" type="image/svg+xml" href="/alphaforge/favicon.svg?v=3" />
                 <link rel="shortcut icon" href="/alphaforge/favicon.svg?v=3" />
+                <link rel="apple-touch-icon" href="/alphaforge/apple-touch-icon.png?v=3" />
+                <meta name="apple-mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+                <meta name="apple-mobile-web-app-title" content="AlphaForge" />
             </Head>
 
             <header className="bg-[#101827]/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800/50">
