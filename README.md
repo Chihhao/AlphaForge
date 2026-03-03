@@ -50,5 +50,12 @@ AlphaForge 不僅是一個股市分析平台，更是一個專為**股票新手*
 
 ---
 
-## ☁️ 遠端部署 (NAS)
-關於如何部署至 Synology NAS，請參閱 [docs/deployment-sop.md](docs/deployment-sop.md)。
+## 🧭 開發者指南
+
+### 1. 專案開發規則 (Rules)
+所有關於視覺規範、自定義語法 (如 `++`/`--`) 以及技術棧的詳細定義，請參閱：
+👉 [.agent/rules.md](.agent/rules.md)
+
+### 2. 遠端部署 (NAS)
+關於如何部署至 Synology NAS 以及排除 NAS 特有環境問題，請參閱：
+👉 [.agent/skills/docker-nas-ops-helper/SKILL.md](.agent/skills/docker-nas-ops-helper/SKILL.md)
