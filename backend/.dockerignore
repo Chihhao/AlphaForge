@@ -14,5 +14,5 @@ env/
 Dockerfile
 docker-compose.yml
 .dockerignore
-@eaDir
+**/@eaDir
 
