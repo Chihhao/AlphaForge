@@ -45,12 +45,12 @@ export default function MarketRanking() {
 
     if (!data) return null;
 
-    const renderList = (title: string, hintTitle: string, hintDesc: string, items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
+    const renderList = (title: string, glossaryId: string, items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
         <div className="bg-gradient-to-b from-zinc-900/50 to-zinc-950/80 backdrop-blur-md p-6 rounded-xl flex flex-col h-full border border-zinc-800/50 hover:border-zinc-700/80 transition-all duration-500 shadow-2xl group/card">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900">
                 <h3 className="text-2xl font-bold text-neutral-50 flex items-center tracking-tight">
                     {title}
-                    <EducationalHint title={hintTitle} description={hintDesc} />
+                    <EducationalHint glossaryId={glossaryId} />
                 </h3>
             </div>
 
@@ -102,27 +102,9 @@ export default function MarketRanking() {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 w-full">
-            {renderList(
-                "強勢漲幅榜",
-                "什麼是強勢漲幅？",
-                "這代表今天買氣最強、價格上漲最多的股票。新手可以觀察它們背後是否有重大利多消息，但要注意追高的風險喔！",
-                data.top_gainers,
-                "gainer"
-            )}
-            {renderList(
-                "弱勢跌幅榜",
-                "跌幅榜能告訴我們什麼？",
-                "這裡列出今天賣壓最重、跌幅最大的股票。這些公司可能正經歷利空打擊，或者是漲多後的回檔修正。從中可以學習避開市場雷區。",
-                data.top_losers,
-                "loser"
-            )}
-            {renderList(
-                "爆量人氣榜",
-                "為什麼成交量大很重要？",
-                "「新手看價，老手看量」。成交量大代表市場對這檔股票的關注度極高，不管買方還是賣方都非常積極，通常也是趨勢轉折或延續的關鍵指標！",
-                data.top_volume,
-                "volume"
-            )}
+            {renderList("強勢漲幅榜", "strong-uptrend", data.top_gainers, "gainer")}
+            {renderList("弱勢跌幅榜", "weak-downtrend", data.top_losers, "loser")}
+            {renderList("爆量人氣榜", "high-volume", data.top_volume, "volume")}
         </div>
     );
 }

@@ -3,6 +3,8 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import api from '../../lib/api'
+import KDIndicator from '../../components/KDIndicator'
+import EducationalHint from '../../components/EducationalHint'
 
 const TVChart = dynamic(() => import('../../components/TVChart'), { ssr: false })
 
@@ -205,9 +207,12 @@ export default function StockDetail() {
                 <span className="text-gray-400">MACD</span>
                 <span className="font-semibold text-gray-500">尚未實作</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">KD 快慢線</span>
-                <span className="font-semibold text-gray-500">尚未實作</span>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 flex items-center">
+                  KD 指標
+                  <EducationalHint glossaryId="kd-indicator" />
+                </span>
+                {id && <KDIndicator stockId={id as string} />}
               </div>
             </div>
           </div>

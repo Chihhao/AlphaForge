@@ -22,3 +22,18 @@
   padding: 0;
   box-sizing: border-box;
 }
+
+/* 確保 LaTeX 數學公式（尤其是區塊公式）不會把版面撐破，太長時可以橫向捲動 */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.5rem;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* 為了不要讓捲軸擋到下標 */
+.katex-display > .katex {
+  padding-bottom: 0.2rem;
+}

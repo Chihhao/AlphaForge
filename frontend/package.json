@@ -14,11 +14,17 @@
     "@mdi/js": "^7.4.47",
     "@mdi/react": "^1.6.1",
     "axios": "^1.6.0",
+    "katex": "^0.16.33",
     "lightweight-charts": "^5.1.0",
     "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.10.0"
+    "react-markdown": "^10.1.0",
+    "recharts": "^2.10.0",
+    "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

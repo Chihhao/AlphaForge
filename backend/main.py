@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.db.database import Base, engine
-from app.api.endpoints import users, stocks, trading
+from app.api.endpoints import users, stocks, trading, indicators, glossary
 
 # 建立數據庫表
 Base.metadata.create_all(bind=engine)
@@ -30,6 +30,8 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(stocks.router)
 app.include_router(trading.router)
+app.include_router(indicators.router)
+app.include_router(glossary.router)
 
 
 @app.get("/")
