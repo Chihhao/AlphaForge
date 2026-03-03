@@ -11,3 +11,5 @@ dist
 Dockerfile
 docker-compose.yml
 .dockerignore
+@eaDir
+
