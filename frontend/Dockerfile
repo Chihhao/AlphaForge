@@ -15,6 +15,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Use cache mount for .next/cache to speed up builds
+RUN find . -name "@eaDir" -type d -exec rm -rf {} + || true
 RUN --mount=type=cache,target=/app/.next/cache \
     npm run build
 
