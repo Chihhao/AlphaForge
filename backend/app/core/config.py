@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://10.0.4.3:3001",
         "http://localhost:8000",
+        "https://junesnow39.synology.me",
     ]
     
     # 數據源配置

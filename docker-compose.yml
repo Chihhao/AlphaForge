@@ -11,7 +11,7 @@ services:
       - "8000:8000"
     volumes:
       # Map the local database file to persist data if any
-      - ./backend/stock_data.db:/app/stock_data.db
+      - ./backend/test.db:/app/test.db
     environment:
       - TZ=Asia/Taipei
 
