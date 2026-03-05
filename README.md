@@ -30,6 +30,11 @@ AlphaForge 不僅是一個股市分析平台，更是一個專為**股票新手*
    * 預設 API 網址：`http://localhost:8000`
    * 健康檢查網址：`http://localhost:8000/health`
 
+3. **(重要) 本地資料庫填充**：如果在開發時發現前端的股市資料為空（皆為 0 或顯示無資料），請手動執行資料填充腳本，這會抓取近期大盤與排行榜成分股的資料存入 `test.db`：
+   ```bash
+   ./.venv/bin/python scripts/seed_market_data.py
+   ```
+
 ### 2. 前端啟動 (Next.js)
 
 1. 進入前端目錄：

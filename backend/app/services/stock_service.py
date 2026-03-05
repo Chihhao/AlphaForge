@@ -2,9 +2,14 @@ import yfinance as yf
 import pandas as pd
 import twstock
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from sqlalchemy.orm import Session
+from sqlalchemy import select, and_
 
 from app.schemas.stock import StockQuote
+from app.models.user import Stock as StockModel
+from app.models.stock_price import StockPrice
+from app.db.database import SessionLocal
 
 
 class StockService:
@@ -141,15 +146,90 @@ class StockService:
         Returns:
             K 線 DataFrame，或 None 如果無法取得
         """
+        db = SessionLocal()
         try:
-            ticker = f"{stock_id}.TW"
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period=period, interval=interval)
+            # 0. 判斷是否為高頻即時數據 (分鐘/小時線)
+            # 如果是 intraday 數據，跳過本地資料庫，直接從 yfinance 抓取
+            is_intraday = interval.endswith('m') or interval.endswith('h')
+
+            # 1. 如果不是高頻數據，優先從本地資料庫獲取
+            if not is_intraday:
+                query = db.query(StockPrice).filter(StockPrice.stock_id == stock_id)
+                
+                # 根據 period 估算起始日期 (簡單處理)
+                days_map = {"1d": 1, "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825, "10y": 3650, "max": 9999}
+                days = days_map.get(period, 365)
+                start_date = date.today() - timedelta(days=days)
+                
+                db_prices = query.filter(StockPrice.date >= start_date).order_by(StockPrice.date.asc()).all()
+                
+                # 如果本地資料充足 (例如最後一筆資料是昨天或今天)
+                if db_prices:
+                    last_db_date = db_prices[-1].date
+                    first_db_date = db_prices[0].date
+                    
+                    # 如果是週末或收盤前，最後一筆是昨天的通常也算充足
+                    is_recent = (date.today() - last_db_date).days <= 1
+                    
+                    # 由於交易日大約是日曆日的 5/7，我們檢查筆數是否足夠，或第一筆資料日期是否夠早
+                    expected_trading_days = int(days * 0.6)
+                    is_enough_data = (len(db_prices) >= expected_trading_days) or (first_db_date <= start_date + timedelta(days=7))
+                    
+                    if is_recent and is_enough_data:
+                        # 轉換為 DataFrame
+                        data = {
+                            '開盤': [p.open for p in db_prices],
+                            '最高': [p.high for p in db_prices],
+                            '最低': [p.low for p in db_prices],
+                            '收盤': [p.close for p in db_prices],
+                            '成交量': [p.volume for p in db_prices]
+                        }
+                        index = pd.to_datetime([p.date for p in db_prices])
+                        return pd.DataFrame(data, index=index)
+
+            # 2. 如果本地資料不足或過時，從 yfinance 抓取並更新資料庫
+            ticker_symbol = f"{stock_id}.TW"
+            stock = yf.Ticker(ticker_symbol)
+            # 抓取 period 數據
+            hist = stock.history(period=period, interval=interval, auto_adjust=False)
+            
+            if hist.empty:
+                # 嘗試 OTC
+                ticker_symbol = f"{stock_id}.TWO"
+                stock = yf.Ticker(ticker_symbol)
+                hist = stock.history(period=period, interval=interval, auto_adjust=False)
 
             if hist.empty:
                 return None
 
-            # 重新命名列為中文，只重新命名需要的欄位
+            # 異步/背景存儲新數據（這裡簡單同步存儲）
+            new_prices = []
+            for timestamp, row in hist.iterrows():
+                curr_date = timestamp.date()
+                if curr_date > date.today(): continue
+                
+                # 檢查是否已存在
+                exists = db.query(StockPrice).filter(
+                    and_(StockPrice.stock_id == stock_id, StockPrice.date == curr_date)
+                ).first()
+                
+                if not exists:
+                    new_prices.append(StockPrice(
+                        stock_id=stock_id,
+                        date=curr_date,
+                        open=float(row['Open']),
+                        high=float(row['High']),
+                        low=float(row['Low']),
+                        close=float(row['Close']),
+                        adj_close=float(row['Adj Close']) if 'Adj Close' in row else float(row['Close']),
+                        volume=int(row['Volume'])
+                    ))
+            
+            if new_prices:
+                db.bulk_save_objects(new_prices)
+                db.commit()
+
+            # 重新命名列為中文回傳
             hist = hist.rename(columns={
                 'Open': '開盤',
                 'High': '最高',
@@ -159,8 +239,10 @@ class StockService:
             })
             return hist
         except Exception as e:
-            print(f"Error fetching K-line data for {stock_id}: {e}")
+            print(f"Error in get_kline_data for {stock_id}: {e}")
             return None
+        finally:
+            db.close()
 
     @staticmethod
     def calculate_ma(prices: pd.Series, period: int = 20) -> pd.Series:

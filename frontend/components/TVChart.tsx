@@ -49,9 +49,32 @@ export default function TVChart({ data, colors = {} }: TVChartProps) {
             },
             width: chartContainerRef.current.clientWidth,
             height: 400,
+            localization: {
+                // 強制十字線顯示台北時間 (UTC+8)
+                timeFormatter: (time: Time) => {
+                    if (typeof time === 'number') {
+                        const date = new Date((time + 8 * 3600) * 1000);
+                        return date.toISOString().slice(11, 16); // "09:00"
+                    }
+                    return String(time);
+                },
+            },
             timeScale: {
                 timeVisible: true,
                 secondsVisible: false,
+                // 防止第一個或最後一個標籤被邊緣切掉
+                fixLeftEdge: true,
+                fixRightEdge: true,
+                // 強制底盤時間軸顯示台北時間 (UTC+8) 並確保格式正確
+                tickMarkFormatter: (time: Time) => {
+                    if (typeof time === 'number') {
+                        const date = new Date((time + 8 * 3600) * 1000);
+                        const hours = date.getUTCHours().toString().padStart(2, '0');
+                        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+                        return `${hours}:${minutes}`;
+                    }
+                    return String(time);
+                },
             },
         });
 

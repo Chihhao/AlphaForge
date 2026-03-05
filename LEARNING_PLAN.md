@@ -13,6 +13,7 @@
 *   **AlphaForge 開發**：
     *   實作「指標字典頁面」：將 ECF 的靜態指標轉化為 AlphaForge 的 UI 元件。
     *   串接基礎資料源：確保 Python 後端能穩定抓取 Yahoo Finance/TWSE 的歷史數據。
+    *   **Day 3 實作**：在首頁加入「每日名詞解釋」小卡，讓使用者在看盤的同時學習指標背後的意義。
 *   **AI Agent 學習**：
     *   學習如何給予 AI Agent (即 Antigravity) 明確的「指令規範」，讓 AI 協助生成指標計算代碼。
 

@@ -50,7 +50,9 @@ export default function MarketRanking() {
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900">
                 <h3 className="text-2xl font-bold text-neutral-50 flex items-center tracking-tight">
                     {title}
-                    <EducationalHint glossaryId={glossaryId} />
+                    <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity ml-2">
+                        <EducationalHint glossaryId={glossaryId} />
+                    </div>
                 </h3>
             </div>
 

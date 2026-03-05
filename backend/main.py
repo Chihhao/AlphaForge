@@ -5,7 +5,11 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.db.database import Base, engine
-from app.api.endpoints import users, stocks, trading, indicators, glossary
+from app.api.endpoints import users, stocks, trading, indicators, glossary, market
+from app.models.stock_price import StockPrice  # 確保模型被加載以建立表
+from app.core.scheduler import start_scheduler, stop_scheduler
+
+
 
 # 建立數據庫表
 Base.metadata.create_all(bind=engine)
@@ -16,6 +20,15 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="台灣股市分析與模擬交易平台 API",
 )
+
+@app.on_event("startup")
+def startup_event():
+    start_scheduler()
+
+@app.on_event("shutdown")
+def shutdown_event():
+    stop_scheduler()
+
 
 # CORS 中間件配置
 app.add_middleware(
@@ -32,6 +45,7 @@ app.include_router(stocks.router)
 app.include_router(trading.router)
 app.include_router(indicators.router)
 app.include_router(glossary.router)
+app.include_router(market.router)
 
 
 @app.get("/")

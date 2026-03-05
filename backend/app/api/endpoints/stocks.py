@@ -105,8 +105,16 @@ def get_kline_data(
     # 格式化為 JSON
     data = []
     for date, row in df.iterrows():
+        # 確保 date 是帶有時資訊的 ISO 字串，如果是 naive 則視為台北時間
+        if date.tzinfo is None:
+            # 視為台北時間並轉換為 UTC 輸出，或是直接標註時區
+            # 這裡為了前端方便，我們統一轉成正確的 ISO 格式
+            formatted_date = date.strftime("%Y-%m-%dT%H:%M:%S+08:00")
+        else:
+            formatted_date = date.isoformat()
+            
         data.append({
-            "date": date.isoformat(),
+            "date": formatted_date,
             "open": float(row['開盤']),
             "high": float(row['最高']),
             "low": float(row['最低']),

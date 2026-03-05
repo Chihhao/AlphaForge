@@ -33,7 +33,14 @@ export default function StockDetail() {
         }
 
         const apiPeriod = periodMap[activeTab] || '1mo'
-        const apiInterval = activeTab === '1d' ? '5m' : '1d' // For 1 day period, use 5min interval for better line chart
+
+        // Detailed interval setup based on period
+        let apiInterval = '1d'
+        if (activeTab === '1d') {
+          apiInterval = '1m' // Highest resolution for intraday
+        } else if (activeTab === '5d') {
+          apiInterval = '15m' // Good balance for a week
+        }
 
         // Fetch quote data for the current id
         const qres = await api.get(`/stocks/${id}/quote`)
@@ -42,10 +49,13 @@ export default function StockDetail() {
         const kres = await api.get(`/stocks/${id}/kline?period=${apiPeriod}&interval=${apiInterval}`)
         const kd = kres.data
         const data = (kd.data || []).map((r: any) => {
-          const ts = Math.floor(new Date(r.date).getTime() / 1000);
+          const date = new Date(r.date);
+          if (isNaN(date.getTime())) return null;
+          const ts = Math.floor(date.getTime() / 1000);
+
           const isUp = r.close >= r.open;
           return {
-            time: ts,
+            time: ts as any,
             open: r.open,
             high: r.high,
             low: r.low,
@@ -53,7 +63,7 @@ export default function StockDetail() {
             volume: r.volume,
             isUp
           };
-        })
+        }).filter(Boolean) as any[]
 
         // Ensure no duplicate timestamps and sorted
         const uniqueData = data.filter((v: any, i: number, a: any[]) => a.findIndex(t => (t.time === v.time)) === i)
@@ -154,17 +164,17 @@ export default function StockDetail() {
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Chart */}
-          <div className="h-[400px] w-full border border-gray-700 rounded overflow-hidden">
-            {chartData.length > 0 ? (
-              <TVChart data={chartData} />
-            ) : (
-              <div className="flex items-center justify-center h-[400px] text-gray-500 bg-gray-900">
-                載入圖台中...
-              </div>
-            )}
+            {/* Chart Container */}
+            <div className="h-[400px] w-full border border-gray-700 rounded overflow-hidden">
+              {chartData.length > 0 ? (
+                <TVChart data={chartData} />
+              ) : (
+                <div className="flex items-center justify-center h-[400px] text-gray-500 bg-gray-900">
+                  載入圖台中...
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -208,7 +218,7 @@ export default function StockDetail() {
                 <span className="font-semibold text-gray-500">尚未實作</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center">
+                <span className="text-gray-400 flex items-center gap-1.5">
                   KD 指標
                   <EducationalHint glossaryId="kd-indicator" />
                 </span>
@@ -217,7 +227,6 @@ export default function StockDetail() {
             </div>
           </div>
         </div>
-
       </main>
     </div>
   )

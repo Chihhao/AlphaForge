@@ -79,7 +79,7 @@ export default function EducationalHint({ glossaryId }: Props) {
     }, [isOpen, loaded, glossaryId]);
 
     return (
-        <div className="inline-block ml-2 align-middle">
+        <div className="inline-block align-middle">
             <div
                 ref={refs.setReference}
                 {...getReferenceProps()}
@@ -96,7 +96,7 @@ export default function EducationalHint({ glossaryId }: Props) {
                         style={{ ...floatingStyles, zIndex: 99999 }}
                         {...getFloatingProps()}
                         // 移除固定寬度，改為 max-w-sm 讓內容自行決定大小
-                        className="w-auto max-w-sm md:max-w-md max-h-96 overflow-y-auto p-5 bg-gray-800/95 backdrop-blur-md border border-gray-600 rounded-xl shadow-2xl text-sm font-normal text-gray-200 pointer-events-auto"
+                        className="w-auto max-w-[85vw] sm:max-w-sm md:max-w-md max-h-96 overflow-y-auto p-4 sm:p-5 bg-gray-800/95 backdrop-blur-md border border-gray-600 rounded-xl shadow-2xl text-sm font-normal text-gray-200 pointer-events-auto"
                     >
                         {!loaded ? (
                             <div className="text-gray-500 animate-pulse">載入中...</div>
