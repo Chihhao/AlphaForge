@@ -49,12 +49,42 @@ export default function StockDetail() {
 
         const kres = await api.get(`/stocks/${id}/kline?period=${range}&interval=${interval}`)
         const kd = kres.data
-        const data = (kd.data || []).map((r: any) => {
+        const data = (kd.data || []).map((r: any, index: number, array: any[]) => {
           const date = new Date(r.date);
           if (isNaN(date.getTime())) return null;
           const ts = Math.floor(date.getTime() / 1000);
 
-          const isUp = r.close >= r.open;
+          // 台灣股市 K 線顏色邏輯：
+          // 1. 收盤 > 開盤 => 紅色 (Up)
+          // 2. 收盤 < 開盤 => 綠色 (Down)
+          // 3. 收盤 == 開盤 => 參考前一根 K 線的收盤價
+          //    - 收盤 > 前收 => 紅色
+          //    - 收盤 < 前收 => 綠色
+          //    - 收盤 == 前收 => 灰色/保持
+
+          let isUp = r.close > r.open;
+          let isDown = r.close < r.open;
+
+          if (r.close === r.open) {
+            if (index > 0) {
+              const prevClose = array[index - 1].close;
+              isUp = r.close > prevClose;
+              isDown = r.close < prevClose;
+            } else if (quote?.open_price) {
+              // 第一根且開收相等，參考開盤價（通常開盤價是昨收，或參考 quote）
+              isUp = r.close >= quote.open_price;
+              isDown = r.close < quote.open_price;
+            } else {
+              isUp = true; // 預設紅色
+            }
+          }
+
+          const upColor = '#f43f5e';
+          const downColor = '#34d399';
+          const neutralColor = '#9ca3af'; // gray-400
+
+          const barColor = isUp ? upColor : (isDown ? downColor : neutralColor);
+
           return {
             time: ts as any,
             open: r.open,
@@ -62,7 +92,10 @@ export default function StockDetail() {
             low: r.low,
             close: r.close,
             volume: r.volume,
-            isUp
+            isUp: isUp || (!isDown), // 用於成交量顏色，預設紅色
+            color: barColor,
+            wickColor: barColor,
+            borderColor: barColor
           };
         }).filter(Boolean) as any[]
 

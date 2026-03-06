@@ -13,6 +13,9 @@ export interface KLineData {
     close: number;
     volume: number;
     isUp: boolean;
+    color?: string;
+    wickColor?: string;
+    borderColor?: string;
 }
 
 interface TVChartProps {
@@ -146,7 +149,14 @@ export default function TVChart({ data, interval = '1d', range = '1d', colors = 
             });
 
             candlestickSeries.setData(data.map(d => ({
-                time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
+                time: d.time,
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close,
+                color: d.color,
+                wickColor: d.wickColor,
+                borderColor: d.borderColor,
             })));
 
             const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -174,7 +184,9 @@ export default function TVChart({ data, interval = '1d', range = '1d', colors = 
             });
 
             volumeSeries.setData(data.map(d => ({
-                time: d.time, value: d.volume, color: d.isUp ? upColor : downColor,
+                time: d.time,
+                value: d.volume,
+                color: d.color || (d.isUp ? upColor : downColor),
             })));
 
             window.addEventListener('resize', handleResize);
