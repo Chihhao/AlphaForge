@@ -143,10 +143,13 @@ class StockService:
             period: 時間週期，如 "1y", "3mo", "1d"
             interval: K 線間隔，如 "1d", "1h", "5m"
 
-        Returns:
-            K 線 DataFrame，或 None 如果無法取得
         """
         db = SessionLocal()
+        
+        # yfinance 支援的全部歷史資料參數為 'max'
+        if period == "all":
+            period = "max"
+
         try:
             # 0. 判斷是否為高頻即時數據 (分鐘/小時線)
             # 如果是 intraday 數據，跳過本地資料庫，直接從 yfinance 抓取
@@ -157,7 +160,7 @@ class StockService:
                 query = db.query(StockPrice).filter(StockPrice.stock_id == stock_id)
                 
                 # 根據 period 估算起始日期 (簡單處理)
-                days_map = {"1d": 1, "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825, "10y": 3650, "max": 9999}
+                days_map = {"1d": 1, "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "3y": 1095, "5y": 1825, "10y": 3650, "max": 9999}
                 days = days_map.get(period, 365)
                 start_date = date.today() - timedelta(days=days)
                 
@@ -274,3 +277,9 @@ class StockService:
             "middle": sma,
             "lower": sma - (std * std_dev),
         }
+
+    @staticmethod
+    def calculate_bias(prices: pd.Series, period: int = 20) -> pd.Series:
+        """計算乖離率 (Bias)"""
+        ma = prices.rolling(window=period).mean()
+        return (prices - ma) / ma * 100

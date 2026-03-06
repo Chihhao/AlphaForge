@@ -18,8 +18,11 @@ build/
 # Build and Archives
 *.tar.gz
 *.zip
-*.sh
 
 # OS
 .DS_Store
 Thumbs.db
+ 
+# Logs and Databases
+*.log
+*.db

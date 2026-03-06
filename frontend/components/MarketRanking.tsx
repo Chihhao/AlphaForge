@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import api from '../lib/api';
 import EducationalHint from './EducationalHint';
+import { formatPrice } from '../lib/formatters';
 
 interface RankingItem {
     stock_id: string;
@@ -59,7 +60,7 @@ export default function MarketRanking() {
             <div className="flex-grow flex flex-col gap-3">
                 {items.map((item, index) => {
                     const isGainer = item.change_percent >= 0;
-                    const valueColor = isGainer ? 'text-emerald-400' : 'text-rose-500';
+                    const valueColor = isGainer ? 'text-rose-500' : 'text-emerald-400';
                     const bgHighlight = index < 3 ? 'bg-zinc-900/50' : '';
                     const borderHighlight = index === 0 ? 'border-l-4 border-l-cyan-400' : 'border-l-4 border-l-transparent';
 
@@ -79,10 +80,15 @@ export default function MarketRanking() {
                                 </div>
                             </div>
                             <div className="text-right flex flex-col justify-center">
-                                <span className="font-bold text-neutral-50 text-xl font-mono">{item.price.toFixed(2)}</span>
+                                <span className="font-bold text-neutral-50 text-xl font-mono">{formatPrice(item.price)}</span>
                                 {type === 'volume' ? (
                                     <span className="text-base font-mono text-cyan-500 font-medium tracking-widest mt-1">
-                                        {(item.volume / 1000).toFixed(1)}K 張
+                                        {(() => {
+                                            const lots = item.volume / 1000;
+                                            return lots >= 10000
+                                                ? (lots / 10000).toFixed(2) + ' 萬張'
+                                                : Math.floor(lots).toLocaleString() + ' 張';
+                                        })()}
                                     </span>
                                 ) : (
                                     <span className={`text-base font-mono font-bold tracking-widest mt-1 ${valueColor}`}>

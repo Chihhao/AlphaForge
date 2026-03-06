@@ -94,6 +94,38 @@ sudo docker-compose build --no-cache backend && sudo docker-compose up -d backen
 **症狀**: `sudo: docker: command not found`。
 **解法**: 在 SSH 指令前加 `export PATH=/usr/local/bin:$PATH`。
 
+### ⏳ 前端 API Timeout 與網頁完全卡死 (10000ms exceeded)
+
+**症狀**:
+- 網頁轉圈圈無法顯示，或 console 出現 `AxiosError: timeout of 10000ms exceeded`。
+- 本地開發環境 (npm run dev) 或 NAS 容器皆無回應。
+
+**問題原因**:
+通常不是前端的問題，而是**後端 (Backend) 已經當機或卡死**。當後端程序異常中斷（例如 `python main.py` 崩潰、虛擬環境跑掉、或是發生無窮迴圈），前端的 Next.js 伺服器在 SSR (Server-Side Rendering) 階段去要資料時會一直苦等，最終導致前端的 node process 也跟著卡死。
+
+**解決方案 (本地開發環境)**:
+1.  **驗證後端狀態**：開終端機測試 `curl -s http://localhost:8000/health`，若無回應代表後端掛了。
+2.  **砍掉卡死的程序**：
+    ```bash
+    # 找出並砍掉卡死的 FastAPI 與 Next.js
+    lsof -i :8000 -i :3000 | grep LISTEN | awk '{print $2}' | xargs kill -9
+    ```
+3.  **確認環境後重啟**：確認進入了正確的 `.venv`，重新啟動後端與前端。
+    ```bash
+    # 後端
+    source .venv/bin/activate
+    python3 main.py
+
+    # 前端
+    npm run dev
+    ```
+
+**解決方案 (NAS 環境)**:
+使用「核彈指令」重啟所有容器：
+```bash
+sudo docker-compose down && sudo docker-compose up -d
+```
+
 ## 🚨 重置大法 (核彈指令)
 若發生容器卡死或 Port 衝突：
 ```bash

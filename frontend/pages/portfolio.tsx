@@ -13,7 +13,7 @@ const COLORS = ['#4f46e5', '#ec4899', '#10b981']
 export default function Portfolio() {
   return (
     <div className="flex-grow">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-100 mb-8 border-l-4 border-emerald-400 pl-4">投資組合分析</h1>
         {/* Performance Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -83,19 +83,19 @@ export default function Portfolio() {
               </div>
               <div className="flex justify-between border-t border-gray-700 pt-4">
                 <span className="text-gray-400">平均獲利</span>
-                <span className="font-semibold text-green-500">+NT$2,500</span>
+                <span className="font-semibold text-green-500">+2,500</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">平均虧損</span>
-                <span className="font-semibold text-red-500">-NT$1,200</span>
+                <span className="font-semibold text-red-500">-1,200</span>
               </div>
               <div className="flex justify-between border-t border-gray-700 pt-4">
                 <span className="text-gray-400">最大獲利</span>
-                <span className="font-semibold">NT$3,500</span>
+                <span className="font-semibold">3,500</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">最大虧損</span>
-                <span className="font-semibold">-NT$1,500</span>
+                <span className="font-semibold">-1,500</span>
               </div>
             </div>
           </div>
@@ -122,25 +122,25 @@ export default function Portfolio() {
               <tr className="border-b border-gray-700 hover:bg-gray-700">
                 <td className="px-6 py-4">TSMC (2330)</td>
                 <td className="px-6 py-4 text-right">10</td>
-                <td className="px-6 py-4 text-right">NT$2010.00</td>
-                <td className="px-6 py-4 text-right">NT$2015.00</td>
-                <td className="px-6 py-4 text-right font-semibold">NT$20,150.00</td>
-                <td className="px-6 py-4 text-right font-semibold text-green-500">+NT$50.00</td>
+                <td className="px-6 py-4 text-right">2,010</td>
+                <td className="px-6 py-4 text-right">2,015</td>
+                <td className="px-6 py-4 text-right font-semibold">20,150</td>
+                <td className="px-6 py-4 text-right font-semibold text-green-500">+50</td>
                 <td className="px-6 py-4 text-right font-semibold text-green-500">+0.25%</td>
               </tr>
               <tr className="hover:bg-gray-700">
                 <td className="px-6 py-4">MediaTek (2454)</td>
                 <td className="px-6 py-4 text-right">5</td>
-                <td className="px-6 py-4 text-right">NT$850.00</td>
-                <td className="px-6 py-4 text-right">NT$890.00</td>
-                <td className="px-6 py-4 text-right font-semibold">NT$4,450.00</td>
-                <td className="px-6 py-4 text-right font-semibold text-green-500">+NT$200.00</td>
+                <td className="px-6 py-4 text-right">850.0</td>
+                <td className="px-6 py-4 text-right">890.0</td>
+                <td className="px-6 py-4 text-right font-semibold">4,450</td>
+                <td className="px-6 py-4 text-right font-semibold text-green-500">+200.0</td>
                 <td className="px-6 py-4 text-right font-semibold text-green-500">+4.71%</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

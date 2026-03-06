@@ -38,8 +38,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [searchInput, setSearchInput] = useState('')
     const searchInputRef = useRef<HTMLInputElement>(null)
     const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
+    const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
+        setMounted(true)
         try {
             const saved = localStorage.getItem('alphaforge_search_history')
             if (saved) {
@@ -96,138 +98,138 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ]
 
     return (
-        <div className="min-h-screen bg-[#101827] text-gray-100 flex flex-col font-sans">
-            <Head>
-                <title>AlphaForge_ | 專業級台股策略鍛造平台</title>
-                <meta name="description" content="AlphaForge 為投資者提供最強大的台股策略研發與回測工具，助您鍛造出高勝率的投資組合。" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <link rel="icon" type="image/svg+xml" href="/alphaforge/favicon.svg?v=3" />
-                <link rel="shortcut icon" href="/alphaforge/favicon.svg?v=3" />
-                <link rel="apple-touch-icon" href="/alphaforge/apple-touch-icon.png?v=3" />
-                <meta name="apple-mobile-web-app-capable" content="yes" />
-                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-                <meta name="apple-mobile-web-app-title" content="AlphaForge" />
-            </Head>
-
-            <header className="bg-[#101827]/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800/50">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center relative">
-                    <button onClick={() => setSidebarOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400">
-                        <SVGPresenter path={icons.menu} size={28} />
-                    </button>
-
-                    <div className="absolute left-1/2 -translate-x-1/2">
-                        <Link href="/" className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2 group">
-                            <SVGPresenter path={icons.logo} size={32} className="fill-emerald-400 transition-transform group-hover:scale-105" />
-                            <span className="text-neutral-50 group-hover:text-emerald-400 transition-colors">AlphaForge<span className="text-emerald-400">_</span></span>
-                        </Link>
-                    </div>
-
-                    <button onClick={() => setSearchOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400">
-                        <SVGPresenter path={icons.magnify} size={28} />
-                    </button>
-                </div>
-            </header>
-
-            <aside className={`fixed inset-y-0 left-0 w-72 bg-zinc-900 z-[60] transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="flex flex-col h-full border-r border-zinc-800">
-                    <div className="p-6 flex justify-between items-center border-b border-zinc-800">
-                        <span className="font-bold text-zinc-500 uppercase text-xs tracking-widest">Menu</span>
-                        <button onClick={() => setSidebarOpen(false)} className="text-zinc-500 hover:text-white">
-                            <SVGPresenter path={icons.close} size={24} />
-                        </button>
-                    </div>
-                    <nav className="flex-grow p-4 space-y-2">
-                        {menuItems.map(item => (
-                            <Link
-                                key={item.name}
-                                href={item.href}
-                                className="flex items-center gap-4 px-4 py-3 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-400 transition-all"
-                            >
-                                <SVGPresenter path={item.icon} size={24} />
-                                <span className="font-bold">{item.name}</span>
-                            </Link>
-                        ))}
-                    </nav>
-                </div>
-            </aside>
-            {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-[55]" onClick={() => setSidebarOpen(false)} />}
-
-            {/* Search Dropdown Overlay */}
-            {isSearchOpen && (
-                <div
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity"
-                    onClick={() => setSearchOpen(false)}
-                />
-            )}
-
-            {/* Search Dropdown Menu */}
-            <div className={`fixed top-0 left-0 right-0 bg-zinc-900 border-b border-zinc-800 z-[100] transform transition-transform duration-300 shadow-2xl ${isSearchOpen ? 'translate-y-0' : '-translate-y-full'}`}>
-                <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="flex-1 relative">
-                            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                                <SVGPresenter path={icons.magnify} size={24} className="text-zinc-500" />
-                            </div>
-                            <input
-                                ref={searchInputRef}
-                                className="w-full bg-black/50 border border-zinc-700/50 rounded-xl focus:border-emerald-500 py-4 pl-12 pr-4 text-xl outline-none transition-all placeholder-zinc-600 font-mono text-zinc-100 focus:bg-zinc-900 focus:ring-1 focus:ring-emerald-500/50 shadow-inner"
-                                placeholder="輸入股票代號 (例如: 2330, 2454)..."
-                                value={searchInput}
-                                onChange={e => setSearchInput(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter' && searchInput.trim()) {
-                                        const symbol = searchInput.trim()
-                                        addSearchHistory(symbol)
-                                        router.push(`/stock/${symbol}`)
-                                        setSearchOpen(false)
-                                    }
-                                }}
-                            />
-                        </div>
-                        <button onClick={() => setSearchOpen(false)} className="p-3 text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl transition-all">
-                            <SVGPresenter path={icons.close} size={24} />
-                        </button>
-                    </div>
-
-                    <div className="flex flex-col gap-3 mt-2">
-                        <span className="text-sm font-bold text-zinc-500 tracking-widest flex items-center gap-2">
-                            <SVGPresenter path={icons.strategy} size={16} />
-                            {searchHistory.length > 0 ? '近期搜尋' : '熱門推介'}
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                            {(searchHistory.length > 0 ? searchHistory : DEFAULT_HOT_SEARCHES).map((stock) => (
-                                <button
-                                    key={stock.symbol}
-                                    onClick={() => {
-                                        addSearchHistory(stock.symbol, stock.name)
-                                        router.push(`/stock/${stock.symbol}`)
-                                        setSearchOpen(false)
-                                    }}
-                                    className="px-4 py-2 bg-zinc-800/40 hover:bg-emerald-500/10 border border-zinc-700/50 hover:border-emerald-500/40 rounded-lg text-sm transition-all flex items-center gap-2 group"
-                                >
-                                    <span className="font-mono text-emerald-400 group-hover:text-emerald-300">{stock.symbol}</span>
-                                    {stock.name && <span className="text-zinc-300 group-hover:text-white">{stock.name}</span>}
+        <>
+            <div className="min-h-screen bg-[#101827] text-gray-100 flex flex-col font-sans" suppressHydrationWarning>
+                {mounted && (
+                    <>
+                        <header className="bg-[#101827]/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-800/50">
+                            <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center relative">
+                                <button onClick={() => setSidebarOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400">
+                                    <SVGPresenter path={icons.menu} size={28} />
                                 </button>
-                            ))}
+
+                                <div className="absolute left-1/2 -translate-x-1/2">
+                                    <Link href="/" className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2 group">
+                                        <SVGPresenter path={icons.logo} size={32} className="fill-emerald-400 transition-transform group-hover:scale-105" />
+                                        <span className="text-neutral-50 group-hover:text-emerald-400 transition-colors">AlphaForge<span className="text-emerald-400">_</span></span>
+                                    </Link>
+                                </div>
+
+                                <button onClick={() => setSearchOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400">
+                                    <SVGPresenter path={icons.magnify} size={28} />
+                                </button>
+                            </div>
+                        </header>
+
+                        <aside className={`fixed inset-y-0 left-0 w-72 bg-zinc-900 z-[60] transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                            <div className="flex flex-col h-full border-r border-zinc-800">
+                                <div className="p-6 flex justify-between items-center border-b border-zinc-800">
+                                    <span className="font-bold text-zinc-500 uppercase text-xs tracking-widest">Menu</span>
+                                    <button onClick={() => setSidebarOpen(false)} className="text-zinc-500 hover:text-white">
+                                        <SVGPresenter path={icons.close} size={24} />
+                                    </button>
+                                </div>
+                                <nav className="flex-grow p-4 space-y-2">
+                                    {menuItems.map(item => (
+                                        <Link
+                                            key={item.name}
+                                            href={item.href}
+                                            className="flex items-center gap-4 px-4 py-3 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-400 transition-all"
+                                        >
+                                            <SVGPresenter path={item.icon} size={24} />
+                                            <span className="font-bold">{item.name}</span>
+                                        </Link>
+                                    ))}
+                                </nav>
+                            </div>
+                        </aside>
+
+                        {/* Overlays Container - 獨立渲染避免與外掛操作主 DOM 衝突 */}
+                        <div id="layout-overlays">
+                            {isSidebarOpen && (
+                                <div key="sidebar-overlay" className="fixed inset-0 bg-black/60 z-[55]" onClick={() => setSidebarOpen(false)} />
+                            )}
+
+                            {isSearchOpen && (
+                                <div
+                                    key="search-overlay"
+                                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity"
+                                    onClick={() => setSearchOpen(false)}
+                                />
+                            )}
                         </div>
-                    </div>
-                </div>
+
+                        {/* Search Dropdown Menu */}
+                        <div className={`fixed top-0 left-0 right-0 bg-zinc-900 border-b border-zinc-800 z-[100] transform transition-transform duration-300 shadow-2xl ${isSearchOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+                            <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-1 relative">
+                                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                            <SVGPresenter path={icons.magnify} size={24} className="text-zinc-500" />
+                                        </div>
+                                        <input
+                                            ref={searchInputRef}
+                                            className="w-full bg-black/50 border border-zinc-700/50 rounded-xl focus:border-emerald-500 py-4 pl-12 pr-4 text-xl outline-none transition-all placeholder-zinc-600 font-mono text-zinc-100 focus:bg-zinc-900 focus:ring-1 focus:ring-emerald-500/50 shadow-inner"
+                                            placeholder="輸入股票代號 (例如: 2330, 2454)..."
+                                            value={searchInput}
+                                            onChange={e => setSearchInput(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter' && searchInput.trim()) {
+                                                    const symbol = searchInput.trim()
+                                                    addSearchHistory(symbol)
+                                                    router.push(`/stock/${symbol}`)
+                                                    setSearchOpen(false)
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <button onClick={() => setSearchOpen(false)} className="p-3 text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl transition-all">
+                                        <SVGPresenter path={icons.close} size={24} />
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-col gap-3 mt-2">
+                                    <span className="text-sm font-bold text-zinc-500 tracking-widest flex items-center gap-2">
+                                        <SVGPresenter path={icons.strategy} size={16} />
+                                        {searchHistory.length > 0 ? '近期搜尋' : '熱門推介'}
+                                    </span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(searchHistory.length > 0 ? searchHistory : DEFAULT_HOT_SEARCHES).map((stock) => (
+                                            <button
+                                                key={stock.symbol}
+                                                onClick={() => {
+                                                    addSearchHistory(stock.symbol, stock.name)
+                                                    router.push(`/stock/${stock.symbol}`)
+                                                    setSearchOpen(false)
+                                                }}
+                                                className="px-4 py-2 bg-zinc-800/40 hover:bg-emerald-500/10 border border-zinc-700/50 hover:border-emerald-500/40 rounded-lg text-sm transition-all flex items-center gap-2 group"
+                                            >
+                                                <span className="font-mono text-emerald-400 group-hover:text-emerald-300">{stock.symbol}</span>
+                                                {stock.name && <span className="text-zinc-300 group-hover:text-white">{stock.name}</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <main className="flex-grow">
+                            {children}
+                        </main>
+
+                        <footer className="py-12 border-t border-zinc-900 bg-[#101827] text-zinc-700 flex flex-col items-center gap-6">
+                            <div className="flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+                                <SVGPresenter path={icons.logo} size={24} className="fill-emerald-400" />
+                                <span className="text-lg font-bold tracking-tighter text-zinc-400">AlphaForge_</span>
+                            </div>
+                            <p className="text-[10px] font-mono tracking-[0.2em] uppercase">
+                                &copy; {new Date().getFullYear()} ALPHAFORGE PROJECT // FORGED WITH PRECISION
+                            </p>
+                        </footer>
+                    </>
+                )}
             </div>
-
-            <main className="flex-grow">
-                {children}
-            </main>
-
-            <footer className="py-12 border-t border-zinc-900 bg-[#101827] text-zinc-700 flex flex-col items-center gap-6">
-                <div className="flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-                    <SVGPresenter path={icons.logo} size={24} className="fill-emerald-400" />
-                    <span className="text-lg font-bold tracking-tighter text-zinc-400">AlphaForge_</span>
-                </div>
-                <p className="text-[10px] font-mono tracking-[0.2em] uppercase">
-                    &copy; {new Date().getFullYear()} ALPHAFORGE PROJECT // FORGED WITH PRECISION
-                </p>
-            </footer>
-        </div>
+        </>
     )
 }
 

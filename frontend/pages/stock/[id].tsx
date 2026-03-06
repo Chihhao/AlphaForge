@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import api from '../../lib/api'
 import KDIndicator from '../../components/KDIndicator'
 import EducationalHint from '../../components/EducationalHint'
+import { formatPrice } from '../../lib/formatters'
 
 const TVChart = dynamic(() => import('../../components/TVChart'), { ssr: false })
 
@@ -12,41 +13,41 @@ export default function StockDetail() {
   const router = useRouter()
   const { id } = router.query
 
-  const [activeTab, setActiveTab] = useState<'1d' | '5d' | '1m' | '3m' | '1y'>('1d')
+  const [range, setRange] = useState<'1d' | '5d' | '1mo' | '3mo' | '1y' | '3y' | '5y'>('5d')
+  const [interval, setInterval] = useState<'1m' | '5m' | '15m' | '1h' | '1d'>('15m')
   const [quote, setQuote] = useState<any>(null)
   const [chartData, setChartData] = useState<Array<any>>([])
   const [indicators, setIndicators] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
+  // 定義範圍與頻率的約束配置
+  const RANGE_CONFIG = {
+    '1d': { allowed: ['1m', '5m', '15m'], default: '1m' },
+    '5d': { allowed: ['1m', '5m', '15m', '1h'], default: '15m' },
+    '1mo': { allowed: ['5m', '15m', '1h', '1d'], default: '1h' },
+    '3mo': { allowed: ['1h', '1d'], default: '1d' },
+    '1y': { allowed: ['1h', '1d'], default: '1d' },
+    '3y': { allowed: ['1d'], default: '1d' },
+    '5y': { allowed: ['1d'], default: '1d' },
+  } as const;
+
+  // 移除 useEffect 自動切換，改在 onClick 中處理，以避免 React state 造成的 Race condition
+
   useEffect(() => {
     if (!id) return
+
+    // 防呆：確保當前的 interval 是該 range 允許的，否則不發送請求（等待 state 更新）
+    const isAllowed = (RANGE_CONFIG[range].allowed as readonly string[]).includes(interval);
+    if (!isAllowed) return;
+
     const fetchData = async () => {
       setLoading(true)
       try {
-        // Map frontend tab values to yfinance period values
-        const periodMap: Record<string, string> = {
-          '1d': '1d',
-          '5d': '5d',
-          '1m': '1mo',
-          '3m': '3mo',
-          '1y': '1y'
-        }
-
-        const apiPeriod = periodMap[activeTab] || '1mo'
-
-        // Detailed interval setup based on period
-        let apiInterval = '1d'
-        if (activeTab === '1d') {
-          apiInterval = '1m' // Highest resolution for intraday
-        } else if (activeTab === '5d') {
-          apiInterval = '15m' // Good balance for a week
-        }
-
         // Fetch quote data for the current id
         const qres = await api.get(`/stocks/${id}/quote`)
         setQuote(qres.data)
 
-        const kres = await api.get(`/stocks/${id}/kline?period=${apiPeriod}&interval=${apiInterval}`)
+        const kres = await api.get(`/stocks/${id}/kline?period=${range}&interval=${interval}`)
         const kd = kres.data
         const data = (kd.data || []).map((r: any) => {
           const date = new Date(r.date);
@@ -71,7 +72,7 @@ export default function StockDetail() {
 
         setChartData(uniqueData)
 
-        const ires = await api.get(`/stocks/${id}/indicators?period=${apiPeriod}&interval=${apiInterval}`)
+        const ires = await api.get(`/stocks/${id}/indicators?period=${range}&interval=${interval}`)
         const indData = ires.data
         if (indData.data && indData.data.length > 0) {
           // Get the most recent valid indicators
@@ -79,12 +80,15 @@ export default function StockDetail() {
         }
       } catch (e) {
         console.error('fetch stock data error', e)
+        // 當請求失敗時（例如 yfinance 限制或 404），清除現有數據，避免停留在舊畫面
+        setChartData([])
+        setIndicators(null)
       } finally {
         setLoading(false)
       }
     }
     fetchData()
-  }, [id, activeTab])
+  }, [id, range, interval])
 
   if (!id) return <div className="text-center py-8">載入中...</div>
 
@@ -94,7 +98,7 @@ export default function StockDetail() {
 
   return (
     <div className="flex-grow">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Stock Header */}
         <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
           <div className="flex justify-between items-start mb-4">
@@ -103,8 +107,8 @@ export default function StockDetail() {
               <p className="text-gray-400">股票代號：{id}</p>
             </div>
             <div className="text-right">
-              <p className="text-4xl font-bold text-gray-100">NT${displayPrice.toFixed(2)}</p>
-              <p className={`text-xl font-semibold ${displayChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <p className="text-4xl font-bold text-gray-100">{formatPrice(displayPrice)}</p>
+              <p className={`text-xl font-semibold ${displayChange >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
                 {displayChange >= 0 ? '+' : ''}{displayChange.toFixed(2)}%
               </p>
             </div>
@@ -113,25 +117,26 @@ export default function StockDetail() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4 border-t border-gray-700">
             <div>
               <p className="text-sm text-gray-400">開盤</p>
-              <p className="text-lg font-semibold">NT${quote?.open_price?.toFixed(2) ?? '---'}</p>
+              <p className="text-lg font-semibold">{formatPrice(quote?.open_price)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-400">最高</p>
-              <p className="text-lg font-semibold">NT${quote?.high_price?.toFixed(2) ?? '---'}</p>
+              <p className="text-lg font-semibold">{formatPrice(quote?.high_price)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-400">最低</p>
-              <p className="text-lg font-semibold">NT${quote?.low_price?.toFixed(2) ?? '---'}</p>
+              <p className="text-lg font-semibold">{formatPrice(quote?.low_price)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-400">成交量</p>
               <p className="text-lg font-semibold">
                 {quote?.volume
-                  ? quote.volume >= 1000000
-                    ? (quote.volume / 1000000).toFixed(1) + 'M'
-                    : quote.volume >= 1000
-                      ? (quote.volume / 1000).toFixed(1) + 'K'
-                      : quote.volume
+                  ? (() => {
+                    const lots = quote.volume / 1000;
+                    return lots >= 10000
+                      ? (lots / 10000).toFixed(2) + ' 萬張'
+                      : Math.floor(lots).toLocaleString() + ' 張';
+                  })()
                   : '---'}
               </p>
             </div>
@@ -146,29 +151,60 @@ export default function StockDetail() {
         <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-gray-100 mb-4">K線圖表</h2>
-            <div className="flex gap-2 mb-6">
-              {(['1d', '5d', '1m', '3m', '1y'] as const).map(period => (
-                <button
-                  key={period}
-                  onClick={() => setActiveTab(period)}
-                  className={`px-4 py-2 rounded font-semibold transition ${activeTab === period
-                    ? 'bg-gold-600 text-gray-900'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                >
-                  {period === '1d' ? '日'
-                    : period === '5d' ? '週'
-                      : period === '1m' ? '月'
-                        : period === '3m' ? '3月'
-                          : '1年'}
-                </button>
-              ))}
+            {/* Range & Interval Selectors */}
+            <div className="space-y-4 mb-6">
+              {/* Range Selector */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">觀察範圍</span>
+                {(['1d', '5d', '1mo', '3mo', '1y', '3y', '5y'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => {
+                      setRange(p);
+                      // 同步檢查並更新 interval，確保 React batch update
+                      const isIntervalAllowed = (RANGE_CONFIG[p].allowed as readonly string[]).includes(interval);
+                      if (!isIntervalAllowed) {
+                        setInterval(RANGE_CONFIG[p].default);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${range === p
+                      ? 'bg-gold-600 text-gray-900 shadow-lg shadow-gold-900/20 scale-105'
+                      : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                      }`}
+                  >
+                    {p === '1d' ? '今日' : p === '5d' ? '5日' : p === '1mo' ? '1月' : p === '3mo' ? '3月' : p === '1y' ? '1年' : p === '3y' ? '3年' : '5年'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Interval Selector */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">K 線頻率</span>
+                {(['1m', '5m', '15m', '1h', '1d'] as const).map(i => {
+                  const isAllowed = (RANGE_CONFIG[range].allowed as readonly string[]).includes(i);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setInterval(i)}
+                      disabled={!isAllowed}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${interval === i
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                        : isAllowed
+                          ? 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                          : 'bg-gray-800/20 text-gray-600 cursor-not-allowed opacity-50'
+                        }`}
+                    >
+                      {i === '1m' ? '1分' : i === '5m' ? '5分' : i === '15m' ? '15分' : i === '1h' ? '1時' : '日'}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Chart Container */}
             <div className="h-[400px] w-full border border-gray-700 rounded overflow-hidden">
               {chartData.length > 0 ? (
-                <TVChart data={chartData} />
+                <TVChart data={chartData} interval={interval} range={range} />
               ) : (
                 <div className="flex items-center justify-center h-[400px] text-gray-500 bg-gray-900">
                   載入圖台中...
@@ -185,23 +221,23 @@ export default function StockDetail() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-400">現價</span>
-                <span className="font-semibold">NT${displayPrice.toFixed(2)}</span>
+                <span className="font-semibold">{formatPrice(displayPrice)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">MA20</span>
-                <span className="font-semibold">{indicators?.ma20 ? `NT$${indicators.ma20.toFixed(2)}` : '---'}</span>
+                <span className="font-semibold">{formatPrice(indicators?.ma20)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">MA50</span>
-                <span className="font-semibold">{indicators?.ma50 ? `NT$${indicators.ma50.toFixed(2)}` : '---'}</span>
+                <span className="font-semibold">{formatPrice(indicators?.ma50)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">布林通道上</span>
-                <span className="font-semibold">{indicators?.bb_upper ? `NT$${indicators.bb_upper.toFixed(2)}` : '---'}</span>
+                <span className="font-semibold">{formatPrice(indicators?.bb_upper)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">布林通道下</span>
-                <span className="font-semibold">{indicators?.bb_lower ? `NT$${indicators.bb_lower.toFixed(2)}` : '---'}</span>
+                <span className="font-semibold">{formatPrice(indicators?.bb_lower)}</span>
               </div>
             </div>
           </div>
@@ -214,8 +250,10 @@ export default function StockDetail() {
                 <span className="font-semibold text-orange-500">{indicators?.rsi ? indicators.rsi.toFixed(2) : '---'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">MACD</span>
-                <span className="font-semibold text-gray-500">尚未實作</span>
+                <span className="text-gray-400">20 日乖離率</span>
+                <span className={`font-semibold ${indicators?.bias_ma20 >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
+                  {indicators?.bias_ma20 ? `${indicators.bias_ma20.toFixed(2)}%` : '---'}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 flex items-center gap-1.5">
@@ -227,7 +265,7 @@ export default function StockDetail() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

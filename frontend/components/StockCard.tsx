@@ -1,6 +1,8 @@
 import React from 'react'
 import Link from 'next/link'
 
+import { formatPrice } from '../lib/formatters'
+
 interface StockCardProps {
     stock: {
         id: string
@@ -12,7 +14,7 @@ interface StockCardProps {
 
 export default function StockCard({ stock }: StockCardProps) {
     const isPositive = stock.change >= 0
-    const changeColor = isPositive ? 'text-emerald-400' : 'text-rose-500'
+    const changeColor = isPositive ? 'text-rose-500' : 'text-emerald-400'
 
     return (
         <Link
@@ -26,7 +28,7 @@ export default function StockCard({ stock }: StockCardProps) {
                 </div>
             </div>
             <div className="text-right flex flex-col justify-center">
-                <span className="font-bold text-neutral-50 text-xl font-mono">{stock.price.toFixed(2)}</span>
+                <span className="font-bold text-neutral-50 text-xl font-mono">{formatPrice(stock.price)}</span>
                 <span className={`text-base font-mono font-bold tracking-widest mt-1 ${changeColor}`}>
                     {isPositive ? '▲' : '▼'} {Math.abs(stock.change).toFixed(2)}%
                 </span>

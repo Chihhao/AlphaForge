@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
+import { formatPrice } from '../lib/formatters'
 
 interface Order {
   id: string
@@ -28,26 +29,26 @@ export default function Trading() {
 
   return (
     <div className="flex-grow">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-100 mb-8 border-l-4 border-emerald-400 pl-4">模擬交易</h1>
         {/* Account Summary */}
         <div className="bg-gradient-to-br from-zinc-900/60 to-black/80 backdrop-blur-lg rounded-lg shadow-2xl border border-zinc-800/50 p-8 text-gray-100 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div>
               <p className="text-gold-400 text-sm">帳戶餘額</p>
-              <p className="text-3xl font-bold">NT$850,000</p>
+              <p className="text-3xl font-bold">850,000</p>
             </div>
             <div>
               <p className="text-gold-400 text-sm">持股市值</p>
-              <p className="text-3xl font-bold">NT$150,000</p>
+              <p className="text-3xl font-bold">150,000</p>
             </div>
             <div>
               <p className="text-gold-400 text-sm">總資產</p>
-              <p className="text-3xl font-bold">NT$1,000,000</p>
+              <p className="text-3xl font-bold">1,000,000</p>
             </div>
             <div>
               <p className="text-gold-400 text-sm">損益</p>
-              <p className="text-3xl font-bold text-green-300">+NT$5,000</p>
+              <p className="text-3xl font-bold text-green-300">+5,000</p>
             </div>
           </div>
         </div>
@@ -95,10 +96,10 @@ export default function Trading() {
                   <td className="px-6 py-4">TSMC (台積電)</td>
                   <td className="px-6 py-4">2330</td>
                   <td className="px-6 py-4 text-right font-semibold">10</td>
-                  <td className="px-6 py-4 text-right">NT$2010.00</td>
-                  <td className="px-6 py-4 text-right font-semibold">NT$2015.00</td>
-                  <td className="px-6 py-4 text-right font-semibold">NT$20,150.00</td>
-                  <td className="px-6 py-4 text-right font-semibold text-green-500">+NT$50.00</td>
+                  <td className="px-6 py-4 text-right">2,010</td>
+                  <td className="px-6 py-4 text-right font-semibold">2,015</td>
+                  <td className="px-6 py-4 text-right font-semibold">20,150</td>
+                  <td className="px-6 py-4 text-right font-semibold text-green-500">+50</td>
                   <td className="px-6 py-4 text-center">
                     <Link href="/stock/2330" className="text-gold-400 hover:underline">
                       查看
@@ -142,7 +143,7 @@ export default function Trading() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">{order.shares}</td>
-                    <td className="px-6 py-4 text-right">NT${order.price.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right">{formatPrice(order.price)}</td>
                     <td className="px-6 py-4">{order.date}</td>
                     <td className="px-6 py-4">
                       <span
@@ -163,7 +164,7 @@ export default function Trading() {
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   )
 }

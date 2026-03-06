@@ -12,7 +12,7 @@ class MarketService:
     @staticmethod
     def get_market_rankings(limit: int = 5) -> MarketRankingResponse:
         """
-        取得市場排行榜（漲幅、跌幅、成交量） (優先從本地資料庫獲取)
+        取得市場排行榜（漲幅、跌幅、成交量） - 即時行情版
         """
         pool_ids = [
             "2330", "2317", "2454", "2308", "2382", "2881", "2882", "2412", "2891", "2303",
@@ -20,16 +20,83 @@ class MarketService:
             "2890", "2207", "3008", "2357", "2618", "2609", "3481", "2409", "3037", "3711"
         ]
         
-        db = SessionLocal()
-        
         try:
-            # 1. 獲取最近兩個交易日 (根據加權指數)
+            import yfinance as yf
+            
+            # 使用批次抓取以提高效率 (Yahoo Finance 支援一次查詢多個 Ticker)
+            tickers = [f"{sid}.TW" for sid in pool_ids]
+            # 抓取最近 2 天的半小時線或日線數據來計算漲跌
+            data = yf.download(tickers, period="2d", group_by='ticker', progress=False, threads=True)
+            
+            items = []
+            for sid in pool_ids:
+                ticker = f"{sid}.TW"
+                if ticker not in data.columns.levels[0]:
+                    # 嘗試 OTC
+                    ticker = f"{sid}.TWO"
+                    if ticker not in data.columns.levels[0]:
+                        continue
+                
+                stock_df = data[ticker].dropna()
+                if len(stock_df) < 2:
+                    continue
+                
+                today = stock_df.iloc[-1]
+                yesterday = stock_df.iloc[-2]
+                
+                close_price = float(today['Close'])
+                prev_close = float(yesterday['Close'])
+                volume = int(today['Volume'])
+                
+                if prev_close > 0:
+                    change_percent = ((close_price - prev_close) / prev_close) * 100
+                else:
+                    change_percent = 0.0
+                
+                # 獲取中文名稱
+                info = twstock.codes.get(sid)
+                name = info.name if info else f"股票 {sid}"
+                
+                items.append(RankingItem(
+                    stock_id=sid,
+                    stock_name=name,
+                    price=round(close_price, 2),
+                    change_percent=round(change_percent, 2),
+                    volume=volume
+                ))
+            
+            if not items:
+                # 如果即時抓取失敗，回退到 DB (原本的邏輯)
+                return MarketService._get_rankings_from_db(pool_ids, limit)
+                
+            # 排序
+            top_gainers = sorted(items, key=lambda x: x.change_percent, reverse=True)[:limit]
+            top_losers = sorted(items, key=lambda x: x.change_percent)[:limit]
+            top_volume = sorted(items, key=lambda x: x.volume, reverse=True)[:limit]
+            
+            return MarketRankingResponse(
+                top_gainers=top_gainers,
+                top_losers=top_losers,
+                top_volume=top_volume
+            )
+            
+        except Exception as e:
+            print(f"Error fetching real-time rankings: {e}")
+            # 發生錯誤時嘗試從資料庫讀取備援數據
+            return MarketService._get_rankings_from_db(pool_ids, limit)
+
+    @staticmethod
+    def _get_rankings_from_db(pool_ids: List[str], limit: int) -> MarketRankingResponse:
+        """備援邏輯：從資料庫讀取最後一次同步的數據"""
+        db = SessionLocal()
+        try:
+            # 1. 獲取最近兩個交易日 (根據加權指數判斷市場日期)
             latest_dates = db.query(StockPrice.date).filter(
                 StockPrice.stock_id == "^TWII"
             ).order_by(StockPrice.date.desc()).limit(2).all()
             
             if not latest_dates or len(latest_dates) < 2:
-                raise ValueError("資料庫中交易日數據不足")
+                return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
                 
             today_date = latest_dates[0][0]
             yesterday_date = latest_dates[1][0]
@@ -75,7 +142,7 @@ class MarketService:
                     ))
             
             if not items:
-                raise ValueError("無法獲取市場排行數據")
+                return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
                 
             # 排序
             top_gainers = sorted(items, key=lambda x: x.change_percent, reverse=True)[:limit]
@@ -87,9 +154,8 @@ class MarketService:
                 top_losers=top_losers,
                 top_volume=top_volume
             )
-            
         except Exception as e:
-            print(f"Error fetching market rankings (DB): {e}")
+            print(f"Error in DB fallback: {e}")
             return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
         finally:
             db.close()

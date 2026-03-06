@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../lib/api';
 import EducationalHint from './EducationalHint';
+import { formatPrice } from '../lib/formatters';
 
 interface MarketSummaryData {
     taiex_price: number;
@@ -100,7 +101,7 @@ export default function MarketSummary() {
             {/* 指數價格與漲跌幅 */}
             <div className="flex items-center justify-between w-full">
                 <span className="text-4xl sm:text-5xl font-black tracking-tight font-mono">
-                    {data.taiex_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatPrice(data.taiex_price)}
                 </span>
                 <div className="flex flex-col items-end gap-1 sm:gap-1.5 pt-0.5">
                     <span className={`text-xl sm:text-2xl font-black font-mono leading-none ${changeColor}`}>

@@ -47,7 +47,7 @@ const KDIndicator: React.FC<KDIndicatorProps> = ({ stockId }) => {
 
   // 數值顏色
   const getColor = (val: number) => {
-    if (val > 80) return 'text-red-400'
+    if (val > 80) return 'text-rose-500'
     if (val < 20) return 'text-emerald-400'
     return 'text-amber-400'
   }
@@ -66,7 +66,7 @@ const KDIndicator: React.FC<KDIndicatorProps> = ({ stockId }) => {
       {isNoteworthy && (
         <>
           <span className="text-zinc-600">·</span>
-          <span className={`font-semibold ${status.includes('超買') ? 'text-red-400' : 'text-emerald-400'}`}>
+          <span className={`font-semibold ${status.includes('超買') ? 'text-rose-500' : 'text-emerald-400'}`}>
             {status.includes('超買') ? '超買' : '超賣'}
           </span>
         </>
@@ -76,7 +76,7 @@ const KDIndicator: React.FC<KDIndicatorProps> = ({ stockId }) => {
       {signal && (
         <>
           <span className="text-zinc-600">·</span>
-          <span className={`font-semibold ${signal === '黃金交叉' ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className={`font-semibold ${signal === '黃金交叉' ? 'text-rose-500' : 'text-emerald-400'}`}>
             {signal}
           </span>
         </>

@@ -155,6 +155,7 @@ def get_indicators(
     ma50 = StockService.calculate_ma(prices, 50)
     rsi = StockService.calculate_rsi(prices, 14)
     bb = StockService.calculate_bollinger_bands(prices, 20, 2)
+    bias_ma20 = StockService.calculate_bias(prices, 20)
 
     # 格式化為 JSON
     data = []
@@ -168,6 +169,7 @@ def get_indicators(
             "bb_upper": float(bb["upper"].iloc[i]) if not pd.isna(bb["upper"].iloc[i]) else None,
             "bb_middle": float(bb["middle"].iloc[i]) if not pd.isna(bb["middle"].iloc[i]) else None,
             "bb_lower": float(bb["lower"].iloc[i]) if not pd.isna(bb["lower"].iloc[i]) else None,
+            "bias_ma20": float(bias_ma20.iloc[i]) if not pd.isna(bias_ma20.iloc[i]) else None,
         })
 
     return {"stock_id": stock_id, "data": data}
