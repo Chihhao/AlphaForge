@@ -5,6 +5,8 @@ import pandas as pd
 
 from app.schemas.screener import StrategyResult, ScreenerStock
 from app.services.stock_service import StockService
+from app.models.stock_price import StockPrice
+from app.db.database import SessionLocal
 
 # 預設的台股 50 檔熱門權值股名單（做為預選池 MVP）
 POPULAR_STOCKS = [
@@ -38,11 +40,35 @@ class ScreenerService:
     @staticmethod
     def get_screener_results() -> List[StrategyResult]:
         """
-        掃描預設股票池，並依據策略條件過濾出符合的股票。
-        策略 A：乖離率過低 (逆勢策略) Base20 < -10%
-        策略 B：乖離率轉正 (強勢動能) Base20 > 0% 且 成交量 > 5日均量 * 2
+        掃描全市場股票池，並依據策略條件過濾出符合的股票。
+        邏輯：
+        1. 找出資料庫中最新的交易日期。
+        2. 抓取該日期內所有的股票代號。
+        3. 計算指標並過濾。
         """
-        
+        db = SessionLocal()
+        try:
+            # 1. 找出最新交易日期
+            latest_date_row = db.query(StockPrice.date).order_by(StockPrice.date.desc()).first()
+            
+            if not latest_date_row:
+                # 如果資料庫沒資料，回退到預設權值股名單
+                target_stocks = POPULAR_STOCKS
+            else:
+                latest_date = latest_date_row[0]
+                # 2. 找出該日期內所有股票
+                target_stocks_res = db.query(StockPrice.stock_id).filter(StockPrice.date == latest_date).all()
+                target_stocks = [r[0] for r in target_stocks_res]
+                
+                # 如果資料太少，可能是同步異常，回退到權值股
+                if len(target_stocks) < 100:
+                    target_stocks = list(set(target_stocks + POPULAR_STOCKS))
+        except Exception as e:
+            print(f"Error fetching target stocks from DB: {e}")
+            target_stocks = POPULAR_STOCKS
+        finally:
+            db.close()
+            
         results_s1: List[ScreenerStock] = []
         results_s2: List[ScreenerStock] = []
         

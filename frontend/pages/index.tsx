@@ -3,8 +3,10 @@ import Head from 'next/head';
 import MarketSummary from '../components/MarketSummary';
 import StrategyScreener from '../components/StrategyScreener';
 import DailyGlossary from '../components/DailyGlossary';
+import SystemConsole from '../components/SystemConsole';
 
 export default function Home() {
+
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
 
   return (
@@ -39,6 +41,9 @@ export default function Home() {
 
       {/* 隱藏式知識卡抽屜 (Drawer) */}
       <DailyGlossary isOpen={isGlossaryOpen} onClose={() => setIsGlossaryOpen(false)} />
+
+      {/* 系統狀態看板 */}
+      <SystemConsole />
     </>
   )
 }

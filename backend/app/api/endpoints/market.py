@@ -8,10 +8,44 @@ from typing import List
 
 from app.services.market_summary_service import MarketSummaryService
 from app.services.screener_service import ScreenerService
+from app.services.market_data_crawler import MarketDataCrawler
+from app.models.system_event import SystemEvent
 from app.schemas.market import MarketSummary
 from app.schemas.screener import StrategyResult
+from app.db.database import SessionLocal
 
 router = APIRouter(prefix="/market", tags=["market"])
+
+@router.get("/system-events")
+def get_system_events(limit: int = 20):
+    """獲取最近的系統事件日誌"""
+    db = SessionLocal()
+    try:
+        events = db.query(SystemEvent).order_by(SystemEvent.timestamp.desc()).limit(limit).all()
+        return events
+    finally:
+        db.close()
+
+
+@router.post("/sync/daily")
+
+def sync_daily_market_data(target_date: str = None):
+    """
+    手動抓取指定日期的上市櫃資料並存入資料庫
+    
+    格式: YYYY-MM-DD (例如: 2024-05-20)。如果不給則預設今日或前一交易日。
+    供開發與測試環境使用。
+    """
+    from datetime import datetime
+    
+    date_obj = None
+    if target_date:
+        try:
+            date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError:
+            return {"status": "error", "message": "Invalid date format. Use YYYY-MM-DD"}
+            
+    return MarketDataCrawler.sync_daily_market_data(date_obj)
 
 
 @router.get("/summary", response_model=MarketSummary)

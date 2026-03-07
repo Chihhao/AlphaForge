@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.database import Base, engine
 from app.api.endpoints import users, stocks, trading, indicators, glossary, market
-from app.models.stock_price import StockPrice  # 確保模型被加載以建立表
+from app.models.stock_price import StockPrice
+from app.models.system_event import SystemEvent
 from app.core.scheduler import start_scheduler, stop_scheduler
 
 
