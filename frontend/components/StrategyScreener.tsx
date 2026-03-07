@@ -21,8 +21,8 @@ interface DummyStrategy {
 const dummyStrategies: DummyStrategy[] = [
     {
         id: 's1',
-        name: '極限乖離抄底',
-        description: '收盤價低於 20 日均線超過 10% (乖離率 < -10%)，尋找跌深超賣的潛在反彈標的。',
+        name: '乖離率過低 (跌深反彈)',
+        description: '20 日乖離率 < -10%：股價短期跌破月線太多，偏離均值，尋找跌深超賣的潛在反彈標的。',
         tag: '逆勢策略',
         stocks: [
             { symbol: '3037', name: '欣興', price: 168.0, change: -2.3, bias20: -11.5 },
@@ -32,8 +32,8 @@ const dummyStrategies: DummyStrategy[] = [
     },
     {
         id: 's2',
-        name: '突破壓力區出量',
-        description: '今日成交量大於 5 日均量 2 倍以上，且收盤價創近期新高，代表主力表態。',
+        name: '乖離率轉正 (強勢動能)',
+        description: '20 日乖離率 > 0% 且伴隨成交量放大：股價剛站上月線，代表均線以上的賣壓化解，主力準備表態。',
         tag: '順勢動能',
         stocks: [
             { symbol: '2317', name: '鴻海', price: 155.0, change: 4.5, bias20: 3.2 },
