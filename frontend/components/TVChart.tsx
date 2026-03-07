@@ -12,6 +12,8 @@ export interface KLineData {
     low: number;
     close: number;
     volume: number;
+    rsi?: number;
+    bias?: number;
     isUp: boolean;
     color?: string;
     wickColor?: string;
@@ -22,6 +24,7 @@ interface TVChartProps {
     data: KLineData[];
     interval?: string;
     range?: string;
+    subChart?: 'volume' | 'rsi' | 'bias';
     colors?: {
         backgroundColor?: string;
         textColor?: string;
@@ -30,7 +33,7 @@ interface TVChartProps {
     };
 }
 
-export default function TVChart({ data, interval = '1d', range = '1d', colors = {} }: TVChartProps) {
+export default function TVChart({ data, interval = '1d', range = '1d', subChart = 'volume', colors = {} }: TVChartProps) {
     const {
         backgroundColor = '#1f2937',
         textColor = '#f3f4f6',
@@ -59,7 +62,7 @@ export default function TVChart({ data, interval = '1d', range = '1d', colors = 
 
         const initChart = async () => {
             // 在此處動態載入執行檔，確保頂層補丁已生效
-            const { createChart, ColorType, CandlestickSeries, HistogramSeries } = await import('lightweight-charts');
+            const { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries } = await import('lightweight-charts');
 
             if (isDisposed || !chartContainerRef.current) return;
 
@@ -159,35 +162,85 @@ export default function TVChart({ data, interval = '1d', range = '1d', colors = 
                 borderColor: d.borderColor,
             })));
 
-            const volumeSeries = chart.addSeries(HistogramSeries, {
-                color: '#34d399',
-                priceFormat: {
-                    type: 'custom',
-                    formatter: (price: number) => {
-                        const shares = price; // 假設後端回傳為「股數」
-                        const lots = shares / 1000; // 轉為「張數」
-                        if (lots >= 10000) {
-                            return `${(lots / 10000).toFixed(1)} 萬`;
-                        }
-                        if (lots >= 1) {
-                            return `${Math.floor(lots)} 張`;
-                        }
-                        // 如果小於 1 張代表可能是零股交易
-                        return `${shares} 股`;
+            if (subChart === 'volume') {
+                const volumeSeries = chart.addSeries(HistogramSeries, {
+                    color: '#34d399',
+                    priceFormat: {
+                        type: 'custom',
+                        formatter: (price: number) => {
+                            const shares = price; // 假設後端回傳為「股數」
+                            const lots = shares / 1000; // 轉為「張數」
+                            if (lots >= 10000) {
+                                return `${(lots / 10000).toFixed(1)} 萬`;
+                            }
+                            if (lots >= 1) {
+                                return `${Math.floor(lots)} 張`;
+                            }
+                            // 如果小於 1 張代表可能是零股交易
+                            return `${shares} 股`;
+                        },
                     },
-                },
-                priceScaleId: '',
-            });
+                    priceScaleId: '',
+                });
 
+                volumeSeries.setData(data.map(d => ({
+                    time: d.time,
+                    value: d.volume,
+                    color: d.color || (d.isUp ? upColor : downColor),
+                })));
+            } else if (subChart === 'rsi') {
+                const rsiSeries = chart.addSeries(LineSeries, {
+                    color: '#f97316', // orange-500
+                    lineWidth: 2,
+                    priceScaleId: '',
+                });
+
+                const rsiData = data.map(d => ({
+                    time: d.time,
+                    value: d.rsi,
+                })).filter((d): d is { time: LWTime; value: number } => d.value !== undefined && d.value !== null);
+
+                rsiSeries.setData(rsiData);
+
+                // 添加超買超賣線
+                rsiSeries.createPriceLine({
+                    price: 70,
+                    color: '#ef4444',
+                    lineWidth: 1,
+                    lineStyle: 2, // LineStyle.Dashed
+                    axisLabelVisible: false,
+                    title: '超買(70)',
+                });
+                rsiSeries.createPriceLine({
+                    price: 30,
+                    color: '#10b981',
+                    lineWidth: 1,
+                    lineStyle: 2, // LineStyle.Dashed
+                    axisLabelVisible: false,
+                    title: '超賣(30)',
+                });
+            } else if (subChart === 'bias') {
+                const biasSeries = chart.addSeries(HistogramSeries, {
+                    priceScaleId: '',
+                    priceFormat: {
+                        type: 'custom',
+                        formatter: (price: number) => `${price.toFixed(2)}%`,
+                    },
+                });
+
+                const biasData = data.map(d => ({
+                    time: d.time,
+                    value: d.bias,
+                    color: (d.bias && d.bias > 0) ? upColor : downColor,
+                })).filter((d): d is { time: LWTime; value: number; color: string } => d.value !== undefined && d.value !== null);
+
+                biasSeries.setData(biasData);
+            }
+
+            // 設定副圖共通的 Price Scale 比例 (必須在加入帶有 priceScaleId: '' 的 series 之後設定)
             chart.priceScale('').applyOptions({
-                scaleMargins: { top: 0.8, bottom: 0 },
+                scaleMargins: { top: 0.75, bottom: 0 },
             });
-
-            volumeSeries.setData(data.map(d => ({
-                time: d.time,
-                value: d.volume,
-                color: d.color || (d.isUp ? upColor : downColor),
-            })));
 
             window.addEventListener('resize', handleResize);
         };
@@ -202,7 +255,7 @@ export default function TVChart({ data, interval = '1d', range = '1d', colors = 
                 chartRef.current = null;
             }
         };
-    }, [isMounted, backgroundColor, textColor, upColor, downColor, interval, data, range]);
+    }, [isMounted, backgroundColor, textColor, upColor, downColor, interval, data, range, subChart]);
 
     if (!isMounted) {
         return <div className="w-full h-[400px] bg-[#1f2937] animate-pulse rounded flex items-center justify-center text-gray-500">初始化圖表中...</div>;

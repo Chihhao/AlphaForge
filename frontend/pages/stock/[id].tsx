@@ -19,6 +19,7 @@ export default function StockDetail() {
   const [chartData, setChartData] = useState<Array<any>>([])
   const [indicators, setIndicators] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [subChart, setSubChart] = useState<'volume' | 'rsi' | 'bias'>('volume')
 
   // 定義範圍與頻率的約束配置
   const RANGE_CONFIG = {
@@ -103,10 +104,30 @@ export default function StockDetail() {
         const uniqueData = data.filter((v: any, i: number, a: any[]) => a.findIndex(t => (t.time === v.time)) === i)
         uniqueData.sort((a: any, b: any) => a.time - b.time)
 
-        setChartData(uniqueData)
-
         const ires = await api.get(`/stocks/${id}/indicators?period=${range}&interval=${interval}`)
         const indData = ires.data
+
+        // Merge indicators into chartData
+        const indMap = new Map()
+        if (indData.data) {
+          indData.data.forEach((ind: any) => {
+            const date = new Date(ind.date)
+            if (!isNaN(date.getTime())) {
+              indMap.set(Math.floor(date.getTime() / 1000), ind)
+            }
+          })
+        }
+
+        uniqueData.forEach(d => {
+          const ind = indMap.get(d.time)
+          if (ind) {
+            d.rsi = ind.rsi
+            d.bias = ind.bias_ma20
+          }
+        })
+
+        setChartData(uniqueData)
+
         if (indData.data && indData.data.length > 0) {
           // Get the most recent valid indicators
           setIndicators(indData.data[indData.data.length - 1])
@@ -234,10 +255,27 @@ export default function StockDetail() {
               </div>
             </div>
 
+            {/* Sub-chart toggle */}
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">副圖指標</span>
+              {(['volume', 'rsi', 'bias'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSubChart(s)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${subChart === s
+                    ? (s === 'volume' ? 'bg-blue-600 text-white' : s === 'rsi' ? 'bg-orange-600 text-white' : 'bg-purple-600 text-white') + ' shadow-lg scale-105'
+                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                    }`}
+                >
+                  {s === 'volume' ? '成交量' : s === 'rsi' ? 'RSI' : '乖離率'}
+                </button>
+              ))}
+            </div>
+
             {/* Chart Container */}
             <div className="h-[400px] w-full border border-gray-700 rounded overflow-hidden">
               {chartData.length > 0 ? (
-                <TVChart data={chartData} interval={interval} range={range} />
+                <TVChart data={chartData} interval={interval} range={range} subChart={subChart} />
               ) : (
                 <div className="flex items-center justify-center h-[400px] text-gray-500 bg-gray-900">
                   載入圖台中...
@@ -278,19 +316,25 @@ export default function StockDetail() {
           <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
             <h2 className="text-xl font-bold text-gray-100 mb-4">副圖指標</h2>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">RSI</span>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 flex items-center gap-1.5">
+                  14 日 RSI
+                  <EducationalHint glossaryId="rsi-indicator" />
+                </span>
                 <span className="font-semibold text-orange-500">{indicators?.rsi ? indicators.rsi.toFixed(2) : '---'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">20 日乖離率</span>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 flex items-center gap-1.5">
+                  20 日乖離率
+                  <EducationalHint glossaryId="bias-indicator" />
+                </span>
                 <span className={`font-semibold ${indicators?.bias_ma20 >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
                   {indicators?.bias_ma20 ? `${indicators.bias_ma20.toFixed(2)}%` : '---'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 flex items-center gap-1.5">
-                  KD 指標
+                  9 日 KD 指標
                   <EducationalHint glossaryId="kd-indicator" />
                 </span>
                 {id && <KDIndicator stockId={id as string} />}

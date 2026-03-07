@@ -49,7 +49,8 @@ Next.js 的 `npm run dev` 和 `npm run build` 共用同一個 `.next/` 目錄。
 
 ## 📋 每次修改前端代碼前的 Checklist
 
-- [ ] 確認 `npm run dev` 是否正在運行
-- [ ] 修改檔案後，觀察終端機是否有編譯錯誤
-- [ ] 用 curl 或瀏覽器確認頁面是否正常載入
-- [ ] **絕對不要**在 dev 期間執行 `npm run build` 或 `npm run clean`
+- [ ] 確認 `npm run dev` 是否正在運行。
+- [ ] 修改檔案後，觀察終端機是否有編譯錯誤。
+- [ ] 用 curl 或瀏覽器確認頁面是否正常載入。
+- [ ] **絕對不要**在 dev 期間執行 `npm run build` 或 `npm run clean`。
+- [ ] **嚴加防範**路由錯誤：修改組件時，確保跳轉有自動處理 `/alphaforge` 前綴 (例如使用 `import Link from 'next/link'` 或 `useRouter()`)。
