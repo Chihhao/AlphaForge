@@ -9,6 +9,8 @@ interface ScreenerStock {
     price: number;
     change: number;
     bias20: number;
+    yield_rate?: number;
+    roe?: number;
 }
 
 interface StrategyResult {
@@ -68,10 +70,12 @@ export default function StrategyScreener() {
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-xl font-bold text-white">{strategy.name}</h3>
                                         <div className="scale-90 text-zinc-500 hover:text-cyan-400 transition-colors">
-                                            <EducationalHint glossaryId="bias-indicator" />
+                                            <EducationalHint glossaryId={strategy.id === 'master_choice' ? 'roe-indicator' : 'bias-indicator'} />
                                         </div>
                                     </div>
-                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${strategy.tag === '逆勢策略' ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${strategy.tag === '逆勢策略' ? 'bg-rose-500/20 text-rose-400' :
+                                        strategy.tag === '基本面優選' ? 'bg-cyan-500/20 text-cyan-400' :
+                                            'bg-emerald-500/20 text-emerald-400'
                                         }`}>
                                         {strategy.tag}
                                     </span>
@@ -89,6 +93,7 @@ export default function StrategyScreener() {
                                     strategy.stocks.map((stock) => {
                                         const isUp = stock.change > 0;
                                         const changeColor = isUp ? 'text-rose-400' : 'text-emerald-400';
+                                        const isFundamental = strategy.id === 'master_choice';
 
                                         return (
                                             <Link key={stock.symbol} href={`/stock/${stock.symbol}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer border-l-2 border-transparent hover:border-cyan-400">
@@ -98,14 +103,23 @@ export default function StrategyScreener() {
                                                         <span className="text-zinc-500 text-xs font-mono">{stock.symbol}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1 mt-0.5">
-                                                        <span className="text-zinc-400 text-xs">20 日乖離率: <span className={stock.bias20 > 0 ? 'text-rose-400/80' : 'text-emerald-400/80'}>{stock.bias20 > 0 ? '+' : ''}{stock.bias20}%</span></span>
+                                                        {isFundamental ? (
+                                                            <div className="flex gap-2">
+                                                                <span className="text-zinc-400 text-xs">殖利率: <span className="text-rose-400/90">{stock.yield_rate}%</span></span>
+                                                                <span className="text-zinc-400 text-xs">ROE: <span className="text-cyan-400/90">{stock.roe}%</span></span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-zinc-400 text-xs">20 日乖離率: <span className={stock.bias20 > 0 ? 'text-rose-400/80' : 'text-emerald-400/80'}>{stock.bias20 > 0 ? '+' : ''}{stock.bias20}%</span></span>
+                                                        )}
                                                     </div>
                                                 </div>
 
                                                 <div className="flex flex-col items-end">
-                                                    <span className="text-white font-mono font-bold text-lg">{stock.price}</span>
+                                                    <span className="text-white font-mono font-bold text-lg">
+                                                        {stock.price === 0 ? '---' : stock.price}
+                                                    </span>
                                                     <span className={`${changeColor} text-sm font-bold font-mono`}>
-                                                        {isUp ? '+' : ''}{stock.change}%
+                                                        {stock.change === 0 ? '0.00' : (isUp ? '+' : '') + stock.change}%
                                                     </span>
                                                 </div>
                                             </Link>

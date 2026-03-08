@@ -23,63 +23,65 @@ def run_with_db(task_func):
     finally:
         db.close()
 
-        # --- 第一梯次：15:00 初步同步 (收盤後第一時間) ---
-        scheduler.add_job(
-            lambda: run_with_db(FundamentalService.sync_twse_valuation),
-            trigger=CronTrigger(hour=15, minute=0),
-            id="sync_valuation_preliminary",
-            name="Preliminary fundamental valuation sync",
-            replace_existing=True
-        )
-        scheduler.add_job(
-            lambda: run_with_db(FundamentalService.sync_mops_revenue),
-            trigger=CronTrigger(hour=15, minute=0),
-            id="sync_revenue_preliminary",
-            name="Preliminary monthly revenue sync",
-            replace_existing=True
-        )
-        scheduler.add_job(
-            lambda: run_with_db(FundamentalService.sync_mops_performance),
-            trigger=CronTrigger(hour=15, minute=0),
-            id="sync_performance_preliminary",
-            name="Preliminary performance sync",
-            replace_existing=True
-        )
+def start_scheduler():
+    """啟動定時任務並設定任務"""
+    # --- 第一梯次：15:00 初步同步 (收盤後第一時間) ---
+    scheduler.add_job(
+        lambda: run_with_db(FundamentalService.sync_twse_valuation),
+        trigger=CronTrigger(hour=15, minute=0),
+        id="sync_valuation_preliminary",
+        name="Preliminary fundamental valuation sync",
+        replace_existing=True
+    )
+    scheduler.add_job(
+        lambda: run_with_db(FundamentalService.sync_mops_revenue),
+        trigger=CronTrigger(hour=15, minute=0),
+        id="sync_revenue_preliminary",
+        name="Preliminary monthly revenue sync",
+        replace_existing=True
+    )
+    scheduler.add_job(
+        lambda: run_with_db(FundamentalService.sync_mops_performance),
+        trigger=CronTrigger(hour=15, minute=0),
+        id="sync_performance_preliminary",
+        name="Preliminary performance sync",
+        replace_existing=True
+    )
 
-        # 每日下午 3:30 執行市場行情
-        scheduler.add_job(
-            lambda: MarketDataCrawler.sync_daily_market_data(),
-            trigger=CronTrigger(hour=15, minute=30),
-            id="sync_market_data_daily",
-            name="Daily market data synchronization from TWSE/TPEx",
-            replace_existing=True
-        )
+    # 每日下午 3:30 執行市場行情
+    scheduler.add_job(
+        lambda: MarketDataCrawler.sync_daily_market_data(),
+        trigger=CronTrigger(hour=15, minute=30),
+        id="sync_market_data_daily",
+        name="Daily market data synchronization from TWSE/TPEx",
+        replace_existing=True
+    )
 
-        # --- 第二梯次：17:00 最終確認更新 (確保所有官方統計已入庫) ---
-        scheduler.add_job(
-            lambda: run_with_db(FundamentalService.sync_twse_valuation),
-            trigger=CronTrigger(hour=17, minute=0),
-            id="sync_valuation_final",
-            name="Final fundamental valuation sync",
-            replace_existing=True
-        )
-        scheduler.add_job(
-            lambda: run_with_db(FundamentalService.sync_mops_revenue),
-            trigger=CronTrigger(hour=17, minute=0),
-            id="sync_revenue_final",
-            name="Final monthly revenue sync",
-            replace_existing=True
-        )
-        scheduler.add_job(
-            lambda: run_with_db(FundamentalService.sync_mops_performance),
-            trigger=CronTrigger(hour=17, minute=0),
-            id="sync_performance_final",
-            name="Final performance sync",
-            replace_existing=True
-        )
-        
-        scheduler.start()
-        logger.info("Scheduler started and daily sync job added.")
+    # --- 第二梯次：17:00 最終確認更新 (確保所有官方統計已入庫) ---
+    scheduler.add_job(
+        lambda: run_with_db(FundamentalService.sync_twse_valuation),
+        trigger=CronTrigger(hour=17, minute=0),
+        id="sync_valuation_final",
+        name="Final fundamental valuation sync",
+        replace_existing=True
+    )
+    scheduler.add_job(
+        lambda: run_with_db(FundamentalService.sync_mops_revenue),
+        trigger=CronTrigger(hour=17, minute=0),
+        id="sync_revenue_final",
+        name="Final monthly revenue sync",
+        replace_existing=True
+    )
+    scheduler.add_job(
+        lambda: run_with_db(FundamentalService.sync_mops_performance),
+        trigger=CronTrigger(hour=17, minute=0),
+        id="sync_performance_final",
+        name="Final performance sync",
+        replace_existing=True
+    )
+    
+    scheduler.start()
+    logger.info("Scheduler started and daily sync job added.")
 
 def stop_scheduler():
     """停止定時任務"""

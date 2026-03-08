@@ -257,6 +257,79 @@ export default function StockDetail() {
           </div>
         </div>
 
+        {/* Fundamental Brain Section */}
+        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
+          <div className="flex items-center gap-2 mb-6">
+            <h2 className="text-xl font-bold text-gray-100">基本面大腦</h2>
+            <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold rounded border border-cyan-500/20 uppercase tracking-tighter">Fundamental Analysis</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Column 1: Valuation */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-l-2 border-blue-500 pl-2">價值評估</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
+                    本益比 PE (倍)
+                    <EducationalHint glossaryId="pe-ratio" />
+                  </span>
+                  <span className="font-mono text-gray-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(2) : '---'}</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
+                    股價淨值比 PB
+                    <EducationalHint glossaryId="pb-ratio" />
+                  </span>
+                  <span className="font-mono text-gray-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 2: Profitability & Yield */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-l-2 border-rose-500 pl-2">獲利與配息</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
+                    最新 ROE (%)
+                    <EducationalHint glossaryId="roe-indicator" />
+                  </span>
+                  <span className={`font-mono ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-gray-100'}`}>
+                    {quote?.roe ? `${quote.roe.toFixed(2)}%` : '---'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
+                    現金殖利率 (%)
+                    <EducationalHint glossaryId="dividend-yield" />
+                  </span>
+                  <span className={`font-mono ${quote?.yield_rate >= 5 ? 'text-rose-400' : 'text-gray-100'}`}>
+                    {quote?.yield_rate ? `${quote.yield_rate.toFixed(2)}%` : '---'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 3: Growth */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-2">營收動能 (YoY)</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-400 text-sm">單月營收 (億)</span>
+                  <span className="font-mono text-gray-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-400 text-sm">營收年增率 (%)</span>
+                  <span className={`font-mono ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-gray-100'}`}>
+                    {quote?.revenue_growth_yoy ? `${quote.revenue_growth_yoy > 0 ? '+' : ''}${quote.revenue_growth_yoy.toFixed(2)}%` : '---'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Technical Indicators */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
           <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">

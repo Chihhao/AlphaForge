@@ -40,3 +40,12 @@ class StockQuote(BaseModel):
     volume: int
     change_percent: float
     timestamp: datetime
+    
+    # 基本面指標 (可選)
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    yield_rate: Optional[float] = None
+    roe: Optional[float] = None
+    last_revenue: Optional[float] = None
+    revenue_growth_yoy: Optional[float] = None
+    last_eps: Optional[float] = None

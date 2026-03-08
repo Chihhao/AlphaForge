@@ -8,6 +8,8 @@ from app.db.database import Base, engine
 from app.api.endpoints import users, stocks, trading, indicators, glossary, market
 from app.models.stock_price import StockPrice
 from app.models.stock_fundamental import StockFundamental
+from app.models.stock_revenue import StockMonthlyRevenue
+from app.models.stock_eps import StockQuarterlyEPS
 from app.models.system_event import SystemEvent
 from app.core.scheduler import start_scheduler, stop_scheduler
 

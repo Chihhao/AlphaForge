@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class ScreenerStock(BaseModel):
     symbol: str
@@ -7,6 +7,8 @@ class ScreenerStock(BaseModel):
     price: float
     change: float
     bias20: float
+    yield_rate: Optional[float] = None
+    roe: Optional[float] = None
 
 class StrategyResult(BaseModel):
     id: str

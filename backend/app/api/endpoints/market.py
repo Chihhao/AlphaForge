@@ -58,6 +58,25 @@ def get_market_summary():
     return MarketSummaryService.get_market_summary()
 
 
+@router.post("/sync/fundamentals")
+def sync_fundamentals(target_date: str = None):
+    """
+    手動同步基本面數據 (PE/PB/殖利率/ROE/營收/EPS)
+    
+    - target_date: TWSE 估值的目標日期 (YYYYMMDD)，不填則自動使用最近交易日
+    """
+    from app.services.fundamental_service import FundamentalService
+    db = SessionLocal()
+    results = {}
+    try:
+        results["valuation"] = FundamentalService.sync_twse_valuation(db, target_date)
+        results["revenue"] = FundamentalService.sync_mops_revenue(db)
+        results["eps"] = FundamentalService.sync_mops_performance(db)
+    finally:
+        db.close()
+    return results
+
+
 @router.get("/screener", response_model=List[StrategyResult])
 def get_screener_results():
     """

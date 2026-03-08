@@ -175,5 +175,50 @@ def get_indicators(
     return {"stock_id": stock_id, "data": data}
 
 
+from app.models.stock_revenue import StockMonthlyRevenue
+from app.models.stock_eps import StockQuarterlyEPS
+
+
+@router.get("/{stock_id}/fundamental/trends")
+def get_fundamental_trends(stock_id: str, db: Session = Depends(get_db)):
+    """
+    取得基本面成長趨勢
+    包含近 12 個月營收趨勢與近 8 季 EPS 趨勢。
+    """
+    # 1. 取得營收趨勢 (近 12 個月)
+    revenue_history = db.query(StockMonthlyRevenue).filter(
+        StockMonthlyRevenue.stock_id == stock_id
+    ).order_by(StockMonthlyRevenue.year.desc(), StockMonthlyRevenue.month.desc()).limit(12).all()
+    
+    # 校正順序為從舊到新
+    revenue_history = sorted(revenue_history, key=lambda x: (x.year, x.month))
+    
+    # 2. 取得 EPS 趨勢 (近 8 季)
+    eps_history = db.query(StockQuarterlyEPS).filter(
+        StockQuarterlyEPS.stock_id == stock_id
+    ).order_by(StockQuarterlyEPS.year.desc(), StockQuarterlyEPS.quarter.desc()).limit(8).all()
+    
+    # 校正順序為從舊到新
+    eps_history = sorted(eps_history, key=lambda x: (x.year, x.quarter))
+    
+    return {
+        "stock_id": stock_id,
+        "revenue_trends": [
+            {
+                "label": f"{r.year}/M{r.month:02d}",
+                "revenue": r.revenue,
+                "yoy": r.revenue_yoy,
+                "mom": r.revenue_mom
+            } for r in revenue_history
+        ],
+        "eps_trends": [
+            {
+                "label": f"{e.year}Q{e.quarter}",
+                "eps": e.eps
+            } for e in eps_history
+        ]
+    }
+
+
 # 導入 pandas
 import pandas as pd

@@ -5,6 +5,7 @@ import pandas as pd
 
 from app.schemas.screener import StrategyResult, ScreenerStock
 from app.services.indicator_service import IndicatorService
+from app.services.fundamental_service import FundamentalService
 from app.models.stock_price import StockPrice
 from app.db.database import SessionLocal
 
@@ -75,52 +76,25 @@ class ScreenerService:
             ).filter(StockPrice.date >= cutoff_date).statement
             
             raw_df = pd.read_sql(query, db.bind)
+            
+            # --- 獲取大師精選結果 (基本面策略) ---
+            master_choice_fundamentals = FundamentalService.get_master_choice_stocks(db)
+            
         except Exception as e:
             print(f"Error loading data from DB: {e}")
             raw_df = pd.DataFrame()
+            master_choice_fundamentals = []
         finally:
             db.close()
             
-        if raw_df.empty:
+        if raw_df.empty and not master_choice_fundamentals:
             return [
                 StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="全市場掃描", stocks=[]),
-                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[])
+                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[]),
+                StrategyResult(id="s3", name="大師精選：價值成長股", description="...", tag="基本面優選", stocks=[])
             ]
 
-        # 計算 5 日均量
-        raw_df = raw_df.sort_values(['stock_id', 'date'])
-        raw_df['ma5_vol'] = raw_df.groupby('stock_id')['volume'].transform(lambda x: x.rolling(window=5).mean())
-        
-        # 附加其他指標 (向量化)
-        df = IndicatorService.attach_indicators(raw_df)
-        
-        if df.empty:
-            return [
-                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="全市場掃描", stocks=[]),
-                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[])
-            ]
-
-        # 先在原本包含所有歷史天的 df 算出漲跌幅，確保對齊
-        df['prev_close'] = df.groupby('stock_id')['close'].shift(1)
-        df['change_percent'] = ((df['close'] - df['prev_close']) / df['prev_close']) * 100
-        
-        # 然後再篩選出最後一個交易日的數據 (注意：必須針對每檔股票各自取最新一日)
-        latest_df = df.groupby('stock_id').tail(1).copy()
-        latest_df = latest_df.reset_index(drop=True)
-
-        # --- 策略 1: 跌深反彈 (s1) ---
-        s1_mask = latest_df['bias20'] < bias_oversold_threshold
-        s1_df = latest_df[s1_mask].sort_values('bias20', ascending=True).head(10)
-
-        # --- 策略 2: 強勢動能 (s2) ---
-        s2_mask = (
-            (latest_df['bias20'] > bias_bull_threshold) &
-            (latest_df['volume'] > (latest_df['ma5_vol'] * vol_multiplier)) &
-            (latest_df['change_percent'] > 0)
-        )
-        s2_df = latest_df[s2_mask].sort_values('change_percent', ascending=False).head(10)
-
-        # 封裝結果
+        # 封裝結果工具
         def _to_screener_stocks(res_df):
             return [
                 ScreenerStock(
@@ -133,10 +107,63 @@ class ScreenerService:
                 for _, row in res_df.iterrows()
             ]
 
-        results_s1 = _to_screener_stocks(s1_df)
-        results_s2 = _to_screener_stocks(s2_df)
+        # --- 技術面計算 ---
+        if not raw_df.empty:
+            # 計算 5 日均量
+            raw_df = raw_df.sort_values(['stock_id', 'date'])
+            raw_df['ma5_vol'] = raw_df.groupby('stock_id')['volume'].transform(lambda x: x.rolling(window=5).mean())
+            
+            # 附加其他指標 (向量化)
+            df = IndicatorService.attach_indicators(raw_df)
+            
+            if not df.empty:
+                df['prev_close'] = df.groupby('stock_id')['close'].shift(1)
+                df['change_percent'] = ((df['close'] - df['prev_close']) / df['prev_close']) * 100
+                latest_df = df.groupby('stock_id').tail(1).copy()
+                latest_df = latest_df.reset_index(drop=True)
 
-        print(f"[ScreenerService] Vectorized scan complete in {time.time() - t0:.2f}s")
+                # 策略 1: 跌深反彈
+                s1_mask = latest_df['bias20'] < bias_oversold_threshold
+                s1_df = latest_df[s1_mask].sort_values('bias20', ascending=True).head(10)
+                results_s1 = _to_screener_stocks(s1_df)
+
+                # 策略 2: 強勢動能
+                s2_mask = (
+                    (latest_df['bias20'] > bias_bull_threshold) &
+                    (latest_df['volume'] > (latest_df['ma5_vol'] * vol_multiplier)) &
+                    (latest_df['change_percent'] > 0)
+                )
+                s2_df = latest_df[s2_mask].sort_values('change_percent', ascending=False).head(10)
+                results_s2 = _to_screener_stocks(s2_df)
+            else:
+                results_s1, results_s2 = [], []
+        else:
+            results_s1, results_s2 = [], []
+
+        # --- 策略 3: 大師精選 (轉換 Fundamental 模型為 ScreenerStock) ---
+        results_s3 = []
+        for f in master_choice_fundamentals:
+            # 獲取最新價格 (從 latest_df 或 db)
+            # 這裡簡化處理：如果技術面 df 有資料就拿，沒有就略過或只顯示代號
+            price, change, bias = 0.0, 0.0, 0.0
+            if not raw_df.empty and 'latest_df' in locals():
+                match = latest_df[latest_df['stock_id'] == f.stock_id]
+                if not match.empty:
+                    price = round(float(match.iloc[0]['close']), 2)
+                    change = round(float(match.iloc[0]['change_percent']), 2)
+                    bias = round(float(match.iloc[0]['bias20']), 2) if pd.notna(match.iloc[0]['bias20']) else 0.0
+            
+            results_s3.append(ScreenerStock(
+                symbol=f.stock_id,
+                name=ScreenerService.get_stock_name(f.stock_id),
+                price=price,
+                change=change,
+                bias20=bias,
+                yield_rate=f.yield_rate,
+                roe=f.roe_latest
+            ))
+
+        print(f"[ScreenerService] Scan complete in {time.time() - t0:.2f}s")
 
         results = [
             StrategyResult(
@@ -152,6 +179,13 @@ class ScreenerService:
                 description="20 日乖離率 > 0% 且量增：股價重回月線且動能爆發，主力表態預兆。",
                 tag="全市場掃描",
                 stocks=results_s2
+            ),
+            StrategyResult(
+                id="master_choice",
+                name="大師精選：價值成長股",
+                description="兼具高殖利率 (>5%)、獲利能力 (ROE > 10%) 與營收規模。適合中長期價值投資。",
+                tag="基本面優選",
+                stocks=results_s3
             )
         ]
 
