@@ -70,7 +70,7 @@ export default function StrategyScreener() {
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-xl font-bold text-white">{strategy.name}</h3>
                                         <div className="scale-90 text-zinc-500 hover:text-cyan-400 transition-colors">
-                                            <EducationalHint glossaryId={strategy.id === 'af_choice' ? 'roe-indicator' : 'bias-indicator'} />
+                                            <EducationalHint glossaryId={strategy.id === 'af_choice' ? 'af-choice-strategy' : 'bias-indicator'} />
                                         </div>
                                     </div>
                                     <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${strategy.tag === '逆勢策略' ? 'bg-rose-500/20 text-rose-400' :
