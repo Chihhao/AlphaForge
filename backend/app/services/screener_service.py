@@ -169,7 +169,7 @@ class ScreenerService:
             StrategyResult(
                 id="af_choice",
                 name="AF 精選：價值成長股",
-                description="兼具高殖利率 (>5%)、獲利能力 (ROE > 10%) 與營收規模。適合中長期價值投資。",
+                description="兼顧價值防禦 (高息、合理估值) 與營運爆發力 (高 ROE、連續獲利與營收雙成長) 的嚴選績優股。",
                 tag="基本面優選",
                 stocks=results_s3
             ),
