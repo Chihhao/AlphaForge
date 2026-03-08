@@ -212,12 +212,100 @@ class FundamentalService:
     def get_af_choice_stocks(db: Session):
         """實作 AF 精選 (原大師精選 7 法)"""
         results = db.query(StockFundamental).filter(
+            # 1. 殖利率大於 5%
             StockFundamental.yield_rate >= 5.0,
-            StockFundamental.last_revenue >= 1.0,  # 1億
+            # 2. 月營收大於 1 億
+            StockFundamental.last_revenue >= 1.0, 
+            # 3. ROE 大於 10%
+            StockFundamental.roe_latest >= 10.0,
+            # 4. 股價淨值比小於 3 倍 (且大於 0 排除異常)
             StockFundamental.pb_ratio <= 3.0,
             StockFundamental.pb_ratio > 0,
+            # 5. EPS 連續 4 年大於 2 元 (包含今年/去年/前年/大前年/四年前)
             StockFundamental.eps_y1 > 2.0,
-            StockFundamental.roe_latest >= 10.0
+            StockFundamental.eps_y2 > 2.0,
+            StockFundamental.eps_y3 > 2.0,
+            StockFundamental.eps_y4 > 2.0,
+            
+            # 6. 連續 2 年營收成長率大於 5% (預計算欄位 `is_growth_2yr` == 1)
+            StockFundamental.is_growth_2yr == 1,
+            
+            # 7. 營收成長率大於近 4 年平均 (預計算欄位 `is_accelerated` == 1)
+            StockFundamental.is_accelerated == 1
         ).order_by(StockFundamental.yield_rate.desc()).limit(15).all()
         
         return results
+
+    @staticmethod
+    def backfill_history(db: Session):
+        """使用 yfinance 回填符合基礎條件股票的歷史財務數據 (營收與 EPS)"""
+        import yfinance as yf
+        
+        # 只撈取符合前 4 個過濾條件的股票，節省時間
+        candidates = db.query(StockFundamental).filter(
+            StockFundamental.yield_rate >= 5.0,
+            StockFundamental.last_revenue >= 1.0,
+            StockFundamental.roe_latest >= 10.0,
+            StockFundamental.pb_ratio <= 3.0,
+            StockFundamental.pb_ratio > 0
+        ).all()
+        
+        updated_count = 0
+        
+        def calc_growth(rev_series):
+            years = sorted(rev_series.keys(), reverse=True)
+            if len(years) < 4: return 0, 0
+            y1, y2, y3, y4 = years[0], years[1], years[2], years[3]
+            r1, r2, r3, r4 = rev_series[y1], rev_series[y2], rev_series[y3], rev_series[y4]
+            gr12 = (r1 - r2) / r2 * 100 if r2 > 0 else 0
+            gr23 = (r2 - r3) / r3 * 100 if r3 > 0 else 0
+            gr34 = (r3 - r4) / r4 * 100 if r4 > 0 else 0
+            
+            is_growth = 1 if (gr12 > 5.0 and gr23 > 5.0) else 0
+            avg_gr = (gr12 + gr23 + gr34) / 3.0
+            is_accel = 1 if gr12 > avg_gr else 0
+            return is_growth, is_accel
+
+        for stock in candidates:
+            # 簡化爬取，使用 .TW
+            ticker = yf.Ticker(f"{stock.stock_id}.TW")
+            df = ticker.financials
+            if df.empty:
+                ticker = yf.Ticker(f"{stock.stock_id}.TWO")
+                df = ticker.financials
+            
+            if df.empty:
+                continue
+                
+            need_update = False
+            
+            # EPS
+            if 'Basic EPS' in df.index:
+                eps_series = df.loc['Basic EPS'].dropna()
+                years = sorted([int(str(d)[:4]) for d in eps_series.index], reverse=True)
+                for idx, y in enumerate(years[:4]):
+                    val = float(eps_series.loc[eps_series.index.year == y].iloc[0])
+                    if idx == 0: stock.eps_y1 = val
+                    elif idx == 1: stock.eps_y2 = val
+                    elif idx == 2: stock.eps_y3 = val
+                    elif idx == 3: stock.eps_y4 = val
+                    need_update = True
+                    
+            # 營收
+            if 'Total Revenue' in df.index:
+                rev_series = df.loc['Total Revenue'].dropna()
+                years = sorted([int(str(d)[:4]) for d in rev_series.index], reverse=True)
+                rev_dict = {y: float(rev_series.loc[rev_series.index.year == y].iloc[0]) for y in years[:4]}
+                
+                if len(rev_dict) >= 4:
+                    i_gr, i_ac = calc_growth(rev_dict)
+                    stock.is_growth_2yr = i_gr
+                    stock.is_accelerated = i_ac
+                    need_update = True
+                    
+            if need_update:
+                updated_count += 1
+                
+        db.commit()
+        return {"status": "success", "count": updated_count}
+

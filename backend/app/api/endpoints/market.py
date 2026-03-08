@@ -76,6 +76,19 @@ def sync_fundamentals(target_date: str = None):
         db.close()
     return results
 
+@router.post("/sync/backfill-history")
+def backfill_fundamentals_history():
+    """
+    執行一次性的歷史財務數據回填腳本 (抓取 yfinance 過去 4 年營收與 EPS)
+    僅處理初步篩選通過的標的。
+    """
+    from app.services.fundamental_service import FundamentalService
+    db = SessionLocal()
+    try:
+        return FundamentalService.backfill_history(db)
+    finally:
+        db.close()
+
 
 @router.get("/screener", response_model=List[StrategyResult])
 def get_screener_results():
