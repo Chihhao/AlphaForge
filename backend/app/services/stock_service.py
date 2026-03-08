@@ -77,10 +77,16 @@ class StockService:
             股票報價信息，或 None 如果無法取得
         """
         try:
-            # Yahoo Finance 台股格式：股票代號.TW
+            # Yahoo Finance 台股格式：上市使用 .TW, 上櫃使用 .TWO
             ticker = f"{stock_id}.TW"
             stock = yf.Ticker(ticker)
             hist = stock.history(period="1d")
+
+            if hist.empty:
+                # 嘗試 OTC
+                ticker = f"{stock_id}.TWO"
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period="1d")
 
             if hist.empty:
                 return None
