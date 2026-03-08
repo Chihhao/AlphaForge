@@ -81,16 +81,25 @@ class ScreenerService:
             af_choice_fundamentals = FundamentalService.get_af_choice_stocks(db)
             
         except Exception as e:
-            print(f"Error loading data from DB: {e}")
-            raw_df = pd.DataFrame()
-            af_choice_fundamentals = []
+            print(f"Error fetching fundamental data: {e}")
+            return [
+                StrategyResult(
+                    id="af_choice",
+                    name="AF 精選：價值成長股",
+                    description="目前無法取得基本面資料，請稍後再試。",
+                    tag="基本面優選",
+                    stocks=[]
+                ),
+                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="逆勢策略", stocks=[]),
+                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="順勢策略", stocks=[]),
+            ]
         finally:
             db.close()
             
         if raw_df.empty and not af_choice_fundamentals:
             return [
-                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="全市場掃描", stocks=[]),
-                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[]),
+                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="逆勢策略", stocks=[]),
+                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="順勢策略", stocks=[]),
                 StrategyResult(id="af_choice", name="AF 精選：價值成長股", description="...", tag="基本面優選", stocks=[])
             ]
 
@@ -177,16 +186,16 @@ class ScreenerService:
                 id="s1",
                 name="乖離率過低 (跌深反彈)",
                 description="20 日乖離率 < -10%：全市場掃描發現超跌標的，尋找潛在反彈機會。",
-                tag="全市場掃描",
+                tag="逆勢策略",
                 stocks=results_s1
             ),
             StrategyResult(
                 id="s2",
                 name="乖離率轉正 (強勢動能)",
-                description="20 日乖離率 > 0% 且量增：股價重回月線且動能爆發，主力表態預兆。",
-                tag="全市場掃描",
+                description="20 日乖離率從負轉正：尋找剛剛站上月線，動能翻多的強勢股。",
+                tag="順勢策略",
                 stocks=results_s2
-            ),
+            )
         ]
 
         # 儲存快取
