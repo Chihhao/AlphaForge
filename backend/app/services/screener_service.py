@@ -1,38 +1,39 @@
-from typing import List
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Optional
+from datetime import date
 import twstock
 import pandas as pd
 
 from app.schemas.screener import StrategyResult, ScreenerStock
-from app.services.stock_service import StockService
+from app.services.indicator_service import IndicatorService
 from app.models.stock_price import StockPrice
 from app.db.database import SessionLocal
 
-# 預設的台股 50 檔熱門權值股名單（做為預選池 MVP）
-POPULAR_STOCKS = [
-    # 半導體 / 電子代工
-    "2330", "2317", "2454", "2382", "2308", "3008", "3034", "3037", "3711", "2379",
-    "2395", "2357", "3231", "2353", "2356", "2408", "3481", "2409", "2344", "5483",
-    "6488", "2303", "2324", "2383", "3293", "4938", "6239", "8299", "3443", "3661",
-    # 金融保險
-    "2881", "2882", "2891", "2886", "2884", "2892", "2885", "2890", "2887", "2880",
-    # 傳產 / 航運 / 重電
-    "2603", "2609", "2615", "1101", "1301", "1303", "2002", "2105", "1504", "1519"
-]
+
+# 模組層級快取：掃描一次就存住，直到手動清除
+_screener_cache: Optional[List[StrategyResult]] = None
+_screener_cache_date: Optional[date] = None
+
 
 class ScreenerService:
-    """選股雷達服務"""
-    
+    """選股雷達服務 (向量化高速版)"""
+
+    @staticmethod
+    def invalidate_cache():
+        """清除快取（在每日同步完成後呼叫）"""
+        global _screener_cache, _screener_cache_date
+        _screener_cache = None
+        _screener_cache_date = None
+        print("[ScreenerService] Cache invalidated.")
+
     @staticmethod
     def get_stock_name(stock_id: str) -> str:
         """嘗試獲取股票名稱"""
         info = twstock.codes.get(stock_id)
         if info:
             return info.name
-        
-        # 簡易備用 mapping
+
         fallback = {
-            "2330": "台積電", "2317": "鴻海", "2454": "聯發科", 
+            "2330": "台積電", "2317": "鴻海", "2454": "聯發科",
             "2382": "廣達", "2308": "台達電"
         }
         return fallback.get(stock_id, f"股票 {stock_id}")
@@ -40,128 +41,122 @@ class ScreenerService:
     @staticmethod
     def get_screener_results() -> List[StrategyResult]:
         """
-        掃描全市場股票池，並依據策略條件過濾出符合的股票。
-        邏輯：
-        1. 找出資料庫中最新的交易日期。
-        2. 抓取該日期內所有的股票代號。
-        3. 計算指標並過濾。
+        全市場向量化極速掃描。
+        依賴本地 SQLite 的歷史資料進行 Pandas 運算。
         """
+        global _screener_cache, _screener_cache_date
+        today = date.today()
+
+        if _screener_cache is not None and _screener_cache_date == today:
+            print("[ScreenerService] Returning cached results.")
+            return _screener_cache
+
+        print("[ScreenerService] Cache miss, starting vectorized scan...")
+        
+        # 策略參數
+        bias_oversold_threshold = -10.0
+        bias_bull_threshold = 0.0
+        vol_multiplier = 1.5
+
+        import time
+        t0 = time.time()
+        
+        # 1. 取得全市場所有股票資料 (近 60 天)
         db = SessionLocal()
         try:
-            # 1. 找出最新交易日期
-            latest_date_row = db.query(StockPrice.date).order_by(StockPrice.date.desc()).first()
+            import datetime
+            cutoff_date = today - datetime.timedelta(days=90) # 寬鬆抓 90 日曆天以涵蓋 60 交易日
             
-            if not latest_date_row:
-                # 如果資料庫沒資料，回退到預設權值股名單
-                target_stocks = POPULAR_STOCKS
-            else:
-                latest_date = latest_date_row[0]
-                # 2. 找出該日期內所有股票
-                target_stocks_res = db.query(StockPrice.stock_id).filter(StockPrice.date == latest_date).all()
-                target_stocks = [r[0] for r in target_stocks_res]
-                
-                # 如果資料太少，可能是同步異常，回退到權值股
-                if len(target_stocks) < 100:
-                    target_stocks = list(set(target_stocks + POPULAR_STOCKS))
+            # 使用 pd.read_sql
+            query = db.query(
+                StockPrice.stock_id, StockPrice.date, 
+                StockPrice.open, StockPrice.high, 
+                StockPrice.low, StockPrice.close, StockPrice.volume
+            ).filter(StockPrice.date >= cutoff_date).statement
+            
+            raw_df = pd.read_sql(query, db.bind)
         except Exception as e:
-            print(f"Error fetching target stocks from DB: {e}")
-            target_stocks = POPULAR_STOCKS
+            print(f"Error loading data from DB: {e}")
+            raw_df = pd.DataFrame()
         finally:
             db.close()
             
-        results_s1: List[ScreenerStock] = []
-        results_s2: List[ScreenerStock] = []
+        if raw_df.empty:
+            return [
+                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="全市場掃描", stocks=[]),
+                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[])
+            ]
+
+        # 計算 5 日均量
+        raw_df = raw_df.sort_values(['stock_id', 'date'])
+        raw_df['ma5_vol'] = raw_df.groupby('stock_id')['volume'].transform(lambda x: x.rolling(window=5).mean())
         
-        def process_stock(stock_id: str):
-            # 抓取近 3 個月的日 K 線（足夠計算月線與周均量）
-            kline = StockService.get_kline_data(stock_id, period="3mo", interval="1d")
-            if kline is None or kline.empty or len(kline) < 25:
-                return None
-            
-            # 取得收盤價序列與成交量
-            closes = kline['收盤']
-            volumes = kline['成交量']
-            
-            # 計算指標
-            bias20_series = StockService.calculate_bias(closes, 20)
-            ma5_vol_series = volumes.rolling(window=5).mean()
-            
-            # 取得最新與前一日的數值
-            latest_close = closes.iloc[-1]
-            prev_close = closes.iloc[-2]
-            latest_vol = volumes.iloc[-1]
-            
-            latest_bias20 = bias20_series.iloc[-1]
-            latest_ma5_vol = ma5_vol_series.iloc[-1]
-            
-            if pd.isna(latest_bias20):
-                return None
-                
-            # 計算漲跌幅
-            change_percent = ((latest_close - prev_close) / prev_close) * 100
-            
-            stock_data = ScreenerStock(
-                symbol=stock_id,
-                name=ScreenerService.get_stock_name(stock_id),
-                price=round(float(latest_close), 2),
-                change=round(float(change_percent), 2),
-                bias20=round(float(latest_bias20), 2)
-            )
-            
-            # 評估策略條件
-            is_s1_match = latest_bias20 < -10.0
-            
-            # 由於我們沒有所有股票的即時成交量（Yahoo有時Volume資料晚一拍或為0），這裡加上一個基礎檢查
-            # 放寬動能條件：乖離率 > 0 且 大於月線 且 成交量放大（>5日均量 1.5 倍）且 當日上漲
-            is_s2_match = (
-                latest_bias20 > 0.0 and 
-                latest_vol > (latest_ma5_vol * 1.5) and 
-                change_percent > 0
-            )
-
-            return stock_data, is_s1_match, is_s2_match
-
-        # 使用執行緒池加速資料抓取
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_stock = {executor.submit(process_stock, sid): sid for sid in POPULAR_STOCKS}
-            for future in as_completed(future_to_stock):
-                stock_id = future_to_stock[future]
-                try:
-                    res = future.result()
-                    if res is None:
-                        continue
-                        
-                    stock_data, is_s1_match, is_s2_match = res
-                    
-                    if is_s1_match:
-                        results_s1.append(stock_data)
-                    
-                    if is_s2_match:
-                        results_s2.append(stock_data)
-                        
-                except Exception as exc:
-                    print(f'{stock_id} generated an exception: {exc}')
-
-        # 排序股票（策略 1 找越跌越深的，策略 2 找漲越多/量越大的）
-        results_s1.sort(key=lambda x: x.bias20)
-        results_s2.sort(key=lambda x: x.change, reverse=True)
+        # 附加其他指標 (向量化)
+        df = IndicatorService.attach_indicators(raw_df)
         
-        # 組裝成最終的回傳結果
-        strategies = [
+        if df.empty:
+            return [
+                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="全市場掃描", stocks=[]),
+                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[])
+            ]
+
+        # 先在原本包含所有歷史天的 df 算出漲跌幅，確保對齊
+        df['prev_close'] = df.groupby('stock_id')['close'].shift(1)
+        df['change_percent'] = ((df['close'] - df['prev_close']) / df['prev_close']) * 100
+        
+        # 然後再篩選出最後一個交易日的數據 (注意：必須針對每檔股票各自取最新一日)
+        latest_df = df.groupby('stock_id').tail(1).copy()
+        latest_df = latest_df.reset_index(drop=True)
+
+        # --- 策略 1: 跌深反彈 (s1) ---
+        s1_mask = latest_df['bias20'] < bias_oversold_threshold
+        s1_df = latest_df[s1_mask].sort_values('bias20', ascending=True).head(10)
+
+        # --- 策略 2: 強勢動能 (s2) ---
+        s2_mask = (
+            (latest_df['bias20'] > bias_bull_threshold) &
+            (latest_df['volume'] > (latest_df['ma5_vol'] * vol_multiplier)) &
+            (latest_df['change_percent'] > 0)
+        )
+        s2_df = latest_df[s2_mask].sort_values('change_percent', ascending=False).head(10)
+
+        # 封裝結果
+        def _to_screener_stocks(res_df):
+            return [
+                ScreenerStock(
+                    symbol=row['stock_id'],
+                    name=ScreenerService.get_stock_name(row['stock_id']),
+                    price=round(float(row['close']), 2),
+                    change=round(float(row['change_percent']), 2),
+                    bias20=round(float(row['bias20']), 2) if pd.notna(row['bias20']) else 0.0
+                )
+                for _, row in res_df.iterrows()
+            ]
+
+        results_s1 = _to_screener_stocks(s1_df)
+        results_s2 = _to_screener_stocks(s2_df)
+
+        print(f"[ScreenerService] Vectorized scan complete in {time.time() - t0:.2f}s")
+
+        results = [
             StrategyResult(
                 id="s1",
                 name="乖離率過低 (跌深反彈)",
-                description="20 日乖離率 < -10%：股價短期跌破月線太多，偏離均值，尋找跌深超賣的潛在反彈標的。",
-                tag="逆勢策略",
-                stocks=results_s1[:10]  # 最多回傳前 10 檔
+                description="20 日乖離率 < -10%：全市場掃描發現超跌標的，尋找潛在反彈機會。",
+                tag="全市場掃描",
+                stocks=results_s1
             ),
             StrategyResult(
                 id="s2",
                 name="乖離率轉正 (強勢動能)",
-                description="20 日乖離率 > 0% 且伴隨成交量放大：股價剛站上月線，代表均線以上的賣壓化解，主力準備表態。",
-                tag="順勢動能",
-                stocks=results_s2[:10]  # 最多回傳前 10 檔
+                description="20 日乖離率 > 0% 且量增：股價重回月線且動能爆發，主力表態預兆。",
+                tag="全市場掃描",
+                stocks=results_s2
             )
         ]
+
+        # 儲存快取
+        _screener_cache = results
+        _screener_cache_date = today
         
-        return strategies
+        return results

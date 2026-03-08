@@ -62,6 +62,9 @@ class MarketDataCrawler:
             response.raise_for_status()
             data = response.json()
             
+            target_fields = None
+            target_table = None
+
             if "tables" in data:
                 # 新版結構：{"tables": [{"title": "...", "fields": [...], "data": [...]}, ...]}
                 for table in data["tables"]:
@@ -284,8 +287,26 @@ class MarketDataCrawler:
                     
             success_msg = f"行情數據同步完成：新增 {inserted_count} 筆，跳過 {skipped_count} 筆。"
             SystemLogger.success(success_msg, category="crawler")
-            print(success_msg)
             
+            # --- Phase C: 自動觸發全市場選股掃描 ---
+            try:
+                from app.services.screener_service import ScreenerService
+                ScreenerService.invalidate_cache()  # 清除舊快取，確保使用最新數據
+                SystemLogger.info("正在執行全市場策略掃描...", category="screener")
+                strategies = ScreenerService.get_screener_results()
+                
+                # 計算本次掃描發現的總檔數（累加所有策略的股票數）
+                total_matches = sum(len(s.stocks) for s in strategies)
+                
+                SystemLogger.success(
+                    f"策略掃描完成：在全市場中發現 {total_matches} 檔符合條件標的。", 
+                    category="screener"
+                )
+            except Exception as e:
+                SystemLogger.error(f"自動策略掃描失敗: {str(e)}", category="screener")
+                print(f"Auto screening error: {e}")
+            # ------------------------------------
+
             return {
                 "status": "success",
                 "date": target_date_str,

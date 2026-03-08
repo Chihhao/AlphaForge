@@ -1,41 +1,41 @@
-# AlphaForge 實作計畫 (Learning-Oriented)
+# 📋 需求規格與設計文件：K 線圖實施物理索引 (Strict Physical Indexing)
 
-根據我們的討論，AlphaForge 將轉型為以「學習型工具」為核心的開發方向，專為股票新手設計。
+## 1. 核心目標
+為解決 `lightweight-charts` 在非交易時段產生的長距離跳空與指標水平連線問題，將圖表的 X 軸從「線性時間軸」切換為「離散索引軸」。
 
-## 💡 核心理念
-將專業的股市術語與數據「白話文化」，透過實作引導使用者理解市場邏輯。
+## 2. 技術架構
+### A. 資料解耦 (Data Decoupling)
+後端或前端處理資料時，不再將 Unix Timestamp 直接作為 `time` 欄位傳遞給序列，而是改用純數字序列。
+- `uniqueData[0].time = 0`
+- `uniqueData[1].time = 1`
+- `uniqueData[N].time = N`
 
----
+### B. 時間映射表 (Time Mapping Table)
+維護一個物理索引對真實時間的映射關係，用於 X 軸標籤 (Ticks) 與滑鼠懸停 (Tooltip) 的顯示。
+- **映射結構**：`map[index] = original_timestamp`
+- **實作成效**：即便索引是連續的，使用者看到的標籤依然是 `09:00`, `13:30` 等。
 
-## 🛠️ 實作重點
+### C. 縮放手感優化
+為保持 LWC 的流暢手感，將索引放大一個固定常數（如 `index * 3600`），騙過 LWC 的縮放阻尼引擎。
 
-### 1. 市場概況與學習排行榜 (Market Overview)
-- **排行榜實作**：在首頁增加漲幅、跌幅、成交量排行榜。
-- **教育小提示**：在排行榜旁增加說明，例如：「為什麼成交量大很重要？」、「跌幅排行榜能告訴我們什麼？」。
+## 3. 實施步驟
+### 第一階段：前端資料轉換 ([id].tsx)
+- [ ] 修改 `fetchData` 邏輯。
+- [ ] 將 `isIntraday` 模式下的 `time` 欄位強制設為資料陣列的 index。
+- [ ] 保留 `originalTime` 欄位供 TVChart 使用。
 
-### 2. 基礎 K 線型態辨識 (Technical Pillar)
-自動偵測並標註以下經典型態，並提供白話文解釋：
-- **紅三兵 (Red Three Soldiers)**：買氣強勁的訊號。
-- **三隻烏鴉 (Three Black Crows)**：賣壓沈重的警告。
-- **吞噬型態 (Engulfing Pattern)**：趨勢反轉的指標。
+### 第二階段：圖表組件渲染 (TVChart.tsx)
+- [ ] 更新 `timeFormatter`：根據 `dataRef.current[time]` 抓取 `originalTime` 並格式化。
+- [ ] 更新 `tickMarkFormatter`：實施相同的解析邏輯。
+- [ ] **視覺清理**：
+    - 隱藏 `priceLineVisible` 消除水平虛線。
+    - 隱藏 `lastValueVisible` 減少視覺雜訊。
 
-### 3. 三大柱分析面板 (The Success Pillars)
-- **籌碼面 (Chip)**：實作三大法人買賣超，教學如何「跟著大戶走」。
-- **基本面 (Fundamental)**：每月營收成長體檢，判斷公司「底氣」是否充足。
-- **技術面 (Technical)**：整合 KD、MACD 指標，並配上「這是什麼？新手該怎麼看？」的說明。
+### 第三階段：指標對齊
+- [ ] 確保 RSI 與 Bias 的 `setData` 是根據主圖的連續 index 生成。
+- [ ] 關閉指標的 `priceLineVisible`。
 
-### 4. 白話文指標儀表板 (Signal Board)
-- 實作 RSI、BIAS（乖離率）等指標。
-- 提供 Signal Status（如：超買、超賣、趨勢轉強等）的直覺動態顯示。
-
----
-
-## ✅ 驗證計畫
-
-### 自動化測試
-- 在 `backend/tests/` 中針對 K 線型態辨識邏輯編寫單元測試。
-
-### 手動驗證
-1. **首頁體感**：確認排行榜資料是否能引導新手快速進入狀況。
-2. **白話文檢查**：確保所有技術解釋對不具備股票基礎的使用者來說是易懂的。
-3. **UI/UX 一致性**：維持深色金主題色調，確保提示視窗 (Tooltips) 與說明卡片風格統一。
+## 4. 預期成效
+1. **零跳空**：無論跨夜或跨週末，K 棒完全緊密貼合。
+2. **無橫線**：RSI 指標在斷點處會自然過渡或中斷，不會拉出一條長橫線。
+3. **專業感**：畫面比例與專業交易軟體（如 TradingView 專業版）一致。

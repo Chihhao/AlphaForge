@@ -1,0 +1,47 @@
+
+> alphaforge-frontend@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1379ms
+ ○ Compiling / ...
+ ✓ Compiled / in 4.6s (839 modules)
+ ⚠ You have added a custom /_error page without a custom /404 page. This prevents the 404 page from being auto statically optimized.
+See here for info: https://nextjs.org/docs/messages/custom-error-no-custom-404
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+ GET /_next/static/webpack/94bac900937f848c.webpack.hot-update.json 404 in 4737ms
+ GET /_next/static/webpack/94bac900937f848c.webpack.hot-update.json 404 in 4721ms
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET / 200 in 4969ms
+ GET /stock/2408 200 in 4695ms
+ GET /stock/2408 200 in 5121ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+ GET / 200 in 66ms
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+ GET /stock/2408 200 in 67ms
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+ GET /stock/2408 200 in 30ms
+Warning: <title> should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-title
+Warning: viewport meta tags should not be used in _document.js's <Head>. https://nextjs.org/docs/messages/no-document-viewport-meta
+ GET /stock/2408 200 in 93ms
+ ✓ Compiled in 2.5s (839 modules)
+ ✓ Compiled in 884ms (839 modules)

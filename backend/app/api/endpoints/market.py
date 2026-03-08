@@ -62,9 +62,11 @@ def get_market_summary():
 def get_screener_results():
     """
     取得今日選股雷達掃描結果
-    
+
     回傳兩組策略的預選名單：
     1. 乖離率過低 (跌深反彈)
     2. 乖離率轉正 (強勢動能)
+
+    策略門檻為系統內建固定值，不接受前端動態調整。
     """
     return ScreenerService.get_screener_results()
