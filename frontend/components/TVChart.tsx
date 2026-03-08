@@ -133,8 +133,9 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                 localization: {
                     timeFormatter: (time: LWTime) => {
                         // 1. 如果是純整數物理索引 (0, 1, 2...)
-                        if (typeof time === 'number' && time < dataRef.current.length && time >= 0) {
-                            const originalTime = (dataRef.current[time] as any).originalTime;
+                        const index = Math.floor(Number(time));
+                        if (typeof time === 'number' && index < dataRef.current.length && index >= 0) {
+                            const originalTime = (dataRef.current[index] as any).originalTime;
                             if (originalTime) {
                                 const date = new Date((originalTime + 8 * 3600) * 1000);
                                 const h = String(date.getUTCHours());
@@ -159,6 +160,7 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                     },
                 },
                 timeScale: {
+                    visible: true,
                     timeVisible: true,
                     secondsVisible: false,
                     fixLeftEdge: false, // 允許向左滑動查看歷史
@@ -168,10 +170,11 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                     rightOffset: 5,
                     tickMarkFormatter: (time: LWTime, tickMarkType?: number) => {
                         let targetDate: Date | null = null;
+                        const index = Math.floor(Number(time));
 
                         // 1. 如果是純整數物理索引 (0, 1, 2...)
-                        if (typeof time === 'number' && time < dataRef.current.length && time >= 0) {
-                            const originalTime = (dataRef.current[time] as any).originalTime;
+                        if (typeof time === 'number' && index < dataRef.current.length && index >= 0) {
+                            const originalTime = (dataRef.current[index] as any).originalTime;
                             if (originalTime) {
                                 targetDate = new Date((originalTime + 8 * 3600) * 1000);
                             }
@@ -442,7 +445,7 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                 </div>
             </div>
 
-            <div className="relative w-full h-full min-h-[400px]">
+            <div className="relative w-full min-h-[400px]">
                 {/* 縮放控制按鈕 (保持在圖表內左上角) */}
                 <div className="absolute top-4 left-4 z-10 flex flex-row gap-2">
                     <button
@@ -464,7 +467,7 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                         </svg>
                     </button>
                 </div>
-                <div ref={chartContainerRef} className="w-full h-full min-h-[400px]" />
+                <div ref={chartContainerRef} className="w-full h-[400px]" />
             </div>
         </div>
     );
