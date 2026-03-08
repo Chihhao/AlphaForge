@@ -167,6 +167,13 @@ class ScreenerService:
 
         results = [
             StrategyResult(
+                id="master_choice",
+                name="大師精選：價值成長股",
+                description="兼具高殖利率 (>5%)、獲利能力 (ROE > 10%) 與營收規模。適合中長期價值投資。",
+                tag="基本面優選",
+                stocks=results_s3
+            ),
+            StrategyResult(
                 id="s1",
                 name="乖離率過低 (跌深反彈)",
                 description="20 日乖離率 < -10%：全市場掃描發現超跌標的，尋找潛在反彈機會。",
@@ -180,13 +187,6 @@ class ScreenerService:
                 tag="全市場掃描",
                 stocks=results_s2
             ),
-            StrategyResult(
-                id="master_choice",
-                name="大師精選：價值成長股",
-                description="兼具高殖利率 (>5%)、獲利能力 (ROE > 10%) 與營收規模。適合中長期價值投資。",
-                tag="基本面優選",
-                stocks=results_s3
-            )
         ]
 
         # 儲存快取
