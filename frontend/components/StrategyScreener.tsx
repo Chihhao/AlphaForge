@@ -70,7 +70,7 @@ export default function StrategyScreener() {
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-xl font-bold text-white">{strategy.name}</h3>
                                         <div className="scale-90 text-zinc-500 hover:text-cyan-400 transition-colors">
-                                            <EducationalHint glossaryId={strategy.id === 'master_choice' ? 'roe-indicator' : 'bias-indicator'} />
+                                            <EducationalHint glossaryId={strategy.id === 'af_choice' ? 'roe-indicator' : 'bias-indicator'} />
                                         </div>
                                     </div>
                                     <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${strategy.tag === '逆勢策略' ? 'bg-rose-500/20 text-rose-400' :
@@ -93,7 +93,7 @@ export default function StrategyScreener() {
                                     strategy.stocks.map((stock) => {
                                         const isUp = stock.change > 0;
                                         const changeColor = isUp ? 'text-rose-400' : 'text-emerald-400';
-                                        const isFundamental = strategy.id === 'master_choice';
+                                        const isFundamental = strategy.id === 'af_choice';
 
                                         return (
                                             <Link key={stock.symbol} href={`/stock/${stock.symbol}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer border-l-2 border-transparent hover:border-cyan-400">

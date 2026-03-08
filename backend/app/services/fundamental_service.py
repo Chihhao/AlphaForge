@@ -209,8 +209,8 @@ class FundamentalService:
         return {"status": "success", "count": total_count}
 
     @staticmethod
-    def get_master_choice_stocks(db: Session):
-        """實作大師精選 7 法 (初步整合)"""
+    def get_af_choice_stocks(db: Session):
+        """實作 AF 精選 (原大師精選 7 法)"""
         results = db.query(StockFundamental).filter(
             StockFundamental.yield_rate >= 5.0,
             StockFundamental.last_revenue >= 1.0,  # 1億

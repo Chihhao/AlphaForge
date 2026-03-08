@@ -78,20 +78,20 @@ class ScreenerService:
             raw_df = pd.read_sql(query, db.bind)
             
             # --- 獲取大師精選結果 (基本面策略) ---
-            master_choice_fundamentals = FundamentalService.get_master_choice_stocks(db)
+            af_choice_fundamentals = FundamentalService.get_af_choice_stocks(db)
             
         except Exception as e:
             print(f"Error loading data from DB: {e}")
             raw_df = pd.DataFrame()
-            master_choice_fundamentals = []
+            af_choice_fundamentals = []
         finally:
             db.close()
             
-        if raw_df.empty and not master_choice_fundamentals:
+        if raw_df.empty and not af_choice_fundamentals:
             return [
                 StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="全市場掃描", stocks=[]),
                 StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="全市場掃描", stocks=[]),
-                StrategyResult(id="s3", name="大師精選：價值成長股", description="...", tag="基本面優選", stocks=[])
+                StrategyResult(id="af_choice", name="AF 精選：價值成長股", description="...", tag="基本面優選", stocks=[])
             ]
 
         # 封裝結果工具
@@ -140,9 +140,9 @@ class ScreenerService:
         else:
             results_s1, results_s2 = [], []
 
-        # --- 策略 3: 大師精選 (轉換 Fundamental 模型為 ScreenerStock) ---
+        # --- 策略 3: AF 精選 (轉換 Fundamental 模型為 ScreenerStock) ---
         results_s3 = []
-        for f in master_choice_fundamentals:
+        for f in af_choice_fundamentals:
             # 獲取最新價格 (從 latest_df 或 db)
             # 這裡簡化處理：如果技術面 df 有資料就拿，沒有就略過或只顯示代號
             price, change, bias = 0.0, 0.0, 0.0
@@ -167,8 +167,8 @@ class ScreenerService:
 
         results = [
             StrategyResult(
-                id="master_choice",
-                name="大師精選：價值成長股",
+                id="af_choice",
+                name="AF 精選：價值成長股",
                 description="兼具高殖利率 (>5%)、獲利能力 (ROE > 10%) 與營收規模。適合中長期價值投資。",
                 tag="基本面優選",
                 stocks=results_s3
