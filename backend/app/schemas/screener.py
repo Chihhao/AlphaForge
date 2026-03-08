@@ -9,6 +9,7 @@ class ScreenerStock(BaseModel):
     bias20: float
     yield_rate: Optional[float] = None
     roe: Optional[float] = None
+    pb: Optional[float] = None
 
 class StrategyResult(BaseModel):
     id: str

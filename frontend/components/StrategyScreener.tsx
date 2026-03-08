@@ -105,8 +105,11 @@ export default function StrategyScreener() {
                                                     <div className="flex items-center gap-1 mt-0.5">
                                                         {isFundamental ? (
                                                             <div className="flex gap-2">
-                                                                <span className="text-zinc-400 text-xs">殖利率: <span className="text-rose-400/90">{stock.yield_rate}%</span></span>
-                                                                <span className="text-zinc-400 text-xs">ROE: <span className="text-cyan-400/90">{stock.roe}%</span></span>
+                                                                <span className="text-zinc-400 text-xs text-nowrap">殖利率: <span className="text-rose-400/90">{stock.yield_rate}%</span></span>
+                                                                <span className="text-zinc-400 text-xs text-nowrap">ROE: <span className="text-cyan-400/90">{stock.roe}%</span></span>
+                                                                {stock.pb !== undefined && (
+                                                                    <span className="text-zinc-400 text-xs text-nowrap">PB: <span className="text-amber-400/90">{stock.pb}x</span></span>
+                                                                )}
                                                             </div>
                                                         ) : (
                                                             <span className="text-zinc-400 text-xs">20 日乖離率: <span className={stock.bias20 > 0 ? 'text-rose-400/80' : 'text-emerald-400/80'}>{stock.bias20 > 0 ? '+' : ''}{stock.bias20}%</span></span>

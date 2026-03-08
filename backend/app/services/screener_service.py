@@ -169,7 +169,8 @@ class ScreenerService:
                 change=change,
                 bias20=bias,
                 yield_rate=f.yield_rate,
-                roe=f.roe_latest
+                roe=f.roe_latest,
+                pb=f.pb_ratio
             ))
 
         print(f"[ScreenerService] Scan complete in {time.time() - t0:.2f}s")
