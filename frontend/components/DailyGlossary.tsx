@@ -22,13 +22,13 @@ export default function DailyGlossary({ isOpen, onClose }: DailyGlossaryProps) {
         <>
             {/* 背景遮罩 */}
             <div
-                className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[140] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={onClose}
             />
 
             {/* 側邊抽屜 */}
             <div
-                className={`fixed top-0 right-0 h-full w-full sm:w-[400px] md:w-[450px] bg-[#0c0c0e] border-l border-white/5 z-50 transform transition-transform duration-300 ease-in-out shadow-2xl flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+                className={`fixed top-0 right-0 h-full w-full sm:w-[400px] md:w-[450px] bg-[#0c0c0e] border-l border-white/5 z-[150] transform transition-transform duration-300 ease-in-out shadow-2xl flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
             >
                 {/* 抽屜頂部 */}
                 <div className="flex items-center justify-between p-6 border-b border-white/5 bg-zinc-900/30">

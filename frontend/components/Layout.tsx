@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
+import DailyGlossary from './DailyGlossary'
 
 interface LayoutProps {
     children: React.ReactNode
@@ -35,6 +36,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const router = useRouter()
     const [isSidebarOpen, setSidebarOpen] = useState(false)
     const [isSearchOpen, setSearchOpen] = useState(false)
+    const [isGlossaryOpen, setGlossaryOpen] = useState(false)
     const [searchInput, setSearchInput] = useState('')
     const searchInputRef = useRef<HTMLInputElement>(null)
     const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
@@ -76,7 +78,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         home: "M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z",
         chart: "M11,2V22C5.9,21.5 2,17.2 2,12C2,6.8 5.9,2.5 11,2M13,2C13.5,2 14,2 14.5,2.1L13,11V2M15.4,3.3C18.9,5.2 21.3,8.7 21.9,12.7C22.1,13.6 22,14.5 21.8,15.4L13,12.5V3.3C13.8,3.3 14.6,3.3 15.4,3.3M21.1,17.4C20,20.1 17.6,22 14.8,22.7L13,14L21.1,17.4Z",
         strategy: "M21,16.5C21,16.88 20.79,17.21 20.47,17.38L12.57,21.82C12.41,21.94 12.21,22 12,22C11.79,22 11.59,21.94 11.43,21.82L3.53,17.38C3.21,17.21 3,16.88 3,16.5V7.5C3,7.12 3.21,6.79 3.53,6.62L11.43,2.18C11.59,2.06 11.79,2 12,2C12.21,2 12.41,2.06 12.57,2.18L20.47,6.62C20.79,6.79 21,7.12 21,7.5V16.5Z",
-        logo: "M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"
+        logo: "M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z",
+        book: "M21,5C19.89,4.65 18.67,4.45 17.5,4.45C15.83,4.45 14.09,4.75 12.5,5.5C10.91,4.75 9.17,4.45 7.5,4.45C6.33,4.45 5.11,4.65 4,5V18.5C5.11,18.15 6.33,17.95 7.5,17.95C9.17,17.95 10.91,18.25 12.5,19C14.09,18.25 15.83,17.95 17.5,17.95C18.67,17.95 19.89,18.15 21,18.5V5M19,16.5C18.5,16.45 18,16.45 17.5,16.45C15.91,16.45 14.39,16.75 13,17.3V7.3C14.39,6.75 15.91,6.45 17.5,6.45C18,6.45 18.5,6.45 19,6.5V16.5Z"
     }
 
     useEffect(() => {
@@ -115,9 +118,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                     </Link>
                                 </div>
 
-                                <button onClick={() => setSearchOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400">
-                                    <SVGPresenter path={icons.magnify} size={28} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setGlossaryOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400 transition-colors" title="每日知識卡">
+                                        <SVGPresenter path={icons.book} size={28} />
+                                    </button>
+                                    <button onClick={() => setSearchOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400 transition-colors" title="搜尋股票">
+                                        <SVGPresenter path={icons.magnify} size={28} />
+                                    </button>
+                                </div>
                             </div>
                         </header>
 
@@ -216,6 +224,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <main className="flex-grow">
                             {children}
                         </main>
+
+                        <DailyGlossary isOpen={isGlossaryOpen} onClose={() => setGlossaryOpen(false)} />
 
                         <footer className="py-12 border-t border-zinc-900 bg-[#101827] text-zinc-700 flex flex-col items-center gap-6">
                             <div className="flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">

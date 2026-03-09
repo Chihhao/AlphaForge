@@ -48,7 +48,7 @@ export default function MarketSummary() {
 
     if (loading) {
         return (
-            <div className="bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-white/5 p-6 mb-6 animate-pulse">
+            <div className="bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-white/5 p-6 animate-pulse">
                 <div className="h-8 bg-zinc-700/50 rounded w-48 mb-3" />
                 <div className="h-5 bg-zinc-700/50 rounded w-32" />
             </div>
@@ -57,7 +57,7 @@ export default function MarketSummary() {
 
     if (error || !data) {
         return (
-            <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 mb-6 text-center">
+            <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 text-center">
                 <p className="text-zinc-500 text-sm">市場資料載入失敗，請稍後重試</p>
             </div>
         );
@@ -69,7 +69,7 @@ export default function MarketSummary() {
     const changeArrow = isUp ? '▲' : '▼';
 
     return (
-        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 p-4 sm:p-5 mb-5 shadow-xl`}>
+        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 p-4 sm:p-5 shadow-xl`}>
             {/* 背景裝飾 */}
             <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/[0.015]" />
 

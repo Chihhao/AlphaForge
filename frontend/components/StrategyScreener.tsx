@@ -11,6 +11,7 @@ interface ScreenerStock {
     bias20: number;
     yield_rate?: number;
     roe?: number;
+    pb?: number;
 }
 
 interface StrategyResult {
@@ -42,16 +43,6 @@ export default function StrategyScreener() {
 
     return (
         <div className="flex flex-col gap-6 w-full">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
-                <h2 className="text-2xl font-black text-white tracking-widest flex items-center gap-3">
-                    <span className="w-1.5 h-6 bg-cyan-400 rounded-full inline-block"></span>
-                    今日選股雷達
-                </h2>
-
-                <span className="text-sm text-zinc-500 font-mono hidden xl:inline">
-                    自動掃描完成 {new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-            </div>
 
             {loading ? (
                 <div className="w-full flex justify-center items-center py-16 min-h-[300px] border border-white/5 rounded-2xl bg-zinc-900/40">
@@ -61,7 +52,7 @@ export default function StrategyScreener() {
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 w-full">
+                <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 w-full">
                     {strategies.map((strategy) => (
                         <div key={strategy.id} className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-white/20 transition-all flex flex-col">
                             {/* 策略標題與說明 */}
@@ -96,7 +87,7 @@ export default function StrategyScreener() {
                                         const isFundamental = strategy.id === 'af_choice';
 
                                         return (
-                                            <Link key={stock.symbol} href={`/stock/${stock.symbol}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer border-l-2 border-transparent hover:border-cyan-400">
+                                            <Link key={stock.symbol} href={`/stock/${stock.symbol}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer">
                                                 <div className="flex flex-col ml-1">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-white font-bold">{stock.name}</span>
