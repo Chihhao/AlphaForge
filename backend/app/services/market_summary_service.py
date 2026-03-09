@@ -73,7 +73,9 @@ class MarketSummaryService:
                                 prev_close = latest_db.close
                                 data_date = now.date()
                             
-                            is_live = True
+                            # 只有在真正在交易時間內，才顯示即時標誌
+                            if is_trading_hour:
+                                is_live = True
                 except Exception as yfe:
                     print(f"[MarketSummaryService] yfinance live fallback failed: {yfe}")
             

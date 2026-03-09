@@ -17,3 +17,5 @@ class StrategyResult(BaseModel):
     description: str
     tag: str
     stocks: List[ScreenerStock]
+    data_date: Optional[str] = None
+    is_live: bool = False

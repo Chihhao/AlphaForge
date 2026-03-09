@@ -20,6 +20,8 @@ interface StrategyResult {
     description: string;
     tag: string;
     stocks: ScreenerStock[];
+    data_date?: string;
+    is_live: boolean;
 }
 
 export default function StrategyScreener() {
@@ -27,18 +29,40 @@ export default function StrategyScreener() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchScreener = async () => {
-            setLoading(true);
+        const fetchScreener = async (showLoading = true) => {
+            if (showLoading) setLoading(true);
             try {
                 const res = await api.get('/market/screener');
                 setStrategies(res.data);
             } catch (error) {
                 console.error('Failed to fetch screener results', error);
             } finally {
-                setLoading(false);
+                if (showLoading) setLoading(false);
             }
         };
-        fetchScreener();
+
+        // 首次加載
+        fetchScreener(true);
+
+        // 盤中自動輪詢邏輯 (每 60 秒一次)
+        const intervalId = setInterval(() => {
+            const now = new Date();
+            const day = now.getDay(); // 0 是週日, 6 是週六
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const timeValue = hours * 100 + minutes;
+
+            // 判斷是否為週一至週五的交易時段 (09:00 - 14:30)
+            const isTradingDay = day >= 1 && day <= 5;
+            const isTradingHour = timeValue >= 900 && timeValue <= 1430;
+
+            if (isTradingDay && isTradingHour) {
+                console.log('[StrategyScreener] 盤中自動刷新報價...');
+                fetchScreener(false); // 背景刷新，不顯示 loading 動畫
+            }
+        }, 60000);
+
+        return () => clearInterval(intervalId);
     }, []);
 
     return (
@@ -57,12 +81,19 @@ export default function StrategyScreener() {
                         <div key={strategy.id} className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-white/20 transition-all flex flex-col">
                             {/* 策略標題與說明 */}
                             <div className="p-5 border-b border-white/5 bg-white/[0.02]">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="text-xl font-bold text-white">{strategy.name}</h3>
-                                        <div className="scale-90 text-zinc-500 hover:text-cyan-400 transition-colors">
-                                            <EducationalHint glossaryId={strategy.id === 'af_choice' ? 'af-choice-strategy' : 'bias-indicator'} />
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-xl font-bold text-white">{strategy.name}</h3>
+                                            <div className="scale-90 text-zinc-500 hover:text-cyan-400 transition-colors">
+                                                <EducationalHint glossaryId={strategy.id === 'af_choice' ? 'af-choice-strategy' : 'bias-indicator'} />
+                                            </div>
                                         </div>
+                                        {strategy.data_date && (
+                                            <span className="text-[10px] font-medium text-zinc-500 tracking-wide flex items-center gap-1.5 mt-0.5">
+                                                已於 {strategy.data_date} 盤後刷新
+                                            </span>
+                                        )}
                                     </div>
                                     <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${strategy.tag === '逆勢策略' ? 'bg-rose-500/20 text-rose-400' :
                                         strategy.tag === '基本面優選' ? 'bg-cyan-500/20 text-cyan-400' :
@@ -81,42 +112,58 @@ export default function StrategyScreener() {
                                         此參數條件下今日無符合標的
                                     </div>
                                 ) : (
-                                    strategy.stocks.map((stock) => {
+                                    strategy.stocks.map((stock, index) => {
                                         const isUp = stock.change > 0;
-                                        const changeColor = isUp ? 'text-rose-400' : 'text-emerald-400';
+                                        const changeColor = isUp ? 'text-rose-400' : (stock.change < 0 ? 'text-emerald-400' : 'text-zinc-400');
                                         const isFundamental = strategy.id === 'af_choice';
 
                                         return (
-                                            <Link key={stock.symbol} href={`/stock/${stock.symbol}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer">
-                                                <div className="flex flex-col ml-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-white font-bold">{stock.name}</span>
-                                                        <span className="text-zinc-500 text-xs font-mono">{stock.symbol}</span>
+                                            <React.Fragment key={stock.symbol}>
+                                                <Link
+                                                    href={`/stock/${stock.symbol}`}
+                                                    className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
+                                                >
+                                                    <div className="flex flex-col ml-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-white font-bold">{stock.name}</span>
+                                                            <span className="text-zinc-500 text-xs font-mono">{stock.symbol}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            {isFundamental ? (
+                                                                <div className="flex gap-2">
+                                                                    <span className="text-zinc-400 text-xs text-nowrap">殖利率: <span className="text-rose-400/90">{stock.yield_rate}%</span></span>
+                                                                    <span className="text-zinc-400 text-xs text-nowrap">ROE: <span className="text-cyan-400/90">{stock.roe}%</span></span>
+                                                                    {stock.pb !== undefined && (
+                                                                        <span className="text-zinc-400 text-xs text-nowrap">PB: <span className="text-amber-400/90">{stock.pb}x</span></span>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-zinc-400 text-xs">20 日乖離率: <span className={stock.bias20 > 0 ? 'text-rose-400/80' : 'text-emerald-400/80'}>{stock.bias20 > 0 ? '+' : ''}{stock.bias20}%</span></span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-1 mt-0.5">
-                                                        {isFundamental ? (
-                                                            <div className="flex gap-2">
-                                                                <span className="text-zinc-400 text-xs text-nowrap">殖利率: <span className="text-rose-400/90">{stock.yield_rate}%</span></span>
-                                                                <span className="text-zinc-400 text-xs text-nowrap">ROE: <span className="text-cyan-400/90">{stock.roe}%</span></span>
-                                                                {stock.pb !== undefined && (
-                                                                    <span className="text-zinc-400 text-xs text-nowrap">PB: <span className="text-amber-400/90">{stock.pb}x</span></span>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-zinc-400 text-xs">20 日乖離率: <span className={stock.bias20 > 0 ? 'text-rose-400/80' : 'text-emerald-400/80'}>{stock.bias20 > 0 ? '+' : ''}{stock.bias20}%</span></span>
-                                                        )}
-                                                    </div>
-                                                </div>
 
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-white font-mono font-bold text-lg">
-                                                        {stock.price === 0 ? '---' : stock.price}
-                                                    </span>
-                                                    <span className={`${changeColor} text-sm font-bold font-mono`}>
-                                                        {stock.change === 0 ? '0.00' : (isUp ? '+' : '') + stock.change}%
-                                                    </span>
-                                                </div>
-                                            </Link>
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="flex items-center">
+                                                            {stock.change > 0 && <span className="text-rose-400 text-[10px] mr-1">▲</span>}
+                                                            {stock.change < 0 && <span className="text-emerald-400 text-[10px] mr-1">▼</span>}
+                                                            <span className={`${changeColor} font-mono font-bold text-lg`}>
+                                                                {stock.price === 0 ? '---' :
+                                                                    stock.price < 100 ? stock.price.toFixed(2) :
+                                                                        stock.price < 500 ? stock.price.toFixed(1) :
+                                                                            Math.round(stock.price).toString()
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        <span className={`${changeColor} text-xs font-bold font-mono opacity-90`}>
+                                                            {stock.change === 0 ? '0.00' : (stock.change > 0 ? '+' : '') + stock.change.toFixed(2)}%
+                                                        </span>
+                                                    </div>
+                                                </Link>
+                                                {index < strategy.stocks.length - 1 && (
+                                                    <div className="h-px bg-white/[0.06] mx-4" />
+                                                )}
+                                            </React.Fragment>
                                         );
                                     })
                                 )}

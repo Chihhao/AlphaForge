@@ -7,7 +7,11 @@ from app.schemas.screener import StrategyResult, ScreenerStock
 from app.services.indicator_service import IndicatorService
 from app.services.fundamental_service import FundamentalService
 from app.models.stock_price import StockPrice
+from app.models.screener_cache import ScreenerCache
 from app.db.database import SessionLocal
+import json
+import yfinance as yf
+from datetime import datetime, date, timedelta
 
 
 # 模組層級快取：掃描一次就存住，直到手動清除
@@ -49,10 +53,76 @@ class ScreenerService:
         today = date.today()
 
         if _screener_cache is not None and _screener_cache_date == today:
-            print("[ScreenerService] Returning cached results.")
+            print("[ScreenerService] Returning memory cached results.")
             return _screener_cache
 
-        print("[ScreenerService] Cache miss, starting vectorized scan...")
+        # 1. 檢查資料庫持久化快取
+        db = SessionLocal()
+        try:
+            db_cache = db.query(ScreenerCache).filter(
+                ScreenerCache.strategy_id == "af_choice",
+                ScreenerCache.cache_date == today
+            ).first()
+            
+            if db_cache:
+                print(f"[ScreenerService] Cache hit from DB for {today}. Applying live updates if needed...")
+                cached_data = json.loads(db_cache.results_json)
+                results = [StrategyResult(**res) for res in cached_data]
+                
+                # --- 強制同步最準確的報價與漲跌幅 ---
+                # 為了與個股頁面 100% 一致，且維持首頁速度，採用的批次抓取 2 日數據進行計算
+                for res in results:
+                    if not res.stocks: continue
+                    try:
+                        # 準備所有代號 (包含 .TW 與 .TWO)
+                        symbol_map = {}
+                        for s in res.stocks:
+                            tw_sym = f"{s.symbol}.TW"
+                            two_sym = f"{s.symbol}.TWO"
+                            symbol_map[tw_sym] = s
+                            symbol_map[two_sym] = s
+                            
+                        tickers_list = list(symbol_map.keys())
+                        # 抓取 2 日數據以計算與昨日收盤的漲跌幅
+                        live_data = yf.download(tickers_list, period="2d", interval="1d", progress=False, threads=True)
+                        
+                        if not live_data.empty and 'Close' in live_data:
+                            closes = live_data['Close']
+                            
+                            for s in res.stocks:
+                                target_keys = [f"{s.symbol}.TW", f"{s.symbol}.TWO"]
+                                for k in target_keys:
+                                    if k in closes.columns:
+                                        s_data = closes[k].dropna()
+                                        if len(s_data) >= 2:
+                                            # 有兩日資料：計算漲跌
+                                            prev_close = float(s_data.iloc[-2])
+                                            curr_price = float(s_data.iloc[-1])
+                                            s.price = round(curr_price, 2)
+                                            s.change = round(((curr_price - prev_close) / prev_close * 100), 2)
+                                            break
+                                        elif len(s_data) == 1:
+                                            # 僅有一日資料 (可能是新上線或 yf 數據缺失)
+                                            s.price = round(float(s_data.iloc[-1]), 2)
+                                            # 漲跌幅維持原樣或設為 0
+                                            break
+                        res.is_live = True
+                    except Exception as ye:
+                        print(f"[ScreenerService] 批量同步報價異常: {ye}")
+                
+                for res in results:
+                    res.data_date = db_cache.cache_date.strftime("%Y-%m-%d")
+
+                # 更新記憶體快取避免一直查表
+                _screener_cache = results
+                _screener_cache_date = today
+                return results
+        except Exception as ce:
+            print(f"[ScreenerService] DB cache check failed: {ce}")
+        finally:
+            db.close()
+
+        print("[ScreenerService] Cache miss, starting vectorized scan (this may take a few seconds)...")
         
         # 策略參數
         bias_oversold_threshold = -10.0
@@ -85,7 +155,7 @@ class ScreenerService:
             return [
                 StrategyResult(
                     id="af_choice",
-                    name="AF 精選：價值成長股",
+                    name="AF 精選價值成長股",
                     description="目前無法取得基本面資料，請稍後再試。",
                     tag="基本面優選",
                     stocks=[]
@@ -96,7 +166,7 @@ class ScreenerService:
             
         if raw_df.empty and not af_choice_fundamentals:
             return [
-                StrategyResult(id="af_choice", name="AF 精選：價值成長股", description="...", tag="基本面優選", stocks=[])
+                StrategyResult(id="af_choice", name="AF 精選價值成長股", description="...", tag="基本面優選", stocks=[])
             ]
 
         # 封裝結果工具
@@ -156,15 +226,41 @@ class ScreenerService:
         results = [
             StrategyResult(
                 id="af_choice",
-                name="AF 精選：價值成長股",
+                name="AF 精選價值成長股",
                 description="兼顧價值防禦 (高息、合理估值) 與營運爆發力 (高 ROE、連續獲利與營收雙成長) 的嚴選績優股。",
                 tag="基本面優選",
                 stocks=results_s3
             )
         ]
 
-        # 儲存快取
+        for res in results:
+            res.data_date = today.strftime("%Y-%m-%d")
+
+        # 儲存到記憶體
         _screener_cache = results
         _screener_cache_date = today
+
+        # 儲存到資料庫永久快取 (非同步概念，不影響回傳速度，但這裡為了穩定先同步寫入)
+        db = SessionLocal()
+        try:
+            # 清除舊的今日快取 (如果有的話)
+            db.query(ScreenerCache).filter(
+                ScreenerCache.strategy_id == "af_choice",
+                ScreenerCache.cache_date == today
+            ).delete()
+            
+            new_cache = ScreenerCache(
+                strategy_id="af_choice",
+                cache_date=today,
+                results_json=json.dumps([res.model_dump() for res in results])
+            )
+            db.add(new_cache)
+            db.commit()
+            print(f"[ScreenerService] Results persisted to DB for {today}.")
+        except Exception as se:
+            print(f"[ScreenerService] Failed to persist cache: {se}")
+            db.rollback()
+        finally:
+            db.close()
         
         return results
