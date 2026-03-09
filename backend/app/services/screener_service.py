@@ -89,17 +89,13 @@ class ScreenerService:
                     description="目前無法取得基本面資料，請稍後再試。",
                     tag="基本面優選",
                     stocks=[]
-                ),
-                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="逆勢策略", stocks=[]),
-                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="順勢策略", stocks=[]),
+                )
             ]
         finally:
             db.close()
             
         if raw_df.empty and not af_choice_fundamentals:
             return [
-                StrategyResult(id="s1", name="乖離率過低 (跌深反彈)", description="...", tag="逆勢策略", stocks=[]),
-                StrategyResult(id="s2", name="乖離率轉正 (強勢動能)", description="...", tag="順勢策略", stocks=[]),
                 StrategyResult(id="af_choice", name="AF 精選：價值成長股", description="...", tag="基本面優選", stocks=[])
             ]
 
@@ -116,7 +112,8 @@ class ScreenerService:
                 for _, row in res_df.iterrows()
             ]
 
-        # --- 技術面計算 ---
+        # --- 技術面計算 (供 AF 精選獲取最新價格與指標) ---
+        latest_df = pd.DataFrame()
         if not raw_df.empty:
             # 計算 5 日均量
             raw_df = raw_df.sort_values(['stock_id', 'date'])
@@ -131,31 +128,12 @@ class ScreenerService:
                 latest_df = df.groupby('stock_id').tail(1).copy()
                 latest_df = latest_df.reset_index(drop=True)
 
-                # 策略 1: 跌深反彈
-                s1_mask = latest_df['bias20'] < bias_oversold_threshold
-                s1_df = latest_df[s1_mask].sort_values('bias20', ascending=True).head(10)
-                results_s1 = _to_screener_stocks(s1_df)
-
-                # 策略 2: 強勢動能
-                s2_mask = (
-                    (latest_df['bias20'] > bias_bull_threshold) &
-                    (latest_df['volume'] > (latest_df['ma5_vol'] * vol_multiplier)) &
-                    (latest_df['change_percent'] > 0)
-                )
-                s2_df = latest_df[s2_mask].sort_values('change_percent', ascending=False).head(10)
-                results_s2 = _to_screener_stocks(s2_df)
-            else:
-                results_s1, results_s2 = [], []
-        else:
-            results_s1, results_s2 = [], []
-
-        # --- 策略 3: AF 精選 (轉換 Fundamental 模型為 ScreenerStock) ---
+        # --- 策略: AF 精選 (轉換 Fundamental 模型為 ScreenerStock) ---
         results_s3 = []
         for f in af_choice_fundamentals:
-            # 獲取最新價格 (從 latest_df 或 db)
-            # 這裡簡化處理：如果技術面 df 有資料就拿，沒有就略過或只顯示代號
+            # 獲取最新價格
             price, change, bias = 0.0, 0.0, 0.0
-            if not raw_df.empty and 'latest_df' in locals():
+            if not latest_df.empty:
                 match = latest_df[latest_df['stock_id'] == f.stock_id]
                 if not match.empty:
                     price = round(float(match.iloc[0]['close']), 2)
@@ -182,20 +160,6 @@ class ScreenerService:
                 description="兼顧價值防禦 (高息、合理估值) 與營運爆發力 (高 ROE、連續獲利與營收雙成長) 的嚴選績優股。",
                 tag="基本面優選",
                 stocks=results_s3
-            ),
-            StrategyResult(
-                id="s1",
-                name="乖離率過低 (跌深反彈)",
-                description="20 日乖離率 < -10%：全市場掃描發現超跌標的，尋找潛在反彈機會。",
-                tag="逆勢策略",
-                stocks=results_s1
-            ),
-            StrategyResult(
-                id="s2",
-                name="乖離率轉正 (強勢動能)",
-                description="20 日乖離率從負轉正：尋找剛剛站上月線，動能翻多的強勢股。",
-                tag="順勢策略",
-                stocks=results_s2
             )
         ]
 

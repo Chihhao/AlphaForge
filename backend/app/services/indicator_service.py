@@ -3,7 +3,6 @@ import numpy as np
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, timedelta
 
-from app.logic.indicators.kd import calculate_kd
 from app.services.stock_service import StockService
 from app.schemas.indicator import KDValue, KDStatus
 
@@ -14,8 +13,13 @@ class IndicatorService:
     """
 
     @staticmethod
+    def calculate_ema_vec(df: pd.DataFrame, window: int, column: str = 'close') -> pd.Series:
+        """向量化計算指數移動平均線 (EMA)"""
+        return df.groupby('stock_id')[column].transform(lambda x: x.ewm(span=window, adjust=False).mean())
+
+    @staticmethod
     def calculate_ma_vec(df: pd.DataFrame, window: int, column: str = 'close') -> pd.Series:
-        """向量化計算移動平均線 (MA)"""
+        """向量化計算簡單移動平均線 (SMA)"""
         return df.groupby('stock_id')[column].transform(lambda x: x.rolling(window=window).mean())
 
     @staticmethod
@@ -31,7 +35,7 @@ class IndicatorService:
             delta = s.diff()
             up = delta.clip(lower=0)
             down = -1 * delta.clip(upper=0)
-            # 使用 Wilder's Smoothing (EWM)
+            # 使用 Wilder's Smoothing (EWM) - com = window - 1
             ema_up = up.ewm(com=window-1, adjust=False).mean()
             ema_down = down.ewm(com=window-1, adjust=False).mean()
             rs = ema_up / ema_down
@@ -41,19 +45,46 @@ class IndicatorService:
 
     @staticmethod
     def calculate_kd_vec(df: pd.DataFrame, n: int = 9, k_w: int = 3, d_w: int = 3) -> pd.DataFrame:
-        """向量化計算 KD 指標"""
-        # 注意：這裡預期 df 包含 'high', 'low', 'close'
+        """向量化計算 KD 指標，對齊 ECF/台股標準 (1/3 權重)"""
         def _kd_logic(group):
             low_min = group['low'].rolling(window=n).min()
             high_max = group['high'].rolling(window=n).max()
-            rsv = (group['close'] - low_min) / (high_max - low_min) * 100
+            denominator = high_max - low_min
+            rsv = (group['close'] - low_min) / denominator * 100
             rsv = rsv.fillna(50)
             
+            # 使用 com=2 等同於 1/3 alpha (1 / (1+2))
             k = rsv.ewm(com=k_w-1, adjust=False).mean()
+            # 初始值校正 (ECF 預設 50) 
             d = k.ewm(com=d_w-1, adjust=False).mean()
-            return pd.DataFrame({'k': k, 'd': d}, index=group.index)
+            return pd.DataFrame({'k': k, 'd': d, 'rsv': rsv}, index=group.index)
 
         return df.groupby('stock_id', group_keys=False).apply(_kd_logic)
+
+    @staticmethod
+    def calculate_macd_vec(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+        """向量化計算 MACD 指標"""
+        def _macd_logic(group):
+            ema_fast = group['close'].ewm(span=fast, adjust=False).mean()
+            ema_slow = group['close'].ewm(span=slow, adjust=False).mean()
+            dif = ema_fast - ema_slow
+            dea = dif.ewm(span=signal, adjust=False).mean()
+            osc = (dif - dea) * 2  # 台股習慣乘以 2
+            return pd.DataFrame({'dif': dif, 'macd_dea': dea, 'macd_osc': osc}, index=group.index)
+
+        return df.groupby('stock_id', group_keys=False).apply(_macd_logic)
+
+    @staticmethod
+    def calculate_bollinger_vec(df: pd.DataFrame, window: int = 20, num_std: int = 2) -> pd.DataFrame:
+        """向量化計算布林通道"""
+        def _bb_logic(group):
+            ma = group['close'].rolling(window=window).mean()
+            std = group['close'].rolling(window=window).std()
+            upper = ma + (num_std * std)
+            lower = ma - (num_std * std)
+            return pd.DataFrame({'bb_upper': upper, 'bb_middle': ma, 'bb_lower': lower}, index=group.index)
+
+        return df.groupby('stock_id', group_keys=False).apply(_bb_logic)
 
     @staticmethod
     def attach_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -69,13 +100,31 @@ class IndicatorService:
         name_map = {'收盤': 'close', '最高': 'high', '最低': 'low', '開盤': 'open', '成交量': 'volume'}
         df = df.rename(columns={k: v for k, v in name_map.items() if k in df.columns})
 
-        df['ma20'] = IndicatorService.calculate_ma_vec(df, 20)
+        # MA
+        for p in [5, 10, 20, 60]:
+            df[f'ma{p}'] = IndicatorService.calculate_ma_vec(df, p)
+        
+        # BIAS & RSI
         df['bias20'] = IndicatorService.calculate_bias_vec(df, 20)
         df['rsi14'] = IndicatorService.calculate_rsi_vec(df, 14)
         
+        # KD
         kd = IndicatorService.calculate_kd_vec(df)
         df['k'] = kd['k']
         df['d'] = kd['d']
+        df['rsv'] = kd['rsv']
+        
+        # MACD
+        macd = IndicatorService.calculate_macd_vec(df)
+        df['macd_dif'] = macd['dif']
+        df['macd_dea'] = macd['macd_dea']
+        df['macd_osc'] = macd['macd_osc']
+        
+        # Bollinger
+        bb = IndicatorService.calculate_bollinger_vec(df)
+        df['bb_upper'] = bb['bb_upper']
+        df['bb_middle'] = bb['bb_middle']
+        df['bb_lower'] = bb['bb_lower']
         
         return df
 
@@ -84,7 +133,8 @@ class IndicatorService:
     @staticmethod
     def get_kd_indicator(stock_id: str, days: int = 30) -> List[KDValue]:
         """取得指定股票的 KD 指標數據 (單檔向後相容)"""
-        df = StockService.get_kline_data(stock_id, period="3mo")
+        # 為了計算準確，我們需要抓取更多歷史數據 (例如 3 個月)
+        df = StockService.get_kline_data(stock_id, period="6mo")
         if df is None or df.empty: return []
         
         # 確保有 date 欄位 (從 index 轉換)
@@ -104,7 +154,7 @@ class IndicatorService:
                 timestamp=row['date'] if isinstance(row['date'], datetime) else pd.to_datetime(row['date']),
                 k=round(float(row['k']), 2),
                 d=round(float(row['d']), 2),
-                rsv=round(float(row.get('rsv', 0)), 2) # 若需要 RSV 需在 vec 中也回傳
+                rsv=round(float(row['rsv']), 2) 
             ) for _, row in recent.iterrows() if not pd.isna(row['k'])
         ]
 
