@@ -19,6 +19,8 @@ interface MarketSummaryData {
     market_sentiment: string;
     volume_status: string;
     data_date: string;
+    is_live: boolean;
+    last_updated: string;
 }
 
 /**
@@ -30,12 +32,24 @@ export default function MarketSummary() {
     const [data, setData] = useState<MarketSummaryData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const [flashClass, setFlashClass] = useState("");
+    const prevPriceRef = React.useRef<number | null>(null);
 
     useEffect(() => {
         const fetchSummary = async () => {
             try {
                 const res = await api.get('/market/summary');
-                setData(res.data);
+                const newData = res.data;
+
+                // 價格跳動動畫邏輯
+                if (prevPriceRef.current !== null && newData.taiex_price !== prevPriceRef.current) {
+                    const direction = newData.taiex_price > prevPriceRef.current ? "up" : "down";
+                    setFlashClass(direction === "up" ? "bg-rose-500/20" : "bg-emerald-500/20");
+                    setTimeout(() => setFlashClass(""), 800);
+                }
+
+                prevPriceRef.current = newData.taiex_price;
+                setData(newData);
             } catch (err) {
                 console.error('Failed to fetch market summary', err);
                 setError(true);
@@ -43,7 +57,11 @@ export default function MarketSummary() {
                 setLoading(false);
             }
         };
+
         fetchSummary();
+        // 如果在盤中時間，每 60 秒更新一次
+        const interval = setInterval(fetchSummary, 60000);
+        return () => clearInterval(interval);
     }, []);
 
     if (loading) {
@@ -69,7 +87,7 @@ export default function MarketSummary() {
     const changeArrow = isUp ? '▲' : '▼';
 
     return (
-        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 p-4 sm:p-5 shadow-xl`}>
+        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 px-6 py-5 shadow-xl transition-colors duration-500 ${flashClass}`}>
             {/* 背景裝飾 */}
             <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/[0.015]" />
 
@@ -79,20 +97,27 @@ export default function MarketSummary() {
                 <div className="flex items-center justify-between mb-1.5 sm:mb-2.5">
                     <div className="flex items-center gap-2">
                         <span className="text-xl sm:text-2xl font-black tracking-widest uppercase text-white">加權指數</span>
-                        <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity">
+                        <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity ml-1">
                             <EducationalHint glossaryId="taiex" />
                         </div>
                     </div>
 
                     {/* 漲跌家數小標籤 */}
-                    <div className="flex items-center gap-x-4">
-                        <div className="flex items-baseline gap-1.5">
-                            <span className="text-rose-500 font-bold text-sm sm:text-base">漲</span>
-                            <span className="text-rose-400 font-black font-mono text-lg sm:text-xl">{data.advances}</span>
-                        </div>
-                        <div className="flex items-baseline gap-1.5">
-                            <span className="text-emerald-500 font-bold text-sm sm:text-base">跌</span>
-                            <span className="text-emerald-400 font-black font-mono text-lg sm:text-xl">{data.declines}</span>
+                    <div className="flex items-center gap-x-3 sm:gap-x-4">
+                        <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-tighter">0050</span>
+                        <div className="flex items-center gap-x-3 sm:gap-x-4">
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-zinc-400 font-bold text-sm sm:text-base">平</span>
+                                <span className="text-zinc-300 font-black font-mono text-lg sm:text-xl">{data.unchanged}</span>
+                            </div>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-rose-500 font-bold text-sm sm:text-base">漲</span>
+                                <span className="text-rose-400 font-black font-mono text-lg sm:text-xl">{data.advances}</span>
+                            </div>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-emerald-500 font-bold text-sm sm:text-base">跌</span>
+                                <span className="text-emerald-400 font-black font-mono text-lg sm:text-xl">{data.declines}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -111,6 +136,13 @@ export default function MarketSummary() {
                         {isUp ? '+' : ''}{data.taiex_change_percent.toFixed(2)}%
                     </span>
                 </div>
+            </div>
+            {/* 底部整合狀態與時間戳記 */}
+            <div className="absolute bottom-3 left-6 flex items-center gap-2 pointer-events-none">
+                <div className={`w-1.5 h-1.5 rounded-full ${data.is_live ? 'bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-zinc-600'}`}></div>
+                <span className="text-[9px] font-mono tracking-widest text-zinc-500 opacity-40">
+                    {data.is_live ? `RT: ${data.last_updated}` : `EOD: ${data.data_date}`}
+                </span>
             </div>
         </div>
     );

@@ -42,3 +42,5 @@ class MarketSummary(BaseModel):
 
     # 資料時間
     data_date: str              # 資料日期 (YYYY-MM-DD)
+    is_live: bool = False       # 是否為盤中即時數據
+    last_updated: Optional[str] = None # 最近更新時間 (HH:MM:SS)

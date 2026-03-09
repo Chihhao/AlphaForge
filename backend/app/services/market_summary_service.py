@@ -12,6 +12,10 @@ from sqlalchemy import func
 from app.schemas.market import MarketSummary
 from app.models.stock_price import StockPrice
 from app.db.database import SessionLocal
+from app.services.index_service import IndexService
+import yfinance as yf
+import pandas as pd
+import numpy as np
 
 
 class MarketSummaryService:
@@ -27,34 +31,59 @@ class MarketSummaryService:
     @staticmethod
     def get_market_summary() -> MarketSummary:
         """取得今日大盤指數概況 (優先從本地資料庫獲取)"""
-        pool = MarketSummaryService.STOCK_POOL
+        pool = IndexService.get_0050_constituents()
         db = SessionLocal()
         
         try:
-            # 1. 獲取加權指數最新兩天數據
-            taiex_prices = db.query(StockPrice).filter(
+            # 1. 獲取加權指數基礎數據 (從 DB)
+            taiex_prices_db = db.query(StockPrice).filter(
                 StockPrice.stock_id == "^TWII"
-            ).order_by(StockPrice.date.desc()).limit(15).all() # 拿多一點算均量
+            ).order_by(StockPrice.date.desc()).limit(15).all()
             
-            if not taiex_prices or len(taiex_prices) < 2:
-                # 如果資料庫沒資料，回退到 yfinance (但通常應該由同步任務處理)
+            if not taiex_prices_db:
                 raise ValueError("資料庫中無加權指數數據")
 
-            # 轉成依日期升序
-            taiex_prices = sorted(taiex_prices, key=lambda x: x.date)
+            taiex_prices_db = sorted(taiex_prices_db, key=lambda x: x.date)
+            latest_db = taiex_prices_db[-1]
             
-            today_idx = taiex_prices[-1]
-            yesterday_idx = taiex_prices[-2]
+            # --- 即時回退邏輯 ---
+            now = datetime.now()
+            # 台灣時間平日 09:00 - 14:30 (含收盤後清算時間)
+            is_trading_hour = (now.weekday() < 5) and (9 <= now.hour < 15)
+            is_live = False
+            last_updated = now.strftime("%H:%M:%S")
             
-            taiex_price = round(today_idx.close, 2)
-            prev_close = yesterday_idx.close
+            taiex_price = round(latest_db.close, 2)
+            prev_close = taiex_prices_db[-2].close if len(taiex_prices_db) >= 2 else taiex_price
+            data_date = latest_db.date
+            
+            # 如果是交易時間，或者 DB 資料是舊的 (還沒同步到今天)
+            if is_trading_hour or latest_db.date < now.date():
+                try:
+                    # 使用 yfinance 抓取即時快照
+                    ticker = yf.Ticker("^TWII")
+                    live_hist = ticker.history(period="1d")
+                    if not live_hist.empty:
+                        live_price = live_hist.iloc[-1]['Close']
+                        # 如果 yf 抓到的價格跟 DB 不一樣，代表有盤中跳動
+                        if abs(live_price - taiex_price) > 0.01:
+                            taiex_price = round(live_price, 2)
+                            # 如果 DB 還沒到今天，則以最新價格對比昨收 (latest_db)
+                            if latest_db.date < now.date():
+                                prev_close = latest_db.close
+                                data_date = now.date()
+                            
+                            is_live = True
+                except Exception as yfe:
+                    print(f"[MarketSummaryService] yfinance live fallback failed: {yfe}")
+            
             taiex_change = round(taiex_price - prev_close, 2)
             taiex_change_percent = round((taiex_change / prev_close) * 100, 2)
             
-            # 2. 統計股票池數據
-            valid_dates = [p.date for p in taiex_prices]
-            today_date = valid_dates[-1]
-            yesterday_date = valid_dates[-2]
+            # 2. 統計股票池數據 (廣度統計)
+            valid_dates = [p.date for p in taiex_prices_db]
+            today_date = latest_db.date
+            yesterday_date = taiex_prices_db[-2].date if len(taiex_prices_db) >= 2 else today_date
             
             advances = 0
             declines = 0
@@ -63,34 +92,64 @@ class MarketSummaryService:
             limit_down = 0
             today_total_amount = 0
             
-            # 批量查詢當天與昨天的成分股數據
+            # 先從資料庫獲取基底數據 (昨日與今日已存數據)
             pool_data = db.query(StockPrice).filter(
                 StockPrice.stock_id.in_(pool),
                 StockPrice.date.in_([today_date, yesterday_date])
             ).all()
             
-            # 按 stock_id 分群
             stock_map = {}
             for p in pool_data:
                 if p.stock_id not in stock_map:
                     stock_map[p.stock_id] = {}
                 stock_map[p.stock_id][p.date] = p
-                
-            for sid in pool:
-                if sid in stock_map and today_date in stock_map[sid] and yesterday_date in stock_map[sid]:
-                    curr = stock_map[sid][today_date]
-                    prev = stock_map[sid][yesterday_date]
+            
+            # --- 如果是即時模式，主動抓取 50 檔成分股的即時漲跌 ---
+            live_prices = {}
+            if is_live:
+                try:
+                    # 批量抓取 Yahoo Finance 快照 (50 檔)
+                    tickers_str = " ".join([f"{s}.TW" for s in pool])
+                    live_batch = yf.download(tickers_str, period="1d", interval="1m", progress=False, threads=True)
                     
-                    change = ((curr.close - prev.close) / prev.close) * 100
-                    if change >= 9.5:
+                    if not live_batch.empty:
+                        # 處理 YF 回傳的 MultiIndex 結構
+                        closes = live_batch['Close']
+                        if isinstance(closes, pd.Series): # 只有一檔時
+                            live_prices[pool[0]] = closes.iloc[-1]
+                        else:
+                            for sid in pool:
+                                symbol = f"{sid}.TW"
+                                if symbol in closes.columns:
+                                    val = closes[symbol].dropna()
+                                    if not val.empty:
+                                        live_prices[sid] = val.iloc[-1]
+                except Exception as e:
+                    print(f"[MarketSummaryService] Batch live fetch failed: {e}")
+
+            for sid in pool:
+                if sid in stock_map:
+                    # 決定當前價格與基準價格
+                    prev = stock_map[sid].get(yesterday_date) or stock_map[sid].get(today_date)
+                    if not prev: continue
+                    
+                    curr_price = stock_map[sid][today_date].close if today_date in stock_map[sid] else prev.close
+                    
+                    # 如果有即時報價，覆蓋它
+                    if is_live and sid in live_prices:
+                        curr_price = live_prices[sid]
+                    
+                    change_pct = ((curr_price - prev.close) / prev.close) * 100 if prev.close > 0 else 0
+                    
+                    if change_pct >= 9.5:
                         limit_up += 1; advances += 1
-                    elif change <= -9.5:
+                    elif change_pct <= -9.5:
                         limit_down += 1; declines += 1
-                    elif change > 0.01: advances += 1
-                    elif change < -0.01: declines += 1
+                    elif change_pct > 0.1: advances += 1
+                    elif change_pct < -0.1: declines += 1
                     else: unchanged += 1
                     
-                    today_total_amount += (curr.volume * curr.close)
+                    today_total_amount += (curr_price * (stock_map[sid][today_date].volume if today_date in stock_map[sid] else 1000))
             
             # 3. 計算 5 日均量 (這裡用加權指數本生的成交量欄位，或者成分股加總)
             # 加權指數的 volume 通常是成交金額或股數，視 yf 回傳而定
@@ -130,7 +189,9 @@ class MarketSummaryService:
                 advance_decline_ratio=ad_ratio,
                 market_sentiment=sentiment,
                 volume_status=vol_status,
-                data_date=today_date.strftime("%Y-%m-%d"),
+                data_date=data_date.strftime("%Y-%m-%d"),
+                is_live=is_live,
+                last_updated=last_updated
             )
             
         except Exception as e:
