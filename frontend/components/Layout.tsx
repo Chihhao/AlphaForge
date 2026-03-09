@@ -227,12 +227,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
                         <DailyGlossary isOpen={isGlossaryOpen} onClose={() => setGlossaryOpen(false)} />
 
-                        <footer className="py-12 border-t border-zinc-900 bg-[#101827] text-zinc-700 flex flex-col items-center gap-6">
-                            <div className="flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-                                <SVGPresenter path={icons.logo} size={24} className="fill-emerald-400" />
-                                <span className="text-lg font-bold tracking-tighter text-zinc-400">AlphaForge_</span>
+                        <footer className="py-2.5 border-t border-zinc-900 bg-[#101827] text-zinc-400 flex flex-col sm:flex-row items-center justify-center gap-x-12 gap-y-1 px-4 transition-all">
+                            <div className="flex items-center gap-2 text-zinc-400">
+                                <SVGPresenter path={icons.logo} size={16} className="fill-emerald-400" />
+                                <span className="text-xs font-bold tracking-tight text-white/90">AlphaForge_</span>
                             </div>
-                            <p className="text-[10px] font-mono tracking-[0.2em] uppercase">
+                            <p className="text-[9px] font-mono tracking-wider uppercase text-zinc-500">
                                 &copy; {new Date().getFullYear()} ALPHAFORGE PROJECT // FORGED WITH PRECISION
                             </p>
                         </footer>
