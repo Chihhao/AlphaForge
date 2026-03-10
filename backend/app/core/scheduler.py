@@ -5,6 +5,7 @@ import logging
 from app.services.stock_sync_service import StockSyncService
 from app.services.market_data_crawler import MarketDataCrawler
 from app.services.fundamental_service import FundamentalService
+from app.services.screener_service import ScreenerService
 from app.db.database import SessionLocal
 
 # 設置日誌
@@ -50,7 +51,10 @@ def start_scheduler():
 
     # 每日下午 3:30 執行市場行情
     scheduler.add_job(
-        lambda: MarketDataCrawler.sync_daily_market_data(),
+        lambda: run_with_db(lambda _: (
+            MarketDataCrawler.sync_daily_market_data(),
+            ScreenerService.invalidate_cache()
+        )),
         trigger=CronTrigger(hour=15, minute=30),
         id="sync_market_data_daily",
         name="Daily market data synchronization from TWSE/TPEx",
@@ -58,25 +62,19 @@ def start_scheduler():
     )
 
     # --- 第二梯次：17:00 最終確認更新 (確保所有官方統計已入庫) ---
+    def final_sync_task(db):
+        FundamentalService.sync_twse_valuation(db)
+        FundamentalService.sync_tpex_valuation(db)
+        FundamentalService.sync_mops_revenue(db)
+        FundamentalService.sync_mops_performance(db)
+        ScreenerService.invalidate_cache()
+        logger.info("Final daily sync and cache invalidation completed.")
+
     scheduler.add_job(
-        lambda: run_with_db(FundamentalService.sync_twse_valuation),
+        lambda: run_with_db(final_sync_task),
         trigger=CronTrigger(hour=17, minute=0),
-        id="sync_valuation_final",
-        name="Final fundamental valuation sync",
-        replace_existing=True
-    )
-    scheduler.add_job(
-        lambda: run_with_db(FundamentalService.sync_mops_revenue),
-        trigger=CronTrigger(hour=17, minute=0),
-        id="sync_revenue_final",
-        name="Final monthly revenue sync",
-        replace_existing=True
-    )
-    scheduler.add_job(
-        lambda: run_with_db(FundamentalService.sync_mops_performance),
-        trigger=CronTrigger(hour=17, minute=0),
-        id="sync_performance_final",
-        name="Final performance sync",
+        id="sync_final_batch",
+        name="Final daily fundamental sync batch",
         replace_existing=True
     )
     
