@@ -28,8 +28,21 @@ class ScreenerService:
         """清除快取（在每日同步完成後呼叫）"""
         global _screener_cache, _screener_cache_date
         _screener_cache = None
-        _screener_cache_date = None
-        print("[ScreenerService] Cache invalidated.")
+        _screener_cache_date = date.today() # 設為今天以觸發下次重新同步
+        
+        # 同步清除資料庫中的今日快取
+        db = SessionLocal()
+        try:
+            db.query(ScreenerCache).filter(
+                ScreenerCache.cache_date == date.today()
+            ).delete()
+            db.commit()
+            print(f"[ScreenerService] Memory and DB cache cleared for {date.today()}.")
+        except Exception as e:
+            print(f"[ScreenerService] Failed to clear DB cache: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
     @staticmethod
     def get_stock_name(stock_id: str) -> str:

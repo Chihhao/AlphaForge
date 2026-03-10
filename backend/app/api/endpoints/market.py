@@ -3,8 +3,9 @@
 
 提供今日市場概況數據，包含加權指數、成交量、多空比等資訊。
 """
-from fastapi import APIRouter
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List, Dict, Any
 
 from app.services.market_summary_service import MarketSummaryService
 from app.services.screener_service import ScreenerService
@@ -81,6 +82,22 @@ def sync_fundamentals(target_date: str = None):
     ScreenerService.invalidate_cache()
     return results
 
+@router.post("/sync/livan-stocks")
+def sync_livan_stocks():
+    """強制同步 Livan 的 16 檔驗證標的"""
+    from app.services.fundamental_service import FundamentalService
+    db = SessionLocal()
+    livan_stocks = ["1264", "1535", "1615", "1777", "2247", "2453", "2937", "3227", "3515", "3570", "4933", "5236", "6143", "6189", "6486", "6728"]
+    try:
+        # 1. 先抓 OTC 基本資訊
+        FundamentalService.sync_tpex_valuation(db)
+        # 2. 強制補齊這 16 檔
+        result = FundamentalService.force_sync_specific_stocks(db, livan_stocks)
+        ScreenerService.invalidate_cache()
+        return result
+    finally:
+        db.close()
+
 @router.post("/sync/backfill-history")
 def backfill_fundamentals_history():
     """
@@ -107,3 +124,45 @@ def get_screener_results():
     策略門檻為系統內建固定值，不接受前端動態調整。
     """
     return ScreenerService.get_screener_results()
+
+@router.get("/diagnose_livan")
+def diagnose_livan():
+    from app.models.stock_fundamental import StockFundamental
+    from app.db.database import SessionLocal
+    db = SessionLocal()
+    # Livan 的 16 檔 + AlphaForge 多抓到的關鍵 5 檔
+    livan_stocks = ["1264", "1535", "1615", "1777", "2247", "2453", "2937", "3227", "3515", "3570", "4933", "5236", "6143", "6189", "6486", "6728", "3014", "6585", "6605", "8341", "9941"]
+    
+    output = []
+    try:
+        for sid in livan_stocks:
+            stock = db.query(StockFundamental).filter(StockFundamental.stock_id == sid).first()
+            if not stock:
+                output.append({"stock_id": sid, "status": "Not found in DB"})
+                continue
+                
+            c1 = stock.yield_rate >= 5.0
+            c2 = stock.last_revenue >= 1.0
+            c3 = stock.roe_latest >= 10.0
+            c4 = 0 < stock.pb_ratio <= 3.0
+            c5 = (stock.eps_y1 >= 2 and stock.eps_y2 >= 2 and stock.eps_y3 >= 2 and stock.eps_y4 >= 2)
+            c6 = stock.is_growth_2yr == 1
+            c7 = stock.is_accelerated == 1
+            
+            output.append({
+                "stock_id": sid,
+                "name": stock.stock_name,
+                "passed_count": int(sum([c1, c2, c3, c4, c5, c6, c7])),
+                "details": {
+                    "1.殖利率>5%": {"val": stock.yield_rate, "passed": bool(c1)},
+                    "2.營收>1億": {"val": stock.last_revenue, "passed": bool(c2)},
+                    "3.ROE>10%": {"val": stock.roe_latest, "passed": bool(c3)},
+                    "4.PB<3": {"val": stock.pb_ratio, "passed": bool(c4)},
+                    "5.EPS連4年>2": {"val": [stock.eps_y1, stock.eps_y2, stock.eps_y3, stock.eps_y4], "passed": bool(c5)},
+                    "6.連2年成長": {"val": int(stock.is_growth_2yr or 0), "passed": bool(c6)},
+                    "7.營收加速度": {"val": int(stock.is_accelerated or 0), "passed": bool(c7)}
+                }
+            })
+    finally:
+        db.close()
+    return output

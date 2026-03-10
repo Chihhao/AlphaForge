@@ -84,7 +84,9 @@ export default function StrategyScreener() {
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-xl font-bold text-white">{strategy.name}</h3>
+                                            <h3 className="text-xl font-bold text-white whitespace-nowrap">
+                                                {strategy.name} ({strategy.stocks.length}檔)
+                                            </h3>
                                             <div className="scale-90 text-zinc-500 hover:text-cyan-400 transition-colors">
                                                 <EducationalHint glossaryId={strategy.id === 'af_choice' ? 'af-choice-strategy' : 'bias-indicator'} />
                                             </div>
@@ -131,10 +133,18 @@ export default function StrategyScreener() {
                                                         <div className="flex items-center gap-1 mt-0.5">
                                                             {isFundamental ? (
                                                                 <div className="flex gap-2">
-                                                                    <span className="text-zinc-400 text-xs text-nowrap">殖利率: <span className="text-rose-400/90">{stock.yield_rate}%</span></span>
-                                                                    <span className="text-zinc-400 text-xs text-nowrap">ROE: <span className="text-cyan-400/90">{stock.roe}%</span></span>
+                                                                    <span className="text-zinc-400 text-xs text-nowrap">
+                                                                        殖利率: <span className="text-rose-400/90">
+                                                                            {(stock.yield_rate ?? 0) > 50 ? ((stock.yield_rate ?? 0) / 100).toFixed(1) : (stock.yield_rate ?? 0).toFixed(1)}%
+                                                                        </span>
+                                                                    </span>
+                                                                    <span className="text-zinc-400 text-xs text-nowrap">
+                                                                        ROE: <span className="text-cyan-400/90">{(stock.roe ?? 0).toFixed(1)}%</span>
+                                                                    </span>
                                                                     {stock.pb !== undefined && (
-                                                                        <span className="text-zinc-400 text-xs text-nowrap">PB: <span className="text-amber-400/90">{stock.pb}x</span></span>
+                                                                        <span className="text-zinc-400 text-xs text-nowrap">
+                                                                            PB: <span className="text-amber-400/90">{stock.pb.toFixed(1)}x</span>
+                                                                        </span>
                                                                     )}
                                                                 </div>
                                                             ) : (

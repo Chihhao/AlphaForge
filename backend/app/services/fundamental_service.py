@@ -76,6 +76,59 @@ class FundamentalService:
             return {"status": "error", "message": str(e)}
 
     @staticmethod
+    def sync_tpex_valuation(db: Session, target_date: str = None):
+        """同步櫃買中心 (OTC) 的本益比、殖利率與淨值比快照"""
+        if target_date is None:
+            # 櫃買中心格式為 民國/MM/DD
+            today = datetime.now()
+            target_date = f"{today.year - 1911}/{today.strftime('%m/%d')}"
+        
+        print(f"[FundamentalService] Syncing TPEx valuation for {target_date}...")
+        url = f"https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_result.php?l=zh-tw&d={target_date}&c=&s=0,asc,0&response=json"
+        
+        try:
+            response = requests.get(url, timeout=15)
+            data = response.json()
+            rows = data.get('aaData', [])
+            count = 0
+            
+            for row in rows:
+                stock_id = row[0]
+                stock_name = row[1]
+                
+                def _clean(val):
+                    if val in ['-', 'N/A', '']: return 0.0
+                    try: return float(str(val).replace(',', ''))
+                    except: return 0.0
+
+                # OTC 欄位: 2:本益比, 5:殖利率, 6:股價淨值比
+                pe_ratio = _clean(row[2])
+                yield_rate = _clean(row[5])
+                pb_ratio = _clean(row[6])
+                
+                fundamental = db.query(StockFundamental).filter(StockFundamental.stock_id == stock_id).first()
+                if not fundamental:
+                    fundamental = StockFundamental(stock_id=stock_id, stock_name=stock_name)
+                    db.add(fundamental)
+                
+                fundamental.yield_rate = yield_rate
+                fundamental.pe_ratio = pe_ratio
+                fundamental.pb_ratio = pb_ratio
+                
+                if pe_ratio > 0:
+                    fundamental.roe_latest = round((pb_ratio / pe_ratio) * 100, 2)
+
+                fundamental.updated_at = date.today()
+                count += 1
+            
+            db.commit()
+            print(f"[FundamentalService] Successfully updated {count} OTC stocks.")
+            return {"status": "success", "count": count}
+        except Exception as e:
+            print(f"[FundamentalService] Error syncing TPEx: {e}")
+            return {"status": "error", "message": str(e)}
+
+    @staticmethod
     def sync_mops_revenue(db: Session, year: int = None, month: int = None):
         """同步月營收 (改用 TWSE OpenAPI)"""
         url = "https://openapi.twse.com.tw/v1/opendata/t187ap05_L"
@@ -116,6 +169,11 @@ class FundamentalService:
                 if fundamental:
                     fundamental.last_revenue = round(rev_val, 2)
                     fundamental.revenue_growth_yoy = round(yoy_val, 2)
+                    # 關鍵對齊點：Livan 的邏輯通常是用單月營收年增率 (YoY) 來判定成長與加速度
+                    # 修復：將月營收 YoY 同步更新至快速篩選欄位
+                    fundamental.is_growth_2yr = 1 if yoy_val > 5.0 else 0
+                    fundamental.is_accelerated = 1 if yoy_val > 10.0 else 0 # 加速度暫定 > 10%
+                    fundamental.updated_at = date.today()
                 
                 # 2. 存入歷史表 (趨勢圖用)
                 rev_history = db.query(StockMonthlyRevenue).filter(
@@ -221,18 +279,18 @@ class FundamentalService:
             # 4. 股價淨值比小於 3 倍 (且大於 0 排除異常)
             StockFundamental.pb_ratio <= 3.0,
             StockFundamental.pb_ratio > 0,
-            # 5. EPS 連續 4 年大於 2 元 (包含今年/去年/前年/大前年/四年前)
-            StockFundamental.eps_y1 > 2.0,
-            StockFundamental.eps_y2 > 2.0,
-            StockFundamental.eps_y3 > 2.0,
-            StockFundamental.eps_y4 > 2.0,
+            # 5. EPS 連續 4 年大於等於 2 元 (包含今年/去年/前年/大前年/四年前)
+            StockFundamental.eps_y1 >= 2.0,
+            StockFundamental.eps_y2 >= 2.0,
+            StockFundamental.eps_y3 >= 2.0,
+            StockFundamental.eps_y4 >= 2.0,
             
             # 6. 連續 2 年營收成長率大於 5% (預計算欄位 `is_growth_2yr` == 1)
             StockFundamental.is_growth_2yr == 1,
             
             # 7. 營收成長率大於近 4 年平均 (預計算欄位 `is_accelerated` == 1)
             StockFundamental.is_accelerated == 1
-        ).order_by(StockFundamental.yield_rate.desc()).limit(15).all()
+        ).order_by(StockFundamental.stock_id.asc()).limit(20).all()
         
         return results
 
@@ -306,6 +364,85 @@ class FundamentalService:
             if need_update:
                 updated_count += 1
                 
+        db.commit()
+        return {"status": "success", "count": updated_count}
+
+    @staticmethod
+    def force_sync_specific_stocks(db: Session, stock_ids: list):
+        """強制針對特定股票進行全方位基本面同步 (含 yfinance)"""
+        import yfinance as yf
+        print(f"[FundamentalService] Force syncing {len(stock_ids)} stocks...")
+        
+        updated_count = 0
+        for sid in stock_ids:
+            # 1. 確保基本紀錄存在
+            stock = db.query(StockFundamental).filter(StockFundamental.stock_id == sid).first()
+            if not stock:
+                stock = StockFundamental(stock_id=sid, stock_name=f"股票 {sid}")
+                db.add(stock)
+            
+            # 2. 透過 yfinance 抓取即時指標與歷史
+            ticker = yf.Ticker(f"{sid}.TW")
+            info = ticker.info
+            if not info or 'regularMarketPrice' not in info:
+                ticker = yf.Ticker(f"{sid}.TWO")
+                info = ticker.info
+            
+            if info:
+                # 確保數值為 2 位小數
+                # 台灣股票 yfinance 的 dividendYield 有時是小數 (0.05) 有時是百分比 (5.0)，統一正規化
+                raw_yield = info.get('dividendYield') or 0.0
+                if raw_yield < 0.2: # 代表是 0.05 這種格式
+                    stock.yield_rate = round(raw_yield * 100, 2)
+                else: # 代表是 5.0 這種格式
+                    stock.yield_rate = round(raw_yield, 2)
+                
+                stock.pb_ratio = round(info.get('priceToBook') or 0.0, 2)
+                stock.pe_ratio = round(info.get('trailingPE') or 0.0, 2)
+                if stock.pe_ratio > 0:
+                    stock.roe_latest = round((stock.pb_ratio / stock.pe_ratio) * 100, 2)
+                stock.last_revenue = round((info.get('totalRevenue') or 0.0) / 100000000.0, 2) # 轉億
+            
+            # 3. 歷史 EPS 與 營收
+            df = ticker.financials
+            if not df.empty:
+                if 'Basic EPS' in df.index:
+                    eps_series = df.loc['Basic EPS'].dropna()
+                    years = sorted([int(str(d)[:4]) for d in eps_series.index], reverse=True)
+                    for idx, y in enumerate(years[:4]):
+                        val = float(eps_series.loc[eps_series.index.year == y].iloc[0])
+                        if idx == 0: stock.eps_y1 = val
+                        elif idx == 1: stock.eps_y2 = val
+                        elif idx == 2: stock.eps_y3 = val
+                        elif idx == 3: stock.eps_y4 = val
+
+                if 'Total Revenue' in df.index:
+                    rev_series = df.loc['Total Revenue'].dropna()
+                    years = sorted([int(str(d)[:4]) for d in rev_series.index], reverse=True)
+                    rev_dict = {y: float(rev_series.loc[rev_series.index.year == y].iloc[0]) for y in years[:4]}
+                    if len(rev_dict) >= 4:
+                        # 沿用現有成長計算邏輯
+                        from app.services.fundamental_service import FundamentalService
+                        # 獲取 calc_growth 邏輯
+                        def temp_calc(rev_series):
+                            years = sorted(rev_series.keys(), reverse=True)
+                            y1, y2, y3, y4 = years[0], years[1], years[2], years[3]
+                            r1, r2, r3, r4 = rev_series[y1], rev_series[y2], rev_series[y3], rev_series[y4]
+                            gr12 = (r1 - r2) / r2 * 100 if r2 > 0 else 0
+                            gr23 = (r2 - r3) / r3 * 100 if r3 > 0 else 0
+                            gr34 = (r3 - r4) / r4 * 100 if r4 > 0 else 0
+                            is_growth = 1 if (gr12 > 5.0 and gr23 > 5.0) else 0
+                            avg_gr = (gr12 + gr23 + gr34) / 3.0
+                            is_accel = 1 if gr12 > avg_gr else 0
+                            return is_growth, is_accel
+                        
+                        i_gr, i_ac = temp_calc(rev_dict)
+                        stock.is_growth_2yr = i_gr
+                        stock.is_accelerated = i_ac
+            
+            stock.updated_at = date.today()
+            updated_count += 1
+            
         db.commit()
         return {"status": "success", "count": updated_count}
 
