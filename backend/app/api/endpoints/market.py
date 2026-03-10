@@ -73,8 +73,10 @@ def sync_fundamentals(target_date: str = None):
     results = {}
     try:
         results["valuation"] = FundamentalService.sync_twse_valuation(db, target_date)
+        results["tpex_valuation"] = FundamentalService.sync_tpex_valuation(db)
         results["revenue"] = FundamentalService.sync_mops_revenue(db)
         results["eps"] = FundamentalService.sync_mops_performance(db)
+        results["volume_avg"] = FundamentalService.update_volume_avg(db)
     finally:
         db.close()
     
