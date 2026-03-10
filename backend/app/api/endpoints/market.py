@@ -45,7 +45,9 @@ def sync_daily_market_data(target_date: str = None):
         except ValueError:
             return {"status": "error", "message": "Invalid date format. Use YYYY-MM-DD"}
             
-    return MarketDataCrawler.sync_daily_market_data(date_obj)
+    result = MarketDataCrawler.sync_daily_market_data(date_obj)
+    ScreenerService.invalidate_cache()
+    return result
 
 
 @router.get("/summary", response_model=MarketSummary)
@@ -74,6 +76,9 @@ def sync_fundamentals(target_date: str = None):
         results["eps"] = FundamentalService.sync_mops_performance(db)
     finally:
         db.close()
+    
+    # 數據同步後失效選股快取，確保下次請求能看到最新結果
+    ScreenerService.invalidate_cache()
     return results
 
 @router.post("/sync/backfill-history")

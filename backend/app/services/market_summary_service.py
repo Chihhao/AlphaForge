@@ -62,15 +62,22 @@ class MarketSummaryService:
                 try:
                     # 使用 yfinance 抓取即時快照
                     ticker = yf.Ticker("^TWII")
-                    live_hist = ticker.history(period="1d")
+                    live_hist = ticker.history(period="2d")
                     if not live_hist.empty:
                         live_price = live_hist.iloc[-1]['Close']
                         # 如果 yf 抓到的價格跟 DB 不一樣，代表有盤中跳動
                         if abs(live_price - taiex_price) > 0.01:
                             taiex_price = round(live_price, 2)
-                            # 如果 DB 還沒到今天，則以最新價格對比昨收 (latest_db)
-                            if latest_db.date < now.date():
+                            
+                            # 特別處理昨日收盤價：優先使用 yf 的歷史資料
+                            if len(live_hist) >= 2:
+                                prev_close = live_hist.iloc[-2]['Close']
+                            elif latest_db.date < now.date():
+                                # 如果 yf 只有一筆，且 DB 是舊的，則用 DB 的最後一筆當昨日收盤
                                 prev_close = latest_db.close
+                            
+                            # 更新資料日期
+                            if latest_db.date < now.date():
                                 data_date = now.date()
                             
                             # 只有在真正在交易時間內，才顯示即時標誌
@@ -80,7 +87,7 @@ class MarketSummaryService:
                     print(f"[MarketSummaryService] yfinance live fallback failed: {yfe}")
             
             taiex_change = round(taiex_price - prev_close, 2)
-            taiex_change_percent = round((taiex_change / prev_close) * 100, 2)
+            taiex_change_percent = round((taiex_change / prev_close) * 100, 2) if prev_close > 0 else 0
             
             # 2. 統計股票池數據 (廣度統計)
             valid_dates = [p.date for p in taiex_prices_db]

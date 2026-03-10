@@ -6,6 +6,7 @@ import pandas as pd
 from app.schemas.screener import StrategyResult, ScreenerStock
 from app.services.indicator_service import IndicatorService
 from app.services.fundamental_service import FundamentalService
+from app.models.stock_fundamental import StockFundamental
 from app.models.stock_price import StockPrice
 from app.models.screener_cache import ScreenerCache
 from app.db.database import SessionLocal
@@ -110,8 +111,26 @@ class ScreenerService:
                     except Exception as ye:
                         print(f"[ScreenerService] 批量同步報價異常: {ye}")
                 
+                # 取得這批資料中實際的更新日期 (通常是前一交易日)
+                display_date = db_cache.cache_date
+                if hasattr(display_date, 'strftime'):
+                    display_date = display_date.strftime("%Y-%m-%d")
+                else:
+                    display_date = str(display_date)[:10]
+
+                if results and results[0].stocks:
+                    # 嘗試從資料庫中獲取這批股票的實際基本面更新日
+                    fund_dates = db.query(StockFundamental.updated_at).filter(
+                        StockFundamental.stock_id.in_([s.symbol for s in results[0].stocks])
+                    ).all()
+                    if fund_dates:
+                        # 找出這批股票中的最新更新日期
+                        actual_dates = [d[0] for d in fund_dates if d[0]]
+                        if actual_dates:
+                            display_date = max(actual_dates).strftime("%Y-%m-%d")
+                
                 for res in results:
-                    res.data_date = db_cache.cache_date.strftime("%Y-%m-%d")
+                    res.data_date = str(display_date)
 
                 # 更新記憶體快取避免一直查表
                 _screener_cache = results
@@ -233,8 +252,17 @@ class ScreenerService:
             )
         ]
 
+        # 找出這組結果所使用的基本面實際更新日期
+        actual_screening_date = today
+        if af_choice_fundamentals:
+            relevant_dates = [f.updated_at for f in af_choice_fundamentals if f.updated_at]
+            if relevant_dates:
+                 actual_screening_date = max(relevant_dates)
+        
+        display_date_str = actual_screening_date.strftime("%Y-%m-%d") if hasattr(actual_screening_date, 'strftime') else str(actual_screening_date)[:10]
+
         for res in results:
-            res.data_date = today.strftime("%Y-%m-%d")
+            res.data_date = display_date_str
 
         # 儲存到記憶體
         _screener_cache = results
