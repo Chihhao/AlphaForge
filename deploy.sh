@@ -28,7 +28,7 @@ case $choice in
         echo "正在更新前端服務..."
         ;;
     2)
-        DEPLOY_CMD="cd $NAS_PROJECT_DIR && sudo docker-compose up -d --build backend"
+        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo docker-compose up -d --build backend"
         echo "正在更新後端服務..."
         ;;
     3)

@@ -267,6 +267,36 @@ class FundamentalService:
         return {"status": "success", "count": total_count}
 
     @staticmethod
+    def update_volume_avg(db: Session):
+        """計算並更新所有股票的 5 日平均成交量 (張)"""
+        from app.models.stock_price import StockPrice
+        from sqlalchemy import func
+        
+        # 1. 找出有資料的最新 5 個交易日
+        latest_dates = db.query(StockPrice.date).distinct().order_by(StockPrice.date.desc()).limit(5).all()
+        if not latest_dates:
+            return {"status": "error", "message": "No price data found"}
+        
+        valid_dates = [d[0] for d in latest_dates]
+        
+        # 2. 計算這 5 天的平均成交量 (股轉張需除以 1000)
+        avg_vols = db.query(
+            StockPrice.stock_id,
+            func.avg(StockPrice.volume).label('avg_vol')
+        ).filter(StockPrice.date.in_(valid_dates)).group_by(StockPrice.stock_id).all()
+        
+        count = 0
+        for sid, vol in avg_vols:
+            fundamental = db.query(StockFundamental).filter(StockFundamental.stock_id == sid).first()
+            if fundamental:
+                # 轉成「張」
+                fundamental.volume_avg_5d = round(float(vol) / 1000.0, 2)
+                count += 1
+        
+        db.commit()
+        return {"status": "success", "count": count}
+
+    @staticmethod
     def get_af_choice_stocks(db: Session):
         """實作 AF 精選 (原大師精選 7 法)"""
         results = db.query(StockFundamental).filter(
@@ -289,8 +319,11 @@ class FundamentalService:
             StockFundamental.is_growth_2yr == 1,
             
             # 7. 營收成長率大於近 4 年平均 (預計算欄位 `is_accelerated` == 1)
-            StockFundamental.is_accelerated == 1
-        ).order_by(StockFundamental.stock_id.asc()).limit(20).all()
+            StockFundamental.is_accelerated == 1,
+            
+            # 8. (新增) 5 日平均成交量大於 500 張 (流動性過濾)
+            StockFundamental.volume_avg_5d >= 500.0
+        ).order_by(StockFundamental.stock_id.asc()).limit(30).all()
         
         return results
 

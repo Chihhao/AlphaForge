@@ -67,6 +67,7 @@ def start_scheduler():
         FundamentalService.sync_tpex_valuation(db)
         FundamentalService.sync_mops_revenue(db)
         FundamentalService.sync_mops_performance(db)
+        FundamentalService.update_volume_avg(db)
         ScreenerService.invalidate_cache()
         logger.info("Final daily sync and cache invalidation completed.")
 

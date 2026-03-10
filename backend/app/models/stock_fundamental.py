@@ -24,6 +24,9 @@ class StockFundamental(Base):
     eps_y3 = Column(Float, default=0.0)           # 大前年 EPS
     eps_y4 = Column(Float, default=0.0)           # 四年前 EPS
     
+    # 流動性維度
+    volume_avg_5d = Column(Float, default=0.0)    # 5 日平均成交量 (張)
+    
     # 複合計算欄位 (預計算標記，加速篩選)
     is_growth_2yr = Column(Integer, default=0)    # 連續 2 年營收成長 > 5%
     is_accelerated = Column(Integer, default=0)   # 營收成長 > 4 年平均

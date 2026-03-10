@@ -10,6 +10,7 @@ class ScreenerStock(BaseModel):
     yield_rate: Optional[float] = None
     roe: Optional[float] = None
     pb: Optional[float] = None
+    volume_avg_5d: Optional[float] = None
 
 class StrategyResult(BaseModel):
     id: str

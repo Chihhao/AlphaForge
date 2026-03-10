@@ -187,9 +187,9 @@ class ScreenerService:
             return [
                 StrategyResult(
                     id="af_choice",
-                    name="AF 精選價值成長股",
+                    name="AF 精選",
                     description="目前無法取得基本面資料，請稍後再試。",
-                    tag="基本面優選",
+                    tag="價值成長股",
                     stocks=[]
                 )
             ]
@@ -198,7 +198,7 @@ class ScreenerService:
             
         if raw_df.empty and not af_choice_fundamentals:
             return [
-                StrategyResult(id="af_choice", name="AF 精選價值成長股", description="...", tag="基本面優選", stocks=[])
+                StrategyResult(id="af_choice", name="AF 精選", description="...", tag="價值成長股", stocks=[])
             ]
 
         # 封裝結果工具
@@ -250,7 +250,8 @@ class ScreenerService:
                 bias20=bias,
                 yield_rate=f.yield_rate,
                 roe=f.roe_latest,
-                pb=f.pb_ratio
+                pb=f.pb_ratio,
+                volume_avg_5d=f.volume_avg_5d
             ))
 
         print(f"[ScreenerService] Scan complete in {time.time() - t0:.2f}s")
@@ -258,9 +259,9 @@ class ScreenerService:
         results = [
             StrategyResult(
                 id="af_choice",
-                name="AF 精選價值成長股",
+                name="AF 精選",
                 description="兼顧價值防禦 (高息、合理估值) 與營運爆發力 (高 ROE、連續獲利與營收雙成長) 的嚴選績優股。",
-                tag="基本面優選",
+                tag="價值成長股",
                 stocks=results_s3
             )
         ]

@@ -12,6 +12,7 @@ interface ScreenerStock {
     yield_rate?: number;
     roe?: number;
     pb?: number;
+    volume_avg_5d?: number;
 }
 
 interface StrategyResult {
@@ -98,7 +99,7 @@ export default function StrategyScreener() {
                                         )}
                                     </div>
                                     <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${strategy.tag === '逆勢策略' ? 'bg-rose-500/20 text-rose-400' :
-                                        strategy.tag === '基本面優選' ? 'bg-cyan-500/20 text-cyan-400' :
+                                        strategy.tag === '價值成長股' ? 'bg-cyan-500/20 text-cyan-400' :
                                             'bg-emerald-500/20 text-emerald-400'
                                         }`}>
                                         {strategy.tag}
@@ -144,6 +145,11 @@ export default function StrategyScreener() {
                                                                     {stock.pb !== undefined && (
                                                                         <span className="text-zinc-400 text-xs text-nowrap">
                                                                             PB: <span className="text-amber-400/90">{stock.pb.toFixed(1)}x</span>
+                                                                        </span>
+                                                                    )}
+                                                                    {stock.volume_avg_5d !== undefined && (
+                                                                        <span className="text-zinc-600/90 text-[10px] text-nowrap">
+                                                                            均量: <span className="text-zinc-500 font-mono">{(stock.volume_avg_5d).toFixed(0)}</span>
                                                                         </span>
                                                                     )}
                                                                 </div>
