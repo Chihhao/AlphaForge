@@ -147,9 +147,9 @@ export default function StrategyScreener() {
                                                                             PB: <span className="text-amber-400/90">{stock.pb.toFixed(1)}x</span>
                                                                         </span>
                                                                     )}
-                                                                    {stock.volume_avg_5d !== undefined && (
+                                                                    {stock.volume_avg_5d != null && stock.volume_avg_5d > 0 && (
                                                                         <span className="text-zinc-600/90 text-[10px] text-nowrap">
-                                                                            均量: <span className="text-zinc-500 font-mono">{(stock.volume_avg_5d).toFixed(0)}</span>
+                                                                            均量: <span className="text-zinc-500 font-mono">{stock.volume_avg_5d.toFixed(0)}</span>
                                                                         </span>
                                                                     )}
                                                                 </div>
