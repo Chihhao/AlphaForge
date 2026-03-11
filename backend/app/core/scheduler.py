@@ -6,6 +6,7 @@ from app.services.stock_sync_service import StockSyncService
 from app.services.market_data_crawler import MarketDataCrawler
 from app.services.fundamental_service import FundamentalService
 from app.services.screener_service import ScreenerService
+from app.services.feature_service import FeatureService
 from app.db.database import SessionLocal
 
 # 設置日誌
@@ -76,6 +77,15 @@ def start_scheduler():
         trigger=CronTrigger(hour=17, minute=0),
         id="sync_final_batch",
         name="Final daily fundamental sync batch",
+        replace_existing=True
+    )
+
+    # --- 第三梯次：17:05 計算每日特徵快照 (Alpha Miner 數據基礎) ---
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: FeatureService.compute_daily(db)),
+        trigger=CronTrigger(hour=17, minute=5),
+        id="compute_daily_features",
+        name="Daily feature store computation",
         replace_existing=True
     )
     

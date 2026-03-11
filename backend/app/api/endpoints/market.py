@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 from app.services.market_summary_service import MarketSummaryService
 from app.services.screener_service import ScreenerService
 from app.services.market_data_crawler import MarketDataCrawler
+from app.services.feature_service import FeatureService
 from app.models.system_event import SystemEvent
 from app.schemas.market import MarketSummary
 from app.schemas.screener import StrategyResult
@@ -168,3 +169,42 @@ def diagnose_livan():
     finally:
         db.close()
     return output
+
+
+# ==================== Feature Store API ====================
+
+@router.post("/sync/features")
+def sync_features():
+    """手動觸發當日特徵快照計算（開發用）"""
+    db = SessionLocal()
+    try:
+        count = FeatureService.compute_daily(db)
+        return {"status": "success", "features_computed": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.get("/features/{stock_id}")
+def get_features(stock_id: str, days: int = 60):
+    """查詢指定股票的歷史特徵"""
+    db = SessionLocal()
+    try:
+        features = FeatureService.get_features(db, stock_id, days)
+        return [{
+            "date": str(f.date),
+            "close": f.close,
+            "change_pct": f.change_pct,
+            "ma5": f.ma5, "ma10": f.ma10, "ma20": f.ma20, "ma60": f.ma60,
+            "bias5": f.bias5, "bias10": f.bias10, "bias20": f.bias20,
+            "rsi14": f.rsi14,
+            "k": f.k, "d": f.d,
+            "macd_dif": f.macd_dif, "macd_dea": f.macd_dea, "macd_osc": f.macd_osc,
+            "bb_upper": f.bb_upper, "bb_lower": f.bb_lower, "bb_pctb": f.bb_pctb,
+            "volume": f.volume, "vol_ma5": f.vol_ma5, "vol_ratio": f.vol_ratio,
+            "yield_rate": f.yield_rate, "roe": f.roe,
+            "pb_ratio": f.pb_ratio, "revenue_yoy": f.revenue_yoy,
+        } for f in features]
+    finally:
+        db.close()
