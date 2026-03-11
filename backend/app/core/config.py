@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         "http://localhost",
         "http://localhost:3000",
         "http://10.0.4.3:3001",
+        "http://10.0.4.59:3000",
         "http://localhost:8000",
         "https://junesnow39.synology.me",
     ]

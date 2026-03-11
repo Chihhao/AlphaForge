@@ -13,7 +13,7 @@ export default function StockDetail() {
   const router = useRouter()
   const { id } = router.query
 
-  const [interval, setInterval] = useState<'1m' | '5m' | '15m' | '1h' | '1d' | '1wk' | '1mo'>('15m')
+  const [interval, setInterval] = useState<'1m' | '5m' | '15m' | '1h' | '1d' | '1wk' | '1mo'>('1d')
   const [quote, setQuote] = useState<any>(null)
   const [chartData, setChartData] = useState<Array<any>>([])
   const [indicators, setIndicators] = useState<any>(null)
@@ -154,239 +154,217 @@ export default function StockDetail() {
 
   return (
     <div className="flex-grow">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-6">
         {/* Stock Header */}
-        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
-          <div className="flex justify-between items-start mb-4">
+        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+          <div className="flex justify-between items-center mb-3">
             <div>
-              <h1 className="text-3xl font-bold text-gray-100">{displayName}</h1>
-              <p className="text-gray-400">股票代號：{id}</p>
+              <h1 className="text-2xl sm:text-4xl font-bold text-gray-100 leading-tight">
+                {displayName}
+                <span className="text-gray-500 text-base font-normal ml-2">{id}</span>
+              </h1>
             </div>
             <div className="text-right">
-              <p className="text-4xl font-bold text-gray-100">{formatPrice(displayPrice)}</p>
-              <p className={`text-xl font-semibold ${displayChange >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
+              <p className="text-2xl sm:text-4xl font-bold text-gray-100 tabular-nums">{formatPrice(displayPrice)}</p>
+              <p className={`text-base sm:text-xl font-semibold tabular-nums ${displayChange >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
                 {displayChange >= 0 ? '+' : ''}{displayChange.toFixed(2)}%
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4 border-t border-gray-700">
+          <div className="-mx-4 sm:mx-0 border-t border-gray-700 mb-0" />
+          <div className="grid grid-cols-4 gap-2 pt-3">
             <div>
-              <p className="text-sm text-gray-400">開盤</p>
-              <p className="text-lg font-semibold">{formatPrice(quote?.open_price)}</p>
+              <p className="text-base text-gray-500">開盤</p>
+              <p className="text-lg sm:text-xl font-semibold tabular-nums">{formatPrice(quote?.open_price)}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-400">最高</p>
-              <p className="text-lg font-semibold">{formatPrice(quote?.high_price)}</p>
+              <p className="text-base text-gray-500">最高</p>
+              <p className="text-lg sm:text-xl font-semibold tabular-nums">{formatPrice(quote?.high_price)}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-400">最低</p>
-              <p className="text-lg font-semibold">{formatPrice(quote?.low_price)}</p>
+              <p className="text-base text-gray-500">最低</p>
+              <p className="text-lg sm:text-xl font-semibold tabular-nums">{formatPrice(quote?.low_price)}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-400">成交量</p>
-              <p className="text-lg font-semibold">
+              <p className="text-base text-gray-500">成交量</p>
+              <p className="text-lg sm:text-xl font-semibold tabular-nums">
                 {quote?.volume
                   ? (() => {
                     const lots = quote.volume / 1000;
                     return lots >= 10000
-                      ? (lots / 10000).toFixed(2) + ' 萬張'
-                      : Math.floor(lots).toLocaleString() + ' 張';
+                      ? (lots / 10000).toFixed(1) + '萬張'
+                      : Math.floor(lots).toLocaleString() + '張';
                   })()
                   : '---'}
               </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-400">庫存/市值</p>
-              <p className="text-lg font-semibold">---</p>
             </div>
           </div>
         </div>
 
         {/* Chart Section */}
-        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-100 mb-4">K線圖表</h2>
-            {/* Interval Selector */}
-            <div className="space-y-4 mb-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">K 線頻率</span>
-                {(['1m', '5m', '15m', '1h', '1d', '1wk', '1mo'] as const).map(i => {
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setInterval(i)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${interval === i
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                        : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                        }`}
-                    >
-                      {i === '1m' ? '1分' : i === '5m' ? '5分' : i === '15m' ? '15分' : i === '1h' ? '1時' : i === '1d' ? '日' : i === '1wk' ? '週' : '月'}
-                    </button>
-                  );
-                })}
-              </div>
+        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+          {/* Selectors: interval + sub-chart in one row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+            <div className="flex items-center gap-1">
+              {(['1m', '5m', '15m', '1h', '1d', '1wk', '1mo'] as const).map(i => (
+                <button
+                  key={i}
+                  onClick={() => setInterval(i)}
+                  className={`px-3 py-1.5 rounded text-base font-medium transition-colors ${interval === i
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {i === '1m' ? '1分' : i === '5m' ? '5分' : i === '15m' ? '15分' : i === '1h' ? '1時' : i === '1d' ? '日' : i === '1wk' ? '週' : '月'}
+                </button>
+              ))}
             </div>
-
-            {/* Sub-chart toggle */}
-            <div className="flex flex-wrap items-center gap-2 mb-6">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">副圖指標</span>
+            <span className="text-gray-700">|</span>
+            <div className="flex items-center gap-1">
               {(['volume', 'rsi', 'bias'] as const).map(s => (
                 <button
                   key={s}
                   onClick={() => setSubChart(s)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${subChart === s
-                    ? (s === 'volume' ? 'bg-blue-600 text-white' : s === 'rsi' ? 'bg-orange-600 text-white' : 'bg-purple-600 text-white') + ' shadow-lg scale-105'
-                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                    }`}
+                  className={`px-3 py-1.5 rounded text-base font-medium transition-colors ${subChart === s
+                    ? (s === 'volume' ? 'bg-blue-600' : s === 'rsi' ? 'bg-orange-600' : 'bg-purple-600') + ' text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                  }`}
                 >
-                  {s === 'volume' ? '成交量' : s === 'rsi' ? 'RSI' : '乖離率'}
+                  {s === 'volume' ? '量' : s === 'rsi' ? 'RSI' : '乖離'}
                 </button>
               ))}
             </div>
+          </div>
 
-            <div className="w-full border border-gray-700 rounded min-h-[450px]">
-              {chartData.length > 0 ? (
-                <TVChart data={chartData} interval={interval} subChart={subChart} />
-              ) : (
-                <div className="flex items-center justify-center h-[450px] text-gray-500 bg-gray-900">
-                  載入圖台中...
-                </div>
-              )}
-            </div>
+          <div className="-mx-4 sm:mx-0 border-y border-x-0 sm:border sm:rounded border-gray-700 min-h-[450px]">
+            {chartData.length > 0 ? (
+              <TVChart data={chartData} interval={interval} subChart={subChart} />
+            ) : (
+              <div className="flex items-center justify-center h-[450px] text-gray-500 bg-gray-900">
+                載入圖表中...
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Fundamental Brain Section */}
-        <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 mb-4 sm:mb-6">
-          <div className="flex items-center gap-2 mb-6">
-            <h2 className="text-xl font-bold text-gray-100">基本面大腦</h2>
-            <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold rounded border border-cyan-500/20 uppercase tracking-tighter">Fundamental Analysis</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Column 1: Valuation */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-l-2 border-blue-500 pl-2">價值評估</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
-                    本益比 PE (倍)
-                    <EducationalHint glossaryId="pe-ratio" />
-                  </span>
-                  <span className="font-mono text-gray-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(2) : '---'}</span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
-                    股價淨值比 PB
-                    <EducationalHint glossaryId="pb-ratio" />
-                  </span>
-                  <span className="font-mono text-gray-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
-                </div>
+        {/* Fundamental Section */}
+        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0">
+            {/* 價值評估 */}
+            <div>
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-blue-500 pl-1.5 mb-2">估值</p>
+              <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+                <span className="text-base text-gray-400 flex items-center gap-1">本益比 <EducationalHint glossaryId="pe-ratio" /></span>
+                <span className="font-mono text-lg text-gray-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(1) : '---'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1.5">
+                <span className="text-base text-gray-400 flex items-center gap-1">股價淨值比 <EducationalHint glossaryId="pb-ratio" /></span>
+                <span className="font-mono text-lg text-gray-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
               </div>
             </div>
 
-            {/* Column 2: Profitability & Yield */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-l-2 border-rose-500 pl-2">獲利與配息</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
-                    最新 ROE (%)
-                    <EducationalHint glossaryId="roe-indicator" />
-                  </span>
-                  <span className={`font-mono ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-gray-100'}`}>
-                    {quote?.roe ? `${quote.roe.toFixed(2)}%` : '---'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-400 text-sm flex items-center gap-1.5">
-                    現金殖利率 (%)
-                    <EducationalHint glossaryId="dividend-yield" />
-                  </span>
-                  <span className={`font-mono ${quote?.yield_rate >= 5 ? 'text-rose-400' : 'text-gray-100'}`}>
-                    {quote?.yield_rate ? `${quote.yield_rate.toFixed(2)}%` : '---'}
-                  </span>
-                </div>
+            {/* 獲利與配息 */}
+            <div>
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-rose-500 pl-1.5 mb-2">獲利</p>
+              <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+                <span className="text-base text-gray-400 flex items-center gap-1">權益報酬率 <EducationalHint glossaryId="roe-indicator" /></span>
+                <span className={`font-mono text-sm ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-gray-100'}`}>
+                  {quote?.roe ? `${quote.roe.toFixed(1)}%` : '---'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1.5">
+                <span className="text-base text-gray-400 flex items-center gap-1">現金殖利率 <EducationalHint glossaryId="dividend-yield" /></span>
+                <span className={`font-mono text-sm ${quote?.yield_rate >= 5 ? 'text-rose-400' : 'text-gray-100'}`}>
+                  {quote?.yield_rate ? `${quote.yield_rate.toFixed(1)}%` : '---'}
+                </span>
               </div>
             </div>
 
-            {/* Column 3: Growth */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-2">營收動能 (YoY)</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-400 text-sm">單月營收 (億)</span>
-                  <span className="font-mono text-gray-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-400 text-sm">營收年增率 (%)</span>
-                  <span className={`font-mono ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-gray-100'}`}>
-                    {quote?.revenue_growth_yoy ? `${quote.revenue_growth_yoy > 0 ? '+' : ''}${quote.revenue_growth_yoy.toFixed(2)}%` : '---'}
-                  </span>
-                </div>
+            {/* 營收動能 */}
+            <div className="col-span-2 md:col-span-1 mt-3 md:mt-0">
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">營收</p>
+              <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+                <span className="text-base text-gray-400">單月 (億)</span>
+                <span className="font-mono text-lg text-gray-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1.5">
+                <span className="text-base text-gray-400">年增率</span>
+                <span className={`font-mono text-sm ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-gray-100'}`}>
+                  {quote?.revenue_growth_yoy ? `${quote.revenue_growth_yoy > 0 ? '+' : ''}${quote.revenue_growth_yoy.toFixed(1)}%` : '---'}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Technical Indicators */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-          <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
-            <h2 className="text-xl font-bold text-gray-100 mb-4">主圖指標</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">現價</span>
-                <span className="font-semibold">{formatPrice(displayPrice)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">MA20</span>
-                <span className="font-semibold">{formatPrice(indicators?.ma20)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">MA50</span>
-                <span className="font-semibold">{formatPrice(indicators?.ma50)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">布林通道上</span>
-                <span className="font-semibold">{formatPrice(indicators?.bb_upper)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">布林通道下</span>
-                <span className="font-semibold">{formatPrice(indicators?.bb_lower)}</span>
-              </div>
-            </div>
-          </div>
+        {/* Technical Signal Card */}
+        {(() => {
+          const price = displayPrice
+          const ma20 = indicators?.ma20
+          const rsi = indicators?.rsi
+          const bbUpper = indicators?.bb_upper
+          const bbLower = indicators?.bb_lower
 
-          <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
-            <h2 className="text-xl font-bold text-gray-100 mb-4">副圖指標</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-1.5">
-                  14 日 RSI
-                  <EducationalHint glossaryId="rsi-indicator" />
-                </span>
-                <span className="font-semibold text-orange-500">{indicators?.rsi ? indicators.rsi.toFixed(2) : '---'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-1.5">
-                  20 日乖離率
-                  <EducationalHint glossaryId="bias-indicator" />
-                </span>
-                <span className={`font-semibold ${indicators?.bias_ma20 >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
-                  {indicators?.bias_ma20 ? `${indicators.bias_ma20.toFixed(2)}%` : '---'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-1.5">
-                  9 日 KD 指標
-                  <EducationalHint glossaryId="kd-indicator" />
-                </span>
-                {id && <KDIndicator stockId={id as string} />}
+          const trendSignal = price && ma20 ? (() => {
+            const diff = (price / ma20 - 1) * 100
+            return diff >= 0
+              ? { label: '站上 MA20', sub: `高於均線 +${diff.toFixed(1)}%`, color: 'text-rose-400' }
+              : { label: '跌破 MA20', sub: `低於均線 ${diff.toFixed(1)}%`, color: 'text-emerald-400' }
+          })() : null
+
+          const rsiSignal = rsi ? (() => {
+            if (rsi > 70) return { label: `RSI ${rsi.toFixed(1)}`, sub: '超買區，注意回檔', color: 'text-amber-400' }
+            if (rsi > 50) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏強', color: 'text-rose-400' }
+            if (rsi > 30) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏弱', color: 'text-gray-400' }
+            return { label: `RSI ${rsi.toFixed(1)}`, sub: '超賣區，留意反彈', color: 'text-cyan-400' }
+          })() : null
+
+          const bbSignal = price && bbUpper && bbLower ? (() => {
+            const pos = (price - bbLower) / (bbUpper - bbLower)
+            const pct = (pos * 100).toFixed(0)
+            if (pos > 0.85) return { label: `布林 ${pct}%`, sub: '接近上軌，注意追高', color: 'text-amber-400' }
+            if (pos > 0.5)  return { label: `布林 ${pct}%`, sub: '通道上半段，偏多', color: 'text-rose-400' }
+            if (pos > 0.15) return { label: `布林 ${pct}%`, sub: '通道下半段，偏弱', color: 'text-gray-400' }
+            return { label: `布林 ${pct}%`, sub: '接近下軌，留意支撐', color: 'text-cyan-400' }
+          })() : null
+
+          const rows = [
+            { key: 'trend', name: '均線位階', hint: 'ma-indicator' as string | null, signal: trendSignal },
+            { key: 'rsi',   name: 'RSI',      hint: 'rsi-indicator' as string | null, signal: rsiSignal },
+            { key: 'bb',    name: '布林通道',  hint: null,                             signal: bbSignal },
+          ]
+
+          return (
+            <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">技術面信號</p>
+              <div>
+                {rows.map(({ key, name, hint, signal }) => (
+                  <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-700/40">
+                    <span className="text-base text-gray-400 flex items-center gap-1.5">
+                      {name}
+                      {hint && <EducationalHint glossaryId={hint} />}
+                    </span>
+                    {signal
+                      ? <div className="text-right">
+                          <p className={`font-mono text-base font-semibold ${signal.color}`}>{signal.label}</p>
+                          <p className="text-xs text-gray-500">{signal.sub}</p>
+                        </div>
+                      : <span className="text-gray-600">---</span>
+                    }
+                  </div>
+                ))}
+                <div className="flex justify-between items-center py-2.5">
+                  <span className="text-base text-gray-400 flex items-center gap-1.5">
+                    KD 指標
+                    <EducationalHint glossaryId="kd-indicator" />
+                  </span>
+                  {id && <KDIndicator stockId={id as string} />}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          )
+        })()}
       </div>
     </div>
   )
