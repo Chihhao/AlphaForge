@@ -117,6 +117,19 @@ API 呼叫透過 `/api/*` 路由，由 Next.js rewrites（`next.config.js`）代
 ### 時區
 所有數據使用 `Asia/Taipei` 時區。
 
+### 參考技能索引 (Skills)
+需要時主動讀取對應的 SKILL.md 取得詳細指引。
+
+| 技能 | 路徑 | 用途 |
+|---|---|---|
+| `fastapi-pro` | `.agent/skills/fastapi-pro/` | FastAPI 非同步 API、SQLAlchemy 2.0、Pydantic V2 |
+| `nextjs-app-router-patterns` | `.agent/skills/nextjs-app-router-patterns/` | Next.js 14+ App Router、SSR/SSG、Server Components |
+| `backtesting-frameworks` | `.agent/skills/backtesting-frameworks/` | 回測系統設計、避免前視偏差與倖存者偏差 |
+| `data-storytelling` | `.agent/skills/data-storytelling/` | 數據敘事、報表視覺化、儀表板設計 |
+| `seo-content-planner` | `.agent/skills/seo-content-planner/` | SEO 內容策略與主題規劃 |
+| `docker-nas-ops-helper` | `.agent/skills/docker-nas-ops-helper/` | Synology NAS Docker 部署與運維 |
+| `ui-ux-pro-max` | `~/.claude/skills/ui-ux-pro-max/` | UI/UX 設計資料庫（配色、字體、風格，可用腳本查詢） |
+
 ### 除錯
 - Next.js 404 無限重整：執行 `npm run clean` 後重啟開發伺服器。原因為 `.next` 快取在 build 與 dev 同時執行時衝突。
 - API 文件：`http://localhost:8000/docs`（Swagger UI）

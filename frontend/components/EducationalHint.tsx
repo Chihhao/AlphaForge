@@ -5,6 +5,7 @@ import {
     offset,
     flip,
     shift,
+    size,
     useHover,
     useFocus,
     useDismiss,
@@ -36,10 +37,19 @@ export default function EducationalHint({ glossaryId }: Props) {
         open: isOpen,
         onOpenChange: setIsOpen,
         placement: 'top',
+        strategy: 'fixed',
         middleware: [
             offset(8),
             flip({ fallbackAxisSideDirection: 'start' }),
-            shift({ padding: 12 })
+            shift({ padding: 12 }),
+            size({
+                padding: 16,
+                apply({ availableHeight, elements }) {
+                    Object.assign(elements.floating.style, {
+                        maxHeight: `${Math.max(availableHeight, 100)}px`,
+                    });
+                },
+            }),
         ],
         whileElementsMounted: autoUpdate,
     });
@@ -95,8 +105,7 @@ export default function EducationalHint({ glossaryId }: Props) {
                         ref={refs.setFloating}
                         style={{ ...floatingStyles, zIndex: 99999 }}
                         {...getFloatingProps()}
-                        // 移除固定寬度，改為 max-w-sm 讓內容自行決定大小
-                        className="w-auto max-w-[85vw] sm:max-w-sm md:max-w-md max-h-96 overflow-y-auto p-4 sm:p-5 bg-gray-800/95 backdrop-blur-md border border-gray-600 rounded-xl shadow-2xl text-sm font-normal text-gray-200 pointer-events-auto"
+                        className="w-auto max-w-[85vw] sm:max-w-sm md:max-w-md overflow-y-auto p-4 sm:p-5 bg-gray-800/95 backdrop-blur-md border border-gray-600 rounded-xl shadow-2xl text-sm font-normal text-gray-200 pointer-events-auto"
                     >
                         {!loaded ? (
                             <div className="text-gray-500 animate-pulse">載入中...</div>
