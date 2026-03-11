@@ -13,6 +13,7 @@ from app.db.database import SessionLocal
 import json
 import yfinance as yf
 from datetime import datetime, date, timedelta
+import requests
 
 
 # 模組層級快取：掃描一次就存住，直到手動清除
@@ -84,11 +85,64 @@ class ScreenerService:
                 results = [StrategyResult(**res) for res in cached_data]
                 
                 # --- 強制同步最準確的報價與漲跌幅 ---
-                # 為了與個股頁面 100% 一致，且維持首頁速度，採用的批次抓取 2 日數據進行計算
+                now = datetime.now()
+                # 台灣時間平日 09:00 - 14:30
+                is_trading_hour = (now.weekday() < 5) and (9 <= now.hour < 15)
+                
+                if is_trading_hour:
+                    try:
+                        # 批量抓取所有股票代號
+                        all_symbols = []
+                        for res in results:
+                            if res.stocks:
+                                all_symbols.extend([s.symbol for s in res.stocks])
+                        
+                        if all_symbols:
+                            # 分批 (每批 35 檔) 抓取 TWSE MIS API (即時且準確)
+                            chunk_size = 35
+                            live_map = {}
+                            for i in range(0, len(all_symbols), chunk_size):
+                                batch = all_symbols[i:i + chunk_size]
+                                ex_chs = []
+                                for s in batch:
+                                    is_otc = s.startswith(("6", "5", "8", "4"))
+                                    prefix = "otc" if is_otc else "tse"
+                                    clean_s = s.replace(".TW", "").replace(".TWO", "")
+                                    ex_chs.append(f"{prefix}_{clean_s}.tw")
+                                
+                                url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ex_chs)}"
+                                headers = {"User-Agent": "Mozilla/5.0"}
+                                resp = requests.get(url, headers=headers, timeout=5)
+                                if resp.status_code == 200:
+                                    data = resp.json()
+                                    if "msgArray" in data:
+                                        for item in data["msgArray"]:
+                                            sid = item.get("c")
+                                            z_price = item.get("z") or item.get("o")
+                                            y_price = item.get("y")
+                                            if z_price and z_price != "-":
+                                                curr = float(z_price)
+                                                prev = float(y_price) if y_price and y_price != "-" else curr
+                                                live_map[sid] = {
+                                                    "price": curr,
+                                                    "change": round((curr - prev) / prev * 100, 2) if prev > 0 else 0
+                                                }
+                            
+                            for res in results:
+                                if not res.stocks: continue
+                                for s in res.stocks:
+                                    if s.symbol in live_map:
+                                        s.price = live_map[s.symbol]["price"]
+                                        s.change = live_map[s.symbol]["change"]
+                                res.is_live = True
+                    except Exception as te:
+                        print(f"[ScreenerService] TWSE Batch update failed: {te}")
+
+                # 如果不是交易時間，或者 TWSE 失敗，嘗試從 yf 補充
                 for res in results:
+                    if res.is_live: continue
                     if not res.stocks: continue
                     try:
-                        # 準備所有代號 (包含 .TW 與 .TWO)
                         symbol_map = {}
                         for s in res.stocks:
                             tw_sym = f"{s.symbol}.TW"
@@ -97,34 +151,28 @@ class ScreenerService:
                             symbol_map[two_sym] = s
                             
                         tickers_list = list(symbol_map.keys())
-                        # 抓取 2 日數據以計算與昨日收盤的漲跌幅
                         live_data = yf.download(tickers_list, period="2d", interval="1d", progress=False, threads=True)
                         
                         if not live_data.empty and 'Close' in live_data:
                             closes = live_data['Close']
-                            
                             for s in res.stocks:
                                 target_keys = [f"{s.symbol}.TW", f"{s.symbol}.TWO"]
                                 for k in target_keys:
                                     if k in closes.columns:
                                         s_data = closes[k].dropna()
                                         if len(s_data) >= 2:
-                                            # 有兩日資料：計算漲跌
                                             prev_close = float(s_data.iloc[-2])
                                             curr_price = float(s_data.iloc[-1])
                                             s.price = round(curr_price, 2)
                                             s.change = round(((curr_price - prev_close) / prev_close * 100), 2)
                                             break
                                         elif len(s_data) == 1:
-                                            # 僅有一日資料 (可能是新上線或 yf 數據缺失)
                                             s.price = round(float(s_data.iloc[-1]), 2)
-                                            # 漲跌幅維持原樣或設為 0
                                             break
                         res.is_live = True
                     except Exception as ye:
-                        print(f"[ScreenerService] 批量同步報價異常: {ye}")
+                        print(f"[ScreenerService] yf 批量同步報價異常: {ye}")
                 
-                # 取得這批資料中實際的更新日期 (通常是前一交易日)
                 display_date = db_cache.cache_date
                 if hasattr(display_date, 'strftime'):
                     display_date = display_date.strftime("%Y-%m-%d")
@@ -132,12 +180,10 @@ class ScreenerService:
                     display_date = str(display_date)[:10]
 
                 if results and results[0].stocks:
-                    # 嘗試從資料庫中獲取這批股票的實際基本面更新日
                     fund_dates = db.query(StockFundamental.updated_at).filter(
                         StockFundamental.stock_id.in_([s.symbol for s in results[0].stocks])
                     ).all()
                     if fund_dates:
-                        # 找出這批股票中的最新更新日期
                         actual_dates = [d[0] for d in fund_dates if d[0]]
                         if actual_dates:
                             display_date = max(actual_dates).strftime("%Y-%m-%d")
@@ -145,7 +191,6 @@ class ScreenerService:
                 for res in results:
                     res.data_date = str(display_date)
 
-                # 更新記憶體快取避免一直查表
                 _screener_cache = results
                 _screener_cache_date = today
                 return results
@@ -154,7 +199,7 @@ class ScreenerService:
         finally:
             db.close()
 
-        print("[ScreenerService] Cache miss, starting vectorized scan (this may take a few seconds)...")
+        print("[ScreenerService] Cache miss, starting vectorized scan...")
         
         # 策略參數
         bias_oversold_threshold = -10.0
@@ -164,13 +209,12 @@ class ScreenerService:
         import time
         t0 = time.time()
         
-        # 1. 取得全市場所有股票資料 (近 60 天)
+        # 1. 取得全市場所有股票資料
         db = SessionLocal()
         try:
             import datetime
-            cutoff_date = today - datetime.timedelta(days=90) # 寬鬆抓 90 日曆天以涵蓋 60 交易日
+            cutoff_date = today - datetime.timedelta(days=90)
             
-            # 使用 pd.read_sql
             query = db.query(
                 StockPrice.stock_id, StockPrice.date, 
                 StockPrice.open, StockPrice.high, 
@@ -178,8 +222,6 @@ class ScreenerService:
             ).filter(StockPrice.date >= cutoff_date).statement
             
             raw_df = pd.read_sql(query, db.bind)
-            
-            # --- 獲取大師精選結果 (基本面策略) ---
             af_choice_fundamentals = FundamentalService.get_af_choice_stocks(db)
             
         except Exception as e:
@@ -201,27 +243,10 @@ class ScreenerService:
                 StrategyResult(id="af_choice", name="AF 精選", description="...", tag="價值成長股", stocks=[])
             ]
 
-        # 封裝結果工具
-        def _to_screener_stocks(res_df):
-            return [
-                ScreenerStock(
-                    symbol=row['stock_id'],
-                    name=ScreenerService.get_stock_name(row['stock_id']),
-                    price=round(float(row['close']), 2),
-                    change=round(float(row['change_percent']), 2),
-                    bias20=round(float(row['bias20']), 2) if pd.notna(row['bias20']) else 0.0
-                )
-                for _, row in res_df.iterrows()
-            ]
-
-        # --- 技術面計算 (供 AF 精選獲取最新價格與指標) ---
         latest_df = pd.DataFrame()
         if not raw_df.empty:
-            # 計算 5 日均量
             raw_df = raw_df.sort_values(['stock_id', 'date'])
             raw_df['ma5_vol'] = raw_df.groupby('stock_id')['volume'].transform(lambda x: x.rolling(window=5).mean())
-            
-            # 附加其他指標 (向量化)
             df = IndicatorService.attach_indicators(raw_df)
             
             if not df.empty:
@@ -230,10 +255,8 @@ class ScreenerService:
                 latest_df = df.groupby('stock_id').tail(1).copy()
                 latest_df = latest_df.reset_index(drop=True)
 
-        # --- 策略: AF 精選 (轉換 Fundamental 模型為 ScreenerStock) ---
         results_s3 = []
         for f in af_choice_fundamentals:
-            # 獲取最新價格
             price, change, bias = 0.0, 0.0, 0.0
             if not latest_df.empty:
                 match = latest_df[latest_df['stock_id'] == f.stock_id]
@@ -266,7 +289,6 @@ class ScreenerService:
             )
         ]
 
-        # 找出這組結果所使用的基本面實際更新日期
         actual_screening_date = today
         if af_choice_fundamentals:
             relevant_dates = [f.updated_at for f in af_choice_fundamentals if f.updated_at]
@@ -278,14 +300,11 @@ class ScreenerService:
         for res in results:
             res.data_date = display_date_str
 
-        # 儲存到記憶體
         _screener_cache = results
         _screener_cache_date = today
 
-        # 儲存到資料庫永久快取 (非同步概念，不影響回傳速度，但這裡為了穩定先同步寫入)
         db = SessionLocal()
         try:
-            # 清除舊的今日快取 (如果有的話)
             db.query(ScreenerCache).filter(
                 ScreenerCache.strategy_id == "af_choice",
                 ScreenerCache.cache_date == today

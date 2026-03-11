@@ -16,6 +16,7 @@ from app.services.index_service import IndexService
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import requests
 
 
 class MarketSummaryService:
@@ -60,31 +61,62 @@ class MarketSummaryService:
             # 如果是交易時間，或者 DB 資料是舊的 (還沒同步到今天)
             if is_trading_hour or latest_db.date < now.date():
                 try:
-                    # 使用 yfinance 抓取即時快照
-                    ticker = yf.Ticker("^TWII")
-                    live_hist = ticker.history(period="2d")
-                    if not live_hist.empty:
-                        live_price = live_hist.iloc[-1]['Close']
-                        # 如果 yf 抓到的價格跟 DB 不一樣，代表有盤中跳動
-                        if abs(live_price - taiex_price) > 0.01:
-                            taiex_price = round(live_price, 2)
-                            
-                            # 特別處理昨日收盤價：優先使用 yf 的歷史資料
-                            if len(live_hist) >= 2:
-                                prev_close = live_hist.iloc[-2]['Close']
-                            elif latest_db.date < now.date():
-                                # 如果 yf 只有一筆，且 DB 是舊的，則用 DB 的最後一筆當昨日收盤
-                                prev_close = latest_db.close
-                            
-                            # 更新資料日期
-                            if latest_db.date < now.date():
+                    # 優先嘗試 TWSE API (最準確且即時)
+                    twse_url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw"
+                    twse_headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"}
+                    twse_resp = requests.get(twse_url, headers=twse_headers, timeout=3)
+                    
+                    twse_success = False
+                    if twse_resp.status_code == 200:
+                        twse_data = twse_resp.json()
+                        if "msgArray" in twse_data and len(twse_data["msgArray"]) > 0:
+                            item = twse_data["msgArray"][0]
+                            # z 為當前價, y 為昨收, o 為開盤價
+                            z_price = item.get("z") or item.get("o")
+                            y_price = item.get("y")
+                            if z_price and z_price != "-":
+                                taiex_price = round(float(z_price), 2)
+                                if y_price and y_price != "-":
+                                    prev_close = float(y_price)
+                                
+                                # 使用交易所提供的報價時間
+                                if item.get("t"):
+                                    last_updated = item.get("t")
+                                else:
+                                    last_updated = now.strftime("%H:%M:%S")
+                                
                                 data_date = now.date()
+                                if is_trading_hour:
+                                    is_live = True
+                                twse_success = True
+                    
+                    if not twse_success:
+                        # 如果 TWSE 失敗，回退到 yfinance
+                        ticker = yf.Ticker("^TWII")
+                        live_hist = ticker.history(period="2d")
+                        if not live_hist.empty:
+                            live_price = live_hist.iloc[-1]['Close']
+                            # 如果 yf 抓到的資料是今天的 (或是交易時間內且跟 DB 不同)
+                            is_yf_today = live_hist.index[-1].date() == now.date()
                             
-                            # 只有在真正在交易時間內，才顯示即時標誌
-                            if is_trading_hour:
-                                is_live = True
+                            if is_yf_today or (is_trading_hour and abs(live_price - latest_db.close) > 0.01):
+                                taiex_price = round(live_price, 2)
+                                if len(live_hist) >= 2:
+                                    prev_close = live_hist.iloc[-2]['Close']
+                                elif latest_db.date < now.date():
+                                    prev_close = latest_db.close
+                                
+                                # 使用 yf 的最新時間
+                                last_updated = now.strftime("%H:%M:%S") # yf 沒有秒級 quote time，用目前時間
+                                data_date = now.date()
+                                if is_trading_hour:
+                                    is_live = True
                 except Exception as yfe:
-                    print(f"[MarketSummaryService] yfinance live fallback failed: {yfe}")
+                    print(f"[MarketSummaryService] index live fallback failed: {yfe}")
+            
+            # --- 額外修正：如果在交易時間內，不論 index 是否變動，都應嘗試開啟 is_live 以更新成分股 ---
+            if is_trading_hour:
+                is_live = True
             
             taiex_change = round(taiex_price - prev_close, 2)
             taiex_change_percent = round((taiex_change / prev_close) * 100, 2) if prev_close > 0 else 0

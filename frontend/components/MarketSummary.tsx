@@ -152,9 +152,9 @@ export default function MarketSummary() {
             </div>
             {/* 底部整合狀態與時間戳記 */}
             <div className="absolute bottom-3 left-6 flex items-center gap-2 pointer-events-none">
-                <div className={`w-1.5 h-1.5 rounded-full ${data.is_live ? 'bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-zinc-600'}`}></div>
-                <span className="text-[9px] font-mono tracking-widest text-zinc-500 opacity-40">
-                    {data.is_live ? `RT: ${data.last_updated}` : `EOD: ${data.data_date}`}
+                <div className={`w-1.5 h-1.5 rounded-full ${data.is_live ? 'bg-emerald-400/80 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`}></div>
+                <span className="text-[10px] font-mono tracking-wider text-zinc-400 opacity-70">
+                    {data.is_live ? `更新: ${data.last_updated}` : `收盤數據: ${data.data_date}`}
                 </span>
             </div>
         </div>
