@@ -59,6 +59,94 @@ class ScreenerService:
         return fallback.get(stock_id, f"股票 {stock_id}")
 
     @staticmethod
+    def _apply_live_prices(results: List[StrategyResult]) -> None:
+        """在盤中交易時間，更新 results 中每支股票的即時報價（就地修改）。"""
+        now = datetime.now()
+        is_trading_hour = (now.weekday() < 5) and (9 <= now.hour < 15)
+
+        if is_trading_hour:
+            try:
+                all_symbols = []
+                for res in results:
+                    if res.stocks:
+                        all_symbols.extend([s.symbol for s in res.stocks])
+
+                if all_symbols:
+                    chunk_size = 35
+                    live_map = {}
+                    for i in range(0, len(all_symbols), chunk_size):
+                        batch = all_symbols[i:i + chunk_size]
+                        ex_chs = []
+                        for s in batch:
+                            is_otc = s.startswith(("6", "5", "8", "4"))
+                            prefix = "otc" if is_otc else "tse"
+                            clean_s = s.replace(".TW", "").replace(".TWO", "")
+                            ex_chs.append(f"{prefix}_{clean_s}.tw")
+
+                        url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ex_chs)}"
+                        headers = {"User-Agent": "Mozilla/5.0"}
+                        resp = requests.get(url, headers=headers, timeout=5)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if "msgArray" in data:
+                                for item in data["msgArray"]:
+                                    sid = item.get("c")
+                                    z_price = item.get("z") or item.get("o")
+                                    y_price = item.get("y")
+                                    if z_price and z_price != "-":
+                                        curr = float(z_price)
+                                        prev = float(y_price) if y_price and y_price != "-" else curr
+                                        live_map[sid] = {
+                                            "price": curr,
+                                            "change": round((curr - prev) / prev * 100, 2) if prev > 0 else 0
+                                        }
+
+                    for res in results:
+                        if not res.stocks: continue
+                        for s in res.stocks:
+                            if s.symbol in live_map:
+                                s.price = live_map[s.symbol]["price"]
+                                s.change = live_map[s.symbol]["change"]
+                        res.is_live = True
+            except Exception as te:
+                print(f"[ScreenerService] TWSE Batch update failed: {te}")
+
+        # 如果不是交易時間，或者 TWSE 失敗，嘗試從 yf 補充
+        for res in results:
+            if res.is_live: continue
+            if not res.stocks: continue
+            try:
+                symbol_map = {}
+                for s in res.stocks:
+                    tw_sym = f"{s.symbol}.TW"
+                    two_sym = f"{s.symbol}.TWO"
+                    symbol_map[tw_sym] = s
+                    symbol_map[two_sym] = s
+
+                tickers_list = list(symbol_map.keys())
+                live_data = yf.download(tickers_list, period="2d", interval="1d", progress=False, threads=True)
+
+                if not live_data.empty and 'Close' in live_data:
+                    closes = live_data['Close']
+                    for s in res.stocks:
+                        target_keys = [f"{s.symbol}.TW", f"{s.symbol}.TWO"]
+                        for k in target_keys:
+                            if k in closes.columns:
+                                s_data = closes[k].dropna()
+                                if len(s_data) >= 2:
+                                    prev_close = float(s_data.iloc[-2])
+                                    curr_price = float(s_data.iloc[-1])
+                                    s.price = round(curr_price, 2)
+                                    s.change = round(((curr_price - prev_close) / prev_close * 100), 2)
+                                    break
+                                elif len(s_data) == 1:
+                                    s.price = round(float(s_data.iloc[-1]), 2)
+                                    break
+                res.is_live = True
+            except Exception as ye:
+                print(f"[ScreenerService] yf 批量同步報價異常: {ye}")
+
+    @staticmethod
     def get_screener_results() -> List[StrategyResult]:
         """
         全市場向量化極速掃描。
@@ -68,7 +156,8 @@ class ScreenerService:
         today = date.today()
 
         if _screener_cache is not None and _screener_cache_date == today:
-            print("[ScreenerService] Returning memory cached results.")
+            print("[ScreenerService] Memory cache hit. Applying live prices...")
+            ScreenerService._apply_live_prices(_screener_cache)
             return _screener_cache
 
         # 1. 檢查資料庫持久化快取
@@ -84,94 +173,7 @@ class ScreenerService:
                 cached_data = json.loads(db_cache.results_json)
                 results = [StrategyResult(**res) for res in cached_data]
                 
-                # --- 強制同步最準確的報價與漲跌幅 ---
-                now = datetime.now()
-                # 台灣時間平日 09:00 - 14:30
-                is_trading_hour = (now.weekday() < 5) and (9 <= now.hour < 15)
-                
-                if is_trading_hour:
-                    try:
-                        # 批量抓取所有股票代號
-                        all_symbols = []
-                        for res in results:
-                            if res.stocks:
-                                all_symbols.extend([s.symbol for s in res.stocks])
-                        
-                        if all_symbols:
-                            # 分批 (每批 35 檔) 抓取 TWSE MIS API (即時且準確)
-                            chunk_size = 35
-                            live_map = {}
-                            for i in range(0, len(all_symbols), chunk_size):
-                                batch = all_symbols[i:i + chunk_size]
-                                ex_chs = []
-                                for s in batch:
-                                    is_otc = s.startswith(("6", "5", "8", "4"))
-                                    prefix = "otc" if is_otc else "tse"
-                                    clean_s = s.replace(".TW", "").replace(".TWO", "")
-                                    ex_chs.append(f"{prefix}_{clean_s}.tw")
-                                
-                                url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ex_chs)}"
-                                headers = {"User-Agent": "Mozilla/5.0"}
-                                resp = requests.get(url, headers=headers, timeout=5)
-                                if resp.status_code == 200:
-                                    data = resp.json()
-                                    if "msgArray" in data:
-                                        for item in data["msgArray"]:
-                                            sid = item.get("c")
-                                            z_price = item.get("z") or item.get("o")
-                                            y_price = item.get("y")
-                                            if z_price and z_price != "-":
-                                                curr = float(z_price)
-                                                prev = float(y_price) if y_price and y_price != "-" else curr
-                                                live_map[sid] = {
-                                                    "price": curr,
-                                                    "change": round((curr - prev) / prev * 100, 2) if prev > 0 else 0
-                                                }
-                            
-                            for res in results:
-                                if not res.stocks: continue
-                                for s in res.stocks:
-                                    if s.symbol in live_map:
-                                        s.price = live_map[s.symbol]["price"]
-                                        s.change = live_map[s.symbol]["change"]
-                                res.is_live = True
-                    except Exception as te:
-                        print(f"[ScreenerService] TWSE Batch update failed: {te}")
-
-                # 如果不是交易時間，或者 TWSE 失敗，嘗試從 yf 補充
-                for res in results:
-                    if res.is_live: continue
-                    if not res.stocks: continue
-                    try:
-                        symbol_map = {}
-                        for s in res.stocks:
-                            tw_sym = f"{s.symbol}.TW"
-                            two_sym = f"{s.symbol}.TWO"
-                            symbol_map[tw_sym] = s
-                            symbol_map[two_sym] = s
-                            
-                        tickers_list = list(symbol_map.keys())
-                        live_data = yf.download(tickers_list, period="2d", interval="1d", progress=False, threads=True)
-                        
-                        if not live_data.empty and 'Close' in live_data:
-                            closes = live_data['Close']
-                            for s in res.stocks:
-                                target_keys = [f"{s.symbol}.TW", f"{s.symbol}.TWO"]
-                                for k in target_keys:
-                                    if k in closes.columns:
-                                        s_data = closes[k].dropna()
-                                        if len(s_data) >= 2:
-                                            prev_close = float(s_data.iloc[-2])
-                                            curr_price = float(s_data.iloc[-1])
-                                            s.price = round(curr_price, 2)
-                                            s.change = round(((curr_price - prev_close) / prev_close * 100), 2)
-                                            break
-                                        elif len(s_data) == 1:
-                                            s.price = round(float(s_data.iloc[-1]), 2)
-                                            break
-                        res.is_live = True
-                    except Exception as ye:
-                        print(f"[ScreenerService] yf 批量同步報價異常: {ye}")
+                ScreenerService._apply_live_prices(results)
                 
                 display_date = db_cache.cache_date
                 if hasattr(display_date, 'strftime'):

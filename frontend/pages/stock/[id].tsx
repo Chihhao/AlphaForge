@@ -13,7 +13,7 @@ export default function StockDetail() {
   const router = useRouter()
   const { id } = router.query
 
-  const [interval, setInterval] = useState<'1m' | '5m' | '15m' | '1h' | '1d' | '1wk' | '1mo'>('1d')
+  const [interval, setInterval] = useState<'30m' | '1h' | '1d' | '1wk' | '1mo'>('1d')
   const [quote, setQuote] = useState<any>(null)
   const [chartData, setChartData] = useState<Array<any>>([])
   const [indicators, setIndicators] = useState<any>(null)
@@ -31,19 +31,17 @@ export default function StockDetail() {
         setQuote(qres.data)
 
         // 自動根據頻率決定抓取範圍，確保有足夠的 (300+) 筆資料
-        // 1m: 7d (yfinance 限制)
-        // 5m, 15m: 60d (yfinance 限制)
+        // 30m: 60d (yfinance 限制)
         // 1h: 2y
         // 1d: 5y
         // 1wk, 1mo: max
         let period = '5y';
-        if (interval === '1m') period = '7d';
-        else if (interval === '5m' || interval === '15m') period = '60d';
+        if (interval === '30m') period = '60d';
         else if (interval === '1h') period = '2y';
         else if (interval === '1wk' || interval === '1mo') period = 'max';
 
         const kres = await api.get(`/stocks/${id}/kline?period=${period}&interval=${interval}`)
-        const isIntraday = ['1m', '5m', '15m', '1h'].includes(interval);
+        const isIntraday = ['30m', '1h'].includes(interval);
 
         const kd = kres.data
         const rawData = (kd.data || []).map((r: any, index: number) => {
@@ -207,7 +205,7 @@ export default function StockDetail() {
           {/* Selectors: interval + sub-chart in one row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <div className="flex items-center gap-1">
-              {(['1m', '5m', '15m', '1h', '1d', '1wk', '1mo'] as const).map(i => (
+              {(['30m', '1h', '1d', '1wk', '1mo'] as const).map(i => (
                 <button
                   key={i}
                   onClick={() => setInterval(i)}
@@ -216,7 +214,7 @@ export default function StockDetail() {
                     : 'text-gray-400 hover:text-gray-200'
                   }`}
                 >
-                  {i === '1m' ? '1分' : i === '5m' ? '5分' : i === '15m' ? '15分' : i === '1h' ? '1時' : i === '1d' ? '日' : i === '1wk' ? '週' : '月'}
+                  {i === '30m' ? '30分' : i === '1h' ? '時' : i === '1d' ? '日' : i === '1wk' ? '週' : '月'}
                 </button>
               ))}
             </div>

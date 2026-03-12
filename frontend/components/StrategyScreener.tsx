@@ -147,11 +147,6 @@ export default function StrategyScreener() {
                                                                             PB: <span className="text-amber-400/90">{stock.pb.toFixed(1)}x</span>
                                                                         </span>
                                                                     )}
-                                                                    {stock.volume_avg_5d != null && stock.volume_avg_5d > 0 && (
-                                                                        <span className="text-zinc-600/90 text-[10px] text-nowrap">
-                                                                            均量: <span className="text-zinc-500 font-mono">{stock.volume_avg_5d.toFixed(0)}</span>
-                                                                        </span>
-                                                                    )}
                                                                 </div>
                                                             ) : (
                                                                 <span className="text-zinc-400 text-xs">20 日乖離率: <span className={stock.bias20 > 0 ? 'text-rose-400/80' : 'text-emerald-400/80'}>{stock.bias20 > 0 ? '+' : ''}{stock.bias20}%</span></span>

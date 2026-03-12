@@ -92,6 +92,10 @@ API 呼叫透過 `/api/*` 路由，由 Next.js rewrites（`next.config.js`）代
 3. **選股篩選**：`screener_service.py` 套用多因子條件 → 快取 `StrategyResult` 清單
 4. **前端呈現**：元件輪詢 `/api/*` → Next.js 代理 → FastAPI 後端
 
+## 語言
+
+所有回覆一律使用**繁體中文**。
+
 ## 重要慣例
 
 ### 僅實作被要求的項目
