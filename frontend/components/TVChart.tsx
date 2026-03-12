@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 // 改為動態引入類型
-import type { Time as LWTime, IChartApi, IPriceLine } from 'lightweight-charts';
+import type { Time as LWTime, IChartApi, IPriceLine, Logical } from 'lightweight-charts';
 
 export interface KLineData {
     time: LWTime;
@@ -413,7 +413,7 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
             const updateLastLabel = () => {
                 if (!lastLabelRef.current || !chartContainerRef.current || isDisposed) return;
                 const lastIndex = data.length - 1;
-                const x = chart.timeScale().logicalToCoordinate(lastIndex);
+                const x = chart.timeScale().logicalToCoordinate(lastIndex as unknown as Logical);
                 if (x === null || x < 0 || x > chartContainerRef.current.clientWidth) {
                     lastLabelRef.current.style.opacity = '0';
                     return;
