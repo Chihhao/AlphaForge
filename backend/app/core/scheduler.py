@@ -1,6 +1,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import logging
+import time
 
 from app.services.stock_sync_service import StockSyncService
 from app.services.market_data_crawler import MarketDataCrawler
@@ -52,10 +53,7 @@ def start_scheduler():
 
     # 每日下午 3:30 執行市場行情
     scheduler.add_job(
-        lambda: run_with_db(lambda _: (
-            MarketDataCrawler.sync_daily_market_data(),
-            ScreenerService.invalidate_cache()
-        )),
+        lambda: run_with_db(lambda _: MarketDataCrawler.sync_daily_market_data()),
         trigger=CronTrigger(hour=15, minute=30),
         id="sync_market_data_daily",
         name="Daily market data synchronization from TWSE/TPEx",
@@ -63,13 +61,28 @@ def start_scheduler():
     )
 
     # --- 第二梯次：17:00 最終確認更新 (確保所有官方統計已入庫) ---
+    def _sync_with_retry(func, db, name: str, max_retries: int = 3, retry_delay: int = 300):
+        """執行單一同步任務，失敗時最多重試 max_retries 次，間隔 retry_delay 秒。"""
+        for attempt in range(1, max_retries + 1):
+            try:
+                func(db)
+                return True
+            except Exception as e:
+                logger.error(f"[Scheduler] {name} failed (attempt {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    logger.info(f"[Scheduler] Retrying {name} in {retry_delay}s...")
+                    time.sleep(retry_delay)
+        logger.error(f"[Scheduler] {name} gave up after {max_retries} attempts.")
+        return False
+
     def final_sync_task(db):
-        FundamentalService.sync_twse_valuation(db)
-        FundamentalService.sync_tpex_valuation(db)
-        FundamentalService.sync_mops_revenue(db)
-        FundamentalService.sync_mops_performance(db)
+        _sync_with_retry(FundamentalService.sync_twse_valuation, db, "sync_twse_valuation")
+        _sync_with_retry(FundamentalService.sync_tpex_valuation, db, "sync_tpex_valuation")
+        _sync_with_retry(FundamentalService.sync_mops_revenue, db, "sync_mops_revenue")
+        _sync_with_retry(FundamentalService.sync_mops_performance, db, "sync_mops_performance")
         FundamentalService.update_volume_avg(db)
         ScreenerService.invalidate_cache()
+        ScreenerService.get_screener_results()
         logger.info("Final daily sync and cache invalidation completed.")
 
     scheduler.add_job(
