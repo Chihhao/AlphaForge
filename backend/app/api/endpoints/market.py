@@ -12,7 +12,7 @@ from app.services.screener_service import ScreenerService
 from app.services.market_data_crawler import MarketDataCrawler
 from app.services.feature_service import FeatureService
 from app.models.system_event import SystemEvent
-from app.schemas.market import MarketSummary
+from app.schemas.market import MarketSummary, AlphaStats
 from app.schemas.screener import StrategyResult
 from app.db.database import SessionLocal
 
@@ -169,6 +169,26 @@ def diagnose_livan():
     finally:
         db.close()
     return output
+
+
+# ==================== Alpha Miner API ====================
+
+@router.get("/alpha/stats", response_model=AlphaStats)
+def get_alpha_stats():
+    """
+    取得 AF 精選策略的歷史勝率統計（Alpha Miner Phase 2）
+
+    回傳訊號勝率、期望報酬、累積報酬曲線與近期 10 筆訊號紀錄。
+    結果按日快取，首次呼叫需約數秒計算。
+    """
+    from app.services.backtest_service import BacktestService
+    db = SessionLocal()
+    try:
+        return BacktestService.run_af_choice_backtest(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 # ==================== Feature Store API ====================

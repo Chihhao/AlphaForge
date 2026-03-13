@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
+
 class RankingItem(BaseModel):
     stock_id: str
     stock_name: str
@@ -44,3 +45,29 @@ class MarketSummary(BaseModel):
     data_date: str              # 資料日期 (YYYY-MM-DD)
     is_live: bool = False       # 是否為盤中即時數據
     last_updated: Optional[str] = None # 最近更新時間 (HH:MM:SS)
+
+
+class RecentSignal(BaseModel):
+    stock_id: str
+    stock_name: str
+    signal_date: str
+    return_1d: Optional[float]   # None 表示資料不足，單位 %
+    return_10d: Optional[float]
+    outcome: str  # "win" / "loss" / "pending"
+
+
+class EquityCurvePoint(BaseModel):
+    date: str
+    cumulative_return: float  # 累積報酬率 (0.15 = +15%)
+
+
+class AlphaStats(BaseModel):
+    strategy_id: str
+    strategy_name: str
+    win_rate_1d: float
+    win_rate_10d: float
+    expectancy: float           # 單筆期望報酬率
+    total_signals: int
+    equity_curve: List[EquityCurvePoint]
+    recent_signals: List[RecentSignal]
+    data_date: str              # 計算基準日
