@@ -39,6 +39,17 @@ docker-compose up -d --build  # 重新建置並啟動
 ./deploy.sh                   # NAS 部署（互動式選單）
 ```
 
+### NAS 部署流程（重要）
+1. `git commit` 本地變更
+2. 等待 **Synology Drive 同步**（約 1~2 分鐘）——NAS 透過 Synology Drive 同步 Mac 的本地資料夾，不是 git pull
+3. 執行 `echo "3" | ./deploy.sh` 或直接執行 `./deploy.sh` 選擇項目：
+   - `1` 僅更新前端
+   - `2` 僅更新後端
+   - `3` 前後端全更新（最常用）
+   - `4` 強制重建（套件有變動時）
+
+> **若 deploy 失敗顯示 CACHED**：代表 Synology Drive 尚未同步完成，等候後再重試。
+
 ### 測試
 ```bash
 cd backend && ./.venv/bin/python -m pytest                    # 執行所有後端測試

@@ -38,7 +38,7 @@ echo "  ✅ 後端已啟動 (PID: $BACKEND_PID)"
 echo ""
 echo "[3/4] 啟動前端服務 (port 3000)..."
 cd ~/Documents/GitHub/AlphaForge/frontend
-nohup npx next dev -p 3000 > /tmp/alphaforge_frontend.log 2>&1 &
+nohup env INTERNAL_API_URL=http://localhost:8000 npm run dev > /tmp/alphaforge_frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo "  ✅ 前端已啟動 (PID: $FRONTEND_PID)"
 
@@ -48,15 +48,15 @@ echo "[4/4] 等待服務就緒..."
 sleep 5
 
 # 檢查後端
-if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+if curl -s http://localhost:8000/ > /dev/null 2>&1; then
     echo "  ✅ 後端 http://localhost:8000 → 運行中"
 else
     echo "  ⚠️  後端可能尚未啟動，查看 /tmp/alphaforge_backend.log"
 fi
 
 # 檢查前端
-if curl -s http://localhost:3000 > /dev/null 2>&1; then
-    echo "  ✅ 前端 http://localhost:3000 → 運行中"
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/alphaforge 2>/dev/null | grep -q "200\|304"; then
+    echo "  ✅ 前端 http://localhost:3000/alphaforge → 運行中"
 else
     echo "  ⚠️  前端可能還在編譯中，若無回應請稍等或查看 /tmp/alphaforge_frontend.log"
 fi
@@ -64,6 +64,8 @@ fi
 echo ""
 echo "========================================="
 echo "  🚀 AlphaForge 開發服務已就緒！"
-echo "  📋 後端日誌: /tmp/alphaforge_backend.log"
-echo "  📋 前端日誌: /tmp/alphaforge_frontend.log"
+echo "  🌐 前端: http://localhost:3000/alphaforge"
+echo "  📡 後端: http://localhost:8000/docs"
+echo "  📋 後端日誌: tail -f /tmp/alphaforge_backend.log"
+echo "  📋 前端日誌: tail -f /tmp/alphaforge_frontend.log"
 echo "========================================="

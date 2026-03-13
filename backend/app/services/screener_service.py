@@ -64,6 +64,9 @@ class ScreenerService:
         now = datetime.now()
         is_trading_hour = (now.weekday() < 5) and (9 <= now.hour < 15)
 
+        # 追蹤哪些 symbol 已被 TWSE 成功更新，避免 yfinance fallback 重複覆蓋
+        updated_symbols: set = set()
+
         if is_trading_hour:
             try:
                 all_symbols = []
@@ -91,7 +94,7 @@ class ScreenerService:
                             if "msgArray" in data:
                                 for item in data["msgArray"]:
                                     sid = item.get("c")
-                                    z_price = item.get("z") or item.get("o")
+                                    z_price = item.get("z")  # 只取即時成交價，不 fallback 到開盤價
                                     y_price = item.get("y")
                                     if z_price and z_price != "-":
                                         curr = float(z_price)
@@ -107,32 +110,38 @@ class ScreenerService:
                             if s.symbol in live_map:
                                 s.price = live_map[s.symbol]["price"]
                                 s.change = live_map[s.symbol]["change"]
-                        res.is_live = True
+                                updated_symbols.add(s.symbol)
+                        # 只有當 strategy 內所有 stocks 都被更新，才標記 is_live
+                        if res.stocks and all(s.symbol in updated_symbols for s in res.stocks):
+                            res.is_live = True
             except Exception as te:
                 print(f"[ScreenerService] TWSE Batch update failed: {te}")
 
-        # 如果不是交易時間，或者 TWSE 失敗，嘗試從 yf 補充
+        # yfinance fallback：補充 TWSE 未能更新的 stocks
         for res in results:
-            if res.is_live: continue
-            if not res.stocks: continue
+            if not res.stocks:
+                continue
+            stocks_to_update = [s for s in res.stocks if s.symbol not in updated_symbols]
+            if not stocks_to_update:
+                res.is_live = True
+                continue
             try:
                 symbol_map = {}
-                for s in res.stocks:
-                    tw_sym = f"{s.symbol}.TW"
-                    two_sym = f"{s.symbol}.TWO"
-                    symbol_map[tw_sym] = s
-                    symbol_map[two_sym] = s
+                for s in stocks_to_update:
+                    symbol_map[f"{s.symbol}.TW"] = s
+                    symbol_map[f"{s.symbol}.TWO"] = s
 
                 tickers_list = list(symbol_map.keys())
                 live_data = yf.download(tickers_list, period="2d", interval="1d", progress=False, threads=True)
 
                 if not live_data.empty and 'Close' in live_data:
                     closes = live_data['Close']
-                    for s in res.stocks:
+                    for s in stocks_to_update:
                         target_keys = [f"{s.symbol}.TW", f"{s.symbol}.TWO"]
                         for k in target_keys:
-                            if k in closes.columns:
-                                s_data = closes[k].dropna()
+                            col_data = closes[k] if hasattr(closes, 'columns') and k in closes.columns else (closes if isinstance(closes, pd.Series) and closes.name == k else None)
+                            if col_data is not None:
+                                s_data = col_data.dropna()
                                 if len(s_data) >= 2:
                                     prev_close = float(s_data.iloc[-2])
                                     curr_price = float(s_data.iloc[-1])
