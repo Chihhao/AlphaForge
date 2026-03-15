@@ -8,6 +8,7 @@ from app.services.market_data_crawler import MarketDataCrawler
 from app.services.fundamental_service import FundamentalService
 from app.services.screener_service import ScreenerService
 from app.services.feature_service import FeatureService
+from app.services.chip_data_crawler import sync_daily_chip_data
 from app.db.database import SessionLocal
 
 # 設置日誌
@@ -93,7 +94,18 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # --- 第三梯次：17:05 計算每日特徵快照 (Alpha Miner 數據基礎) ---
+    # --- 第三梯次：16:30 抓取籌碼資料（三大法人 + 融資融券）---
+    # 籌碼資料通常在 16:00~16:30 後才發佈
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: sync_daily_chip_data(db)),
+        trigger=CronTrigger(hour=16, minute=30),
+        id="sync_chip_data_daily",
+        name="Daily chip data sync (institutional + margin)",
+        replace_existing=True
+    )
+
+    # --- 第四梯次：17:05 計算每日特徵快照 (Alpha Miner 數據基礎) ---
+    # 需在籌碼資料寫入後執行，確保籌碼欄位可以合入
     scheduler.add_job(
         lambda: run_with_db(lambda db: FeatureService.compute_daily(db)),
         trigger=CronTrigger(hour=17, minute=5),

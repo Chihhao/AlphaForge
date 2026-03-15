@@ -57,6 +57,21 @@ class StockFeature(Base):
     pb_ratio = Column(Float)
     revenue_yoy = Column(Float)
 
+    # --- 籌碼面（Phase 4B，從 StockChipData 衍生）---
+    foreign_net_buy = Column(Float)    # 外資單日淨買超（張）
+    foreign_buy_5d = Column(Float)     # 外資5日累積淨買超（張）
+    trust_net_buy = Column(Float)      # 投信單日淨買超（張）
+    trust_buy_5d = Column(Float)       # 投信5日累積淨買超（張）
+    margin_chg_5d = Column(Float)      # 融資餘額5日變化率（%）
+
+    # --- 籌碼面（Phase 5B）---
+    dealer_net_buy = Column(Float, nullable=True)    # 自營商單日淨買超（張）
+    dealer_buy_5d  = Column(Float, nullable=True)    # 自營商5日累積淨買超（張）
+
+    # --- 技術面新因子（Phase 5B）---
+    price_vs_high20 = Column(Float, nullable=True)   # (close - 20日高點) / 20日高點
+    ma_trend        = Column(Float, nullable=True)   # 均線多頭排列：MA5>MA10>MA20=1，否則=0
+
     # 複合唯一索引：每支股票每天只有一筆
     __table_args__ = (
         Index('ix_sf_sid_date', 'stock_id', 'date', unique=True),

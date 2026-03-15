@@ -7,38 +7,43 @@ import {
 } from 'recharts'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface FactorWeight { factor: string; factor_label: string; coefficient: number; direction: string }
 interface EquityCurvePoint { date: string; cumulative_return: number }
-interface RecentSignal {
+interface RecentAlphaSignal {
     stock_id: string; stock_name: string; signal_date: string
-    return_1d: number | null; return_10d: number | null
-    outcome: 'win' | 'loss' | 'pending'
+    predicted_prob: number; trigger_factors: string[]
 }
-interface AlphaStats {
-    strategy_id: string; strategy_name: string
-    win_rate_1d: number; win_rate_10d: number
-    expectancy: number; total_signals: number
+interface StrategyRanking {
+    strategy_id: string; strategy_name: string; factors: string[]
+    win_rate_insample: number; win_rate_outsample: number
+    loss_rate_outsample: number; odds_ratio: number
+    market_win_rate: number; market_loss_rate: number
+    ic: number; p_value: number; p_value_corrected: number
+    is_significant: boolean; overfit_warning: boolean
+    sample_count_train: number; sample_count_test: number
+    integrity_flags: string[]
+}
+interface StrategyDetail extends StrategyRanking {
     equity_curve: EquityCurvePoint[]
-    recent_signals: RecentSignal[]
-    data_date: string
+    recent_signals: RecentAlphaSignal[]
+    factor_weights: FactorWeight[]
+}
+interface TodaySignal {
+    stock_id: string; stock_name: string
+    trigger_count: number; strategies: string[]; signal_date: string
+}
+interface AlphaMinerResult {
+    strategies: StrategyRanking[]; last_trained: string
+    train_period: string; test_period: string
+    total_combinations_tested: number; bonferroni_threshold: number
+    is_training: boolean
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const pct = (v: number | null, decimals = 1) =>
-    v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(decimals)}%`
-
-const SVGIcon = ({ path, className = 'w-5 h-5' }: { path: string; className?: string }) => (
-    <svg viewBox="0 0 24 24" className={`fill-current ${className}`}><path d={path} /></svg>
+const pct = (v: number, d = 1) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(d)}%`
+const Skeleton = ({ className = '' }: { className?: string }) => (
+    <div className={`animate-pulse bg-zinc-800/60 rounded-xl ${className}`} />
 )
-
-const ICONS = {
-    strategy: 'M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z',
-    signal: 'M13,2.05V4.05C17.39,4.59 20.5,8.58 19.96,12.97C19.5,16.61 16.64,19.5 13,19.93V21.93C18.5,21.38 22.5,16.5 21.95,11C21.5,6.25 17.73,2.5 13,2.05M11,2.06C9.05,2.25 7.19,3 5.67,4.26L7.1,5.74C8.22,4.84 9.57,4.26 11,4.06V2.06M4.26,5.67C3,7.19 2.25,9.04 2.05,11H4.05C4.24,9.58 4.8,8.23 5.69,7.1L4.26,5.67M2.06,13C2.26,14.96 3.03,16.81 4.27,18.33L5.69,16.9C4.81,15.77 4.24,14.42 4.06,13H2.06M7.1,18.37L5.67,19.74C7.18,21 9.04,21.79 11,22V20C9.58,19.82 8.23,19.25 7.1,18.37Z',
-    chart: 'M19,3H5C3.89,3 3,3.9 3,5V19C3,20.1 3.89,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.9 20.1,3 19,3M9,17H7V10H9V17M13,17H11V7H13V17M17,17H15V13H17V17Z',
-    win: 'M20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4C12.76,4 13.5,4.11 14.2,4.31L15.77,2.74C14.61,2.26 13.34,2 12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12M7.91,10.08L6.5,11.5L11,16L21,6L19.59,4.58L11,13.17L7.91,10.08Z',
-    pending: 'M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z',
-}
-
-// ─── Custom Tooltip for equity curve ─────────────────────────────────────────
 const CurveTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
     const val: number = payload[0].value
@@ -46,220 +51,382 @@ const CurveTooltip = ({ active, payload, label }: any) => {
         <div className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs shadow-xl">
             <p className="text-zinc-400 mb-1">{label}</p>
             <p className={val >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                累積損益：{pct(val * 100)}
+                累積損益：{pct(val)}
             </p>
-            <p className="text-zinc-500 text-xs mt-0.5">等權不複利累加</p>
         </div>
     )
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-const Skeleton = ({ className = '' }: { className?: string }) => (
-    <div className={`animate-pulse bg-zinc-800/60 rounded-xl ${className}`} />
-)
+// ─── Strategy Detail Panel ────────────────────────────────────────────────────
+const DetailPanel = ({ strategyId, onClose }: { strategyId: string; onClose: () => void }) => {
+    const [detail, setDetail] = useState<StrategyDetail | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        setLoading(true)
+        api.get(`/alpha-miner/strategies/${strategyId}`)
+            .then(r => { setDetail(r.data); setLoading(false) })
+            .catch(() => setLoading(false))
+    }, [strategyId])
+
+    const maxCoef = detail ? Math.max(...detail.factor_weights.map(w => Math.abs(w.coefficient)), 0.01) : 1
+
+    return (
+        <div className="bg-zinc-900/70 border border-zinc-700 rounded-2xl p-5 space-y-5">
+            <div className="flex items-center justify-between">
+                <h3 className="text-white font-bold">{detail?.strategy_name ?? '…'}</h3>
+                <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xs px-3 py-1 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors">
+                    收起
+                </button>
+            </div>
+
+            {loading ? (
+                <div className="space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+            ) : !detail ? (
+                <p className="text-zinc-500 text-sm">載入失敗</p>
+            ) : (
+                <>
+                    {/* Integrity flags */}
+                    {detail.integrity_flags.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {detail.integrity_flags.map((flag, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-full text-xs">{flag}</span>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Metric comparison */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                            { label: '勝率 >3%（策略）', value: `${(detail.win_rate_outsample * 100).toFixed(1)}%`, color: detail.win_rate_outsample > detail.market_win_rate ? 'text-emerald-400' : 'text-rose-400' },
+                            { label: '勝率 >3%（市場基準）', value: `${(detail.market_win_rate * 100).toFixed(1)}%`, color: 'text-zinc-400' },
+                            { label: '踩雷率 <-3%（策略）', value: `${(detail.loss_rate_outsample * 100).toFixed(1)}%`, color: detail.loss_rate_outsample < detail.market_loss_rate ? 'text-emerald-400' : 'text-rose-400' },
+                            { label: '踩雷率 <-3%（市場基準）', value: `${(detail.market_loss_rate * 100).toFixed(1)}%`, color: 'text-zinc-400' },
+                            { label: '賠率比', value: detail.odds_ratio.toFixed(2), color: detail.odds_ratio >= 1.2 ? 'text-amber-400' : detail.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400' },
+                            { label: 'IC', value: detail.ic.toFixed(3), color: detail.ic > 0 ? 'text-amber-400' : 'text-zinc-400' },
+                            { label: '測試訊號數', value: detail.sample_count_test.toLocaleString(), color: 'text-zinc-300' },
+                        ].map((m, i) => (
+                            <div key={i} className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                                <p className="text-zinc-500 text-xs mb-1">{m.label}</p>
+                                <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Factor weights */}
+                    <div>
+                        <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">因子權重係數</p>
+                        <div className="space-y-2">
+                            {detail.factor_weights.map((fw, i) => (
+                                <div key={i} className="flex items-center gap-3">
+                                    <span className="text-zinc-400 text-xs w-20 text-right shrink-0">{fw.factor_label}</span>
+                                    <div className="flex-1 bg-zinc-800 rounded-full h-2">
+                                        <div
+                                            className={`h-2 rounded-full ${fw.direction === 'bullish' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                                            style={{ width: `${Math.abs(fw.coefficient) / maxCoef * 100}%` }}
+                                        />
+                                    </div>
+                                    <span className={`text-xs font-mono w-14 shrink-0 ${fw.direction === 'bullish' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {fw.coefficient > 0 ? '+' : ''}{fw.coefficient.toFixed(2)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Equity curve */}
+                    {detail.equity_curve.length > 1 && (
+                        <div>
+                            <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">測試集累積損益（等權不複利）</p>
+                            <ResponsiveContainer width="100%" height={180}>
+                                <LineChart data={detail.equity_curve.map(p => ({ date: p.date, value: p.cumulative_return }))} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                                    <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 9 }} tickLine={false} interval="preserveStartEnd" />
+                                    <YAxis tickFormatter={v => pct(v, 0)} tick={{ fill: '#71717a', fontSize: 9 }} tickLine={false} axisLine={false} width={44} />
+                                    <Tooltip content={<CurveTooltip />} />
+                                    <ReferenceLine y={0} stroke="#52525b" strokeDasharray="4 2" />
+                                    <Line type="monotone" dataKey="value" stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 3, fill: '#f59e0b' }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+
+                    {/* Recent signals */}
+                    {detail.recent_signals.length > 0 && (
+                        <div>
+                            <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">近期訊號（最新交易日）</p>
+                            <div className="flex flex-wrap gap-2">
+                                {detail.recent_signals.map((sig, i) => (
+                                    <div key={i} className="bg-zinc-800/60 border border-zinc-700 rounded-xl px-3 py-2 text-xs">
+                                        <span className="text-white font-medium">{sig.stock_name}</span>
+                                        <span className="text-zinc-500 ml-1">{sig.stock_id}</span>
+                                        <span className="text-amber-400 ml-2 font-mono">{(sig.predicted_prob * 100).toFixed(0)}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    )
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StrategyPage = () => {
-    const [stats, setStats] = useState<AlphaStats | null>(null)
+    const [result, setResult] = useState<AlphaMinerResult | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [selectedId, setSelectedId] = useState<string | null>(null)
+    const [signals, setSignals] = useState<TodaySignal[]>([])
+    const [expandedSignal, setExpandedSignal] = useState<string | null>(null)
 
     useEffect(() => {
-        api.get('/market/alpha/stats')
-            .then(res => { setStats(res.data); setLoading(false) })
-            .catch(e => { setError(e.message); setLoading(false) })
+        let timer: ReturnType<typeof setTimeout>
+        const fetch = () => {
+            api.get('/alpha-miner/strategies')
+                .then(r => {
+                    setResult(r.data)
+                    setLoading(false)
+                    if (r.data.is_training) {
+                        // 訓練中：15 秒後再輪詢
+                        timer = setTimeout(fetch, 15000)
+                    }
+                })
+                .catch(e => { setError(e.message); setLoading(false) })
+        }
+        fetch()
+        return () => clearTimeout(timer)
     }, [])
 
-    const metricCards = stats ? [
-        {
-            label: '明日上漲機率', value: `${(stats.win_rate_1d * 100).toFixed(1)}%`,
-            sub: '次日收正報酬勝率', color: 'text-amber-400'
-        },
-        {
-            label: '兩週後勝率', value: `${(stats.win_rate_10d * 100).toFixed(1)}%`,
-            sub: '10 交易日後勝率', color: 'text-amber-400'
-        },
-        {
-            label: '期望報酬', value: pct(stats.expectancy * 100),
-            sub: '單筆平均期望值', color: stats.expectancy >= 0 ? 'text-emerald-400' : 'text-rose-400'
-        },
-        {
-            label: '累積訊號', value: stats.total_signals.toLocaleString(),
-            sub: `歷史觸發次數`, color: 'text-zinc-200'
-        },
-    ] : []
+    useEffect(() => {
+        api.get('/alpha-miner/signals/today')
+            .then(r => setSignals(r.data))
+            .catch(() => {})
+    }, [])
 
-    const curveData = stats?.equity_curve.map(p => ({
-        date: p.date.slice(0, 7),  // YYYY-MM
-        value: p.cumulative_return,
-    })) ?? []
+    const strategies = result?.strategies ?? []
 
     return (
         <>
-            <Head><title>策略開發 | AlphaForge</title></Head>
-
+            <Head><title>Alpha Miner | AlphaForge</title></Head>
             <div className="min-h-[calc(100vh-64px)] p-4 sm:p-8 flex flex-col gap-6 max-w-7xl mx-auto">
 
                 {/* Header */}
                 <div className="relative overflow-hidden bg-zinc-900/30 border border-zinc-800/50 rounded-3xl p-6 sm:p-8 group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-emerald-500/10" />
-                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
+                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                                    <SVGIcon path={ICONS.strategy} className="w-6 h-6 text-emerald-400" />
-                                </div>
-                                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
-                                    Alpha Miner <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">策略金鑰</span>挖礦機
-                                </h1>
-                            </div>
+                            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+                                Alpha Miner <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">策略金鑰</span>挖礦機
+                            </h1>
                             <p className="text-zinc-400 text-sm mt-2 pl-1 border-l-2 border-amber-500/30">
-                                {stats
-                                    ? `基於 ${stats.total_signals.toLocaleString()} 個歷史訊號 · 數據截至 ${stats.data_date}`
-                                    : loading ? '計算中…' : 'AF 精選策略歷史勝率分析'}
+                                {result
+                                    ? `${result.total_combinations_tested} 組因子組合 · 訓練期 ${result.train_period} · 測試期 ${result.test_period}`
+                                    : result?.is_training ? '模型訓練中（約需 2 分鐘），頁面將自動更新…'
+                        : loading ? '載入中…' : 'Alpha Miner 多因子邏輯迴歸模型'
+                                }
                             </p>
                         </div>
-                        <div className="flex items-center self-start md:self-center">
-                            <div className="px-4 py-2 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center gap-3 shadow-xl">
+                        <div className="flex items-center gap-3 shrink-0">
+                            <div className="px-4 py-2 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center gap-2 shadow-xl">
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                                 </span>
-                                <span className="text-zinc-300 text-xs font-bold tracking-widest uppercase">AF 精選 · Phase 2</span>
+                                <span className="text-zinc-300 text-xs font-bold tracking-widest uppercase">Phase 5B</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Error State */}
                 {error && (
                     <div className="bg-rose-900/20 border border-rose-800/50 rounded-2xl p-4 text-rose-400 text-sm">
                         載入失敗：{error}
                     </div>
                 )}
 
-                {/* Metric Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {loading
-                        ? Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28" />)
-                        : metricCards.map((card, i) => (
-                            <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5 flex flex-col gap-2">
-                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{card.label}</p>
-                                <p className={`text-3xl font-extrabold ${card.color}`}>{card.value}</p>
-                                <p className="text-zinc-600 text-xs">{card.sub}</p>
+                {/* Today Signals */}
+                {signals.length > 0 && (
+                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
+                        <div className="flex items-baseline justify-between mb-4">
+                            <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">今日最強訊號</h3>
+                            <span className="text-zinc-600 text-xs">{signals[0]?.signal_date} · 僅供參考，不構成投資建議</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {signals.map(s => (
+                                <div
+                                    key={s.stock_id}
+                                    onClick={() => setExpandedSignal(expandedSignal === s.stock_id ? null : s.stock_id)}
+                                    className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${expandedSignal === s.stock_id ? 'bg-zinc-800/60 border-zinc-600' : 'bg-zinc-800/20 border-zinc-800 hover:border-zinc-700'}`}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="text-zinc-200 font-medium truncate">{s.stock_name}</span>
+                                            <span className="text-zinc-500 text-xs shrink-0">{s.stock_id}</span>
+                                        </div>
+                                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${s.trigger_count >= 20 ? 'bg-amber-500/20 text-amber-400' : s.trigger_count >= 10 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-700 text-zinc-300'}`}>
+                                            {s.trigger_count} 策略
+                                        </span>
+                                    </div>
+                                    {expandedSignal === s.stock_id && (
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                            {s.strategies.slice(0, 8).map((name, i) => (
+                                                <span key={i} className="px-2 py-0.5 bg-zinc-700/60 text-zinc-400 rounded-full text-xs">{name}</span>
+                                            ))}
+                                            {s.strategies.length > 8 && (
+                                                <span className="px-2 py-0.5 text-zinc-600 text-xs">+{s.strategies.length - 8} 個</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Strategy Ranking Table */}
+                <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
+                    <div className="flex items-baseline justify-between mb-4">
+                        <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">策略排行榜（依樣本外 IC 排序）</h3>
+                        {strategies.length > 0 && (
+                            <span className="hidden sm:inline text-zinc-600 text-xs">
+                                市場基準：勝率 {((strategies[0]?.market_win_rate ?? 0) * 100).toFixed(1)}%・踩雷率 {((strategies[0]?.market_loss_rate ?? 0) * 100).toFixed(1)}%
+                            </span>
+                        )}
+                    </div>
+
+                    {loading ? (
+                        <div className="space-y-3">{Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+                    ) : strategies.length === 0 ? (
+                        <div className="h-32 flex items-center justify-center text-zinc-500 text-sm">
+                            {result?.is_training ? '模型訓練中，頁面每 15 秒自動更新…' : '尚無資料（stock_features 資料不足）'}
+                        </div>
+                    ) : (
+                        <>
+                            {/* ── 手機版：卡片列表 ─────────────────────────────── */}
+                            <div className="md:hidden space-y-2">
+                                {strategies.map((s, idx) => (
+                                    <React.Fragment key={s.strategy_id}>
+                                        <div
+                                            onClick={() => setSelectedId(selectedId === s.strategy_id ? null : s.strategy_id)}
+                                            className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${selectedId === s.strategy_id ? 'bg-zinc-800/60 border-zinc-600' : 'bg-zinc-800/20 border-zinc-800 active:bg-zinc-800/50'}`}
+                                        >
+                                            {/* 第一行：排名 + 名稱 + 顯著badge */}
+                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-zinc-500 text-xs font-mono mt-0.5 w-5 shrink-0">#{idx + 1}</span>
+                                                    <span className="text-zinc-100 text-sm font-medium leading-snug">
+                                                        {s.strategy_name}
+                                                        {s.overfit_warning && <span className="ml-1 text-amber-500 text-xs">⚠</span>}
+                                                    </span>
+                                                </div>
+                                                {s.is_significant
+                                                    ? <span className="shrink-0 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full text-xs">顯著</span>
+                                                    : <span className="shrink-0 px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded-full text-xs">不顯著</span>
+                                                }
+                                            </div>
+                                            {/* 第二行：三個指標 */}
+                                            <div className="grid grid-cols-3 gap-1 pl-7">
+                                                <div className="text-center">
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">勝率&gt;3%</p>
+                                                    <p className={`text-sm font-mono font-bold ${s.win_rate_outsample > s.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {(s.win_rate_outsample * 100).toFixed(1)}%
+                                                    </p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">踩雷&lt;-3%</p>
+                                                    <p className={`text-sm font-mono font-bold ${s.loss_rate_outsample < s.market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {(s.loss_rate_outsample * 100).toFixed(1)}%
+                                                    </p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">賠率比</p>
+                                                    <p className={`text-sm font-mono font-bold ${s.odds_ratio >= 1.2 ? 'text-amber-400' : s.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400'}`}>
+                                                        {s.odds_ratio.toFixed(2)}x
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {selectedId === s.strategy_id && (
+                                            <div className="pb-1">
+                                                <DetailPanel strategyId={s.strategy_id} onClose={() => setSelectedId(null)} />
+                                            </div>
+                                        )}
+                                    </React.Fragment>
+                                ))}
                             </div>
-                        ))
-                    }
-                </div>
 
-                {/* Equity Curve */}
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
-                    <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <SVGIcon path={ICONS.chart} className="w-4 h-4 text-amber-400" />
-                        超賣反彈 · 累積損益曲線（10 交易日持有，等權不複利）
-                    </h3>
-                    {loading ? (
-                        <Skeleton className="h-64 w-full" />
-                    ) : curveData.length === 0 ? (
-                        <div className="h-48 flex items-center justify-center text-zinc-600 text-sm">尚無足夠數據</div>
-                    ) : (
-                        <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={curveData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                                <XAxis
-                                    dataKey="date"
-                                    tick={{ fill: '#71717a', fontSize: 10 }}
-                                    tickLine={false}
-                                    interval="preserveStartEnd"
-                                />
-                                <YAxis
-                                    tickFormatter={v => `${(v * 100).toFixed(0)}%`}
-                                    tick={{ fill: '#71717a', fontSize: 10 }}
-                                    tickLine={false}
-                                    axisLine={false}
-                                    width={48}
-                                />
-                                <Tooltip content={<CurveTooltip />} />
-                                <ReferenceLine y={0} stroke="#52525b" strokeDasharray="4 2" />
-                                <Line
-                                    type="monotone"
-                                    dataKey="value"
-                                    stroke="#f59e0b"
-                                    strokeWidth={2}
-                                    dot={false}
-                                    activeDot={{ r: 4, fill: '#f59e0b' }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    )}
-                </div>
-
-                {/* Recent Signals */}
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
-                    <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <SVGIcon path={ICONS.signal} className="w-4 h-4 text-amber-400" />
-                        近期訊號（最新 10 筆）
-                    </h3>
-                    {loading ? (
-                        <div className="space-y-3">
-                            {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-                        </div>
-                    ) : !stats?.recent_signals.length ? (
-                        <div className="h-24 flex items-center justify-center text-zinc-600 text-sm">尚無訊號</div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-zinc-500 text-xs uppercase tracking-widest border-b border-zinc-800">
-                                        <th className="text-left py-2 pr-4">股票</th>
-                                        <th className="text-left py-2 pr-4">訊號日</th>
-                                        <th className="text-right py-2 pr-4">次日報酬</th>
-                                        <th className="text-right py-2 pr-4">兩週報酬</th>
-                                        <th className="text-center py-2">結果</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {stats.recent_signals.map((sig, i) => (
-                                        <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors">
-                                            <td className="py-2.5 pr-4">
-                                                <span className="text-zinc-200 font-medium">{sig.stock_name}</span>
-                                                <span className="text-zinc-500 text-xs ml-2">{sig.stock_id}</span>
-                                            </td>
-                                            <td className="py-2.5 pr-4 text-zinc-400 font-mono text-xs">{sig.signal_date}</td>
-                                            <td className={`py-2.5 pr-4 text-right font-mono font-medium ${sig.return_1d == null ? 'text-zinc-600' : sig.return_1d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                {pct(sig.return_1d)}
-                                            </td>
-                                            <td className={`py-2.5 pr-4 text-right font-mono font-medium ${sig.return_10d == null ? 'text-zinc-600' : sig.return_10d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                {pct(sig.return_10d)}
-                                            </td>
-                                            <td className="py-2.5 text-center">
-                                                {sig.outcome === 'win' && (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-bold">
-                                                        <SVGIcon path={ICONS.win} className="w-3 h-3" />勝
-                                                    </span>
-                                                )}
-                                                {sig.outcome === 'loss' && (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded-full text-xs font-bold">敗</span>
-                                                )}
-                                                {sig.outcome === 'pending' && (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-800 text-zinc-500 rounded-full text-xs">
-                                                        <SVGIcon path={ICONS.pending} className="w-3 h-3" />持倉中
-                                                    </span>
-                                                )}
-                                            </td>
+                            {/* ── 桌機版：表格 ─────────────────────────────────── */}
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-zinc-500 text-xs uppercase tracking-widest border-b border-zinc-800">
+                                            <th className="text-left py-2 pr-4 w-8">#</th>
+                                            <th className="text-left py-2 pr-6">策略名稱</th>
+                                            <th className="text-right py-2 pr-4">勝率 &gt;3%</th>
+                                            <th className="text-right py-2 pr-4">踩雷 &lt;-3%</th>
+                                            <th className="text-right py-2 pr-4">賠率比</th>
+                                            <th className="text-right py-2 pr-4">IC</th>
+                                            <th className="text-right py-2 pr-4">p-value</th>
+                                            <th className="text-center py-2">狀態</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {strategies.map((s, idx) => (
+                                            <React.Fragment key={s.strategy_id}>
+                                                <tr
+                                                    onClick={() => setSelectedId(selectedId === s.strategy_id ? null : s.strategy_id)}
+                                                    className={`border-b border-zinc-800/50 cursor-pointer transition-colors ${selectedId === s.strategy_id ? 'bg-zinc-800/40' : 'hover:bg-zinc-800/20'}`}
+                                                >
+                                                    <td className="py-3 pr-4 text-zinc-600 font-mono text-xs">{idx + 1}</td>
+                                                    <td className="py-3 pr-6">
+                                                        <span className="text-zinc-200 font-medium">{s.strategy_name}</span>
+                                                        {s.overfit_warning && <span className="ml-2 text-amber-500 text-xs">⚠</span>}
+                                                    </td>
+                                                    <td className={`py-3 pr-4 text-right font-mono font-medium ${s.win_rate_outsample > s.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {(s.win_rate_outsample * 100).toFixed(1)}%
+                                                    </td>
+                                                    <td className={`py-3 pr-4 text-right font-mono font-medium ${s.loss_rate_outsample < s.market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {(s.loss_rate_outsample * 100).toFixed(1)}%
+                                                    </td>
+                                                    <td className={`py-3 pr-4 text-right font-mono font-medium ${s.odds_ratio >= 1.2 ? 'text-amber-400' : s.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400'}`}>
+                                                        {s.odds_ratio.toFixed(2)}x
+                                                    </td>
+                                                    <td className={`py-3 pr-4 text-right font-mono ${s.ic > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                                                        {s.ic.toFixed(3)}
+                                                    </td>
+                                                    <td className="py-3 pr-4 text-right font-mono text-zinc-400 text-xs">
+                                                        {s.p_value_corrected < 0.001 ? '<0.001' : s.p_value_corrected.toFixed(3)}
+                                                    </td>
+                                                    <td className="py-3 text-center">
+                                                        {s.is_significant
+                                                            ? <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-bold">顯著</span>
+                                                            : <span className="px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded-full text-xs">不顯著</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                                {selectedId === s.strategy_id && (
+                                                    <tr>
+                                                        <td colSpan={8} className="py-3">
+                                                            <DetailPanel strategyId={s.strategy_id} onClose={() => setSelectedId(null)} />
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
                     )}
                 </div>
 
+                {/* Footer disclaimer */}
+                <p className="text-zinc-600 text-xs text-center pb-4">
+                    AlphaForge 為學習型工具，勝率為歷史統計參考，不構成投資建議。Bonferroni 校正門檻：p &lt; {result?.bonferroni_threshold.toFixed(4) ?? '…'}
+                </p>
             </div>
-
-            <style jsx>{`
-                @keyframes shimmer { 100% { transform: translateX(100%); } }
-            `}</style>
         </>
     )
 }

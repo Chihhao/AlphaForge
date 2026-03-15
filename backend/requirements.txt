@@ -18,3 +18,5 @@ pytest
 httpx
 twstock
 apscheduler
+scikit-learn
+scipy

@@ -16,6 +16,7 @@ from sqlalchemy import func, delete
 from app.models.stock_price import StockPrice
 from app.models.stock_feature import StockFeature
 from app.models.stock_fundamental import StockFundamental
+from app.models.stock_chip_data import StockChipData
 from app.services.indicator_service import IndicatorService
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,12 @@ class FeatureService:
         # 日漲跌幅
         df['change_pct'] = df.groupby('stock_id')['close'].pct_change() * 100
 
+        # 技術面新因子（Phase 5B）
+        df['high20'] = df.groupby('stock_id')['high'].transform(lambda x: x.rolling(20).max())
+        df['price_vs_high20'] = (df['close'] - df['high20']) / df['high20'].replace(0, np.nan)
+        df['ma_trend'] = ((df['ma5'] > df['ma10']) & (df['ma10'] > df['ma20'])).astype(float)
+        df.loc[df['ma5'].isna() | df['ma10'].isna() | df['ma20'].isna(), 'ma_trend'] = np.nan
+
         # 5. 只取 target_date 當日的資料
         target_df = df[df['date'] == target_date].copy()
 
@@ -101,6 +108,22 @@ class FeatureService:
             lambda sid: getattr(fund_map.get(sid), 'pb_ratio', None))
         target_df['revenue_yoy'] = target_df['stock_id'].map(
             lambda sid: getattr(fund_map.get(sid), 'revenue_growth_yoy', None))
+
+        # 6b. Left join 籌碼面（Phase 4B）
+        chip_start = target_date - timedelta(days=10)
+        chip_rows = db.query(StockChipData).filter(
+            StockChipData.date >= chip_start,
+            StockChipData.date <= target_date
+        ).all()
+        chip_df = FeatureService._build_chip_features(chip_rows, target_date)
+
+        if not chip_df.empty:
+            target_df = target_df.merge(chip_df, on='stock_id', how='left')
+        else:
+            for col in ('foreign_net_buy', 'foreign_buy_5d',
+                        'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
+                        'dealer_net_buy', 'dealer_buy_5d'):
+                target_df[col] = None
 
         # 7. 刪除當日已存在的記錄（upsert 邏輯）
         db.execute(
@@ -138,6 +161,15 @@ class FeatureService:
                 roe=_safe_float(row.get('roe')),
                 pb_ratio=_safe_float(row.get('pb_ratio')),
                 revenue_yoy=_safe_float(row.get('revenue_yoy')),
+                foreign_net_buy=_safe_float(row.get('foreign_net_buy')),
+                foreign_buy_5d=_safe_float(row.get('foreign_buy_5d')),
+                trust_net_buy=_safe_float(row.get('trust_net_buy')),
+                trust_buy_5d=_safe_float(row.get('trust_buy_5d')),
+                margin_chg_5d=_safe_float(row.get('margin_chg_5d')),
+                dealer_net_buy=_safe_float(row.get('dealer_net_buy')),
+                dealer_buy_5d=_safe_float(row.get('dealer_buy_5d')),
+                price_vs_high20=_safe_float(row.get('price_vs_high20')),
+                ma_trend=_safe_float(row.get('ma_trend')),
             ))
 
         if records:
@@ -187,6 +219,12 @@ class FeatureService:
         df['bb_pctb'] = (df['close'] - df['bb_lower']) / bb_range.replace(0, np.nan)
         df['change_pct'] = df.groupby('stock_id')['close'].pct_change() * 100
 
+        # 技術面新因子（Phase 5B）
+        df['high20'] = df.groupby('stock_id')['high'].transform(lambda x: x.rolling(20).max())
+        df['price_vs_high20'] = (df['close'] - df['high20']) / df['high20'].replace(0, np.nan)
+        df['ma_trend'] = ((df['ma5'] > df['ma10']) & (df['ma10'] > df['ma20'])).astype(float)
+        df.loc[df['ma5'].isna() | df['ma10'].isna() | df['ma20'].isna(), 'ma_trend'] = np.nan
+
         # 只取回補期間的資料
         mask = (df['date'] >= start_date) & (df['date'] <= end_date)
         backfill_df = df[mask].copy()
@@ -204,6 +242,40 @@ class FeatureService:
         backfill_df['revenue_yoy'] = backfill_df['stock_id'].map(
             lambda sid: getattr(fund_map.get(sid), 'revenue_growth_yoy', None))
 
+        # 籌碼面：讀取回補期間 + 前 10 天的籌碼資料
+        chip_warmup = start_date - timedelta(days=10)
+        chip_rows = db.query(StockChipData).filter(
+            StockChipData.date >= chip_warmup,
+            StockChipData.date <= end_date
+        ).all()
+
+        # 以 date 為 key 建立籌碼特徵 lookup
+        # 注意：_build_chip_features 需要前 5 天資料計算累積指標，傳入完整 chip_all
+        chip_by_date: dict = {}
+        chip_all = pd.DataFrame()
+        if chip_rows:
+            chip_all = pd.DataFrame([{
+                'stock_id': c.stock_id,
+                'date': pd.Timestamp(c.date),
+                'foreign_net_buy': c.foreign_net_buy,
+                'trust_net_buy': c.trust_net_buy,
+                'dealer_net_buy': c.dealer_net_buy,
+                'margin_balance': c.margin_balance,
+            } for c in chip_rows])
+            chip_all = chip_all.sort_values(['stock_id', 'date'])
+            # 為每個目標日期建立特徵（傳入完整 chip_all，讓函數自行取 5 天窗口）
+            for d in chip_all['date'].unique():
+                chip_by_date[d] = FeatureService._build_chip_features(None, d.date(), _chip_df=chip_all)
+
+        # 去除重複的 (stock_id, date)（price data 中可能存在重複來源）
+        backfill_df = backfill_df.drop_duplicates(subset=['stock_id', 'date'], keep='first')
+
+        # 初始化籌碼欄位
+        for col in ('foreign_net_buy', 'foreign_buy_5d',
+                    'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
+                    'dealer_net_buy', 'dealer_buy_5d'):
+            backfill_df[col] = None
+
         # 刪除已存在的記錄
         db.execute(
             delete(StockFeature).where(
@@ -211,13 +283,30 @@ class FeatureService:
                 StockFeature.date <= end_date
             )
         )
+        db.flush()
 
         # 批量寫入（按月分批 commit 避免過大事務）
         total_written = 0
         dates = sorted(backfill_df['date'].unique())
 
         for batch_date in dates:
-            day_df = backfill_df[backfill_df['date'] == batch_date]
+            day_df = backfill_df[backfill_df['date'] == batch_date].copy()
+
+            # 合併當日籌碼特徵（若存在）
+            # 先移除預先初始化的 None 欄位，避免 merge 後產生 _x/_y 衝突
+            chip_cols = ['foreign_net_buy', 'foreign_buy_5d',
+                         'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
+                         'dealer_net_buy', 'dealer_buy_5d']
+            day_df = day_df.drop(columns=[c for c in chip_cols if c in day_df.columns])
+
+            ts_key = pd.Timestamp(batch_date)
+            day_chip = chip_by_date.get(ts_key, pd.DataFrame())
+            if not day_chip.empty:
+                day_df = day_df.merge(day_chip, on='stock_id', how='left')
+            else:
+                for col in chip_cols:
+                    day_df[col] = None
+
             records = []
             for _, row in day_df.iterrows():
                 records.append(StockFeature(
@@ -248,6 +337,15 @@ class FeatureService:
                     roe=_safe_float(row.get('roe')),
                     pb_ratio=_safe_float(row.get('pb_ratio')),
                     revenue_yoy=_safe_float(row.get('revenue_yoy')),
+                    foreign_net_buy=_safe_float(row.get('foreign_net_buy')),
+                    foreign_buy_5d=_safe_float(row.get('foreign_buy_5d')),
+                    trust_net_buy=_safe_float(row.get('trust_net_buy')),
+                    trust_buy_5d=_safe_float(row.get('trust_buy_5d')),
+                    margin_chg_5d=_safe_float(row.get('margin_chg_5d')),
+                    dealer_net_buy=_safe_float(row.get('dealer_net_buy')),
+                    dealer_buy_5d=_safe_float(row.get('dealer_buy_5d')),
+                    price_vs_high20=_safe_float(row.get('price_vs_high20')),
+                    ma_trend=_safe_float(row.get('ma_trend')),
                 ))
 
             if records:
@@ -271,6 +369,82 @@ class FeatureService:
         ).order_by(StockFeature.date.desc()).limit(days).all()
 
         return list(reversed(features))
+
+    @staticmethod
+    def _build_chip_features(
+        chip_rows,
+        target_date,
+        _chip_df: Optional[pd.DataFrame] = None,
+    ) -> pd.DataFrame:
+        """計算單日籌碼衍生指標，回傳 DataFrame(stock_id, 5 欄位)
+
+        Args:
+            chip_rows: StockChipData ORM 物件列表（若傳入則轉換為 DataFrame）
+            target_date: 目標日期（date 或 pd.Timestamp）
+            _chip_df: 已整理好的 DataFrame（backfill 路徑直接傳入，略過 ORM 轉換）
+        """
+        if _chip_df is not None:
+            raw = _chip_df.copy()
+        else:
+            if not chip_rows:
+                return pd.DataFrame()
+            raw = pd.DataFrame([{
+                'stock_id': c.stock_id,
+                'date': pd.Timestamp(c.date),
+                'foreign_net_buy': c.foreign_net_buy,
+                'trust_net_buy': c.trust_net_buy,
+                'dealer_net_buy': c.dealer_net_buy,
+                'margin_balance': c.margin_balance,
+            } for c in chip_rows])
+
+        if raw.empty:
+            return pd.DataFrame()
+
+        raw['date'] = pd.to_datetime(raw['date'])
+        raw = raw.sort_values(['stock_id', 'date'])
+
+        target_ts = pd.Timestamp(target_date)
+
+        # 5 日累積買超（用過去 5 個交易日含今日的窗口）
+        result_rows = []
+        for sid, grp in raw.groupby('stock_id'):
+            grp = grp.sort_values('date')
+            today_row = grp[grp['date'] == target_ts]
+            if today_row.empty:
+                continue
+
+            window = grp[grp['date'] <= target_ts].tail(5)
+
+            foreign_nb  = today_row['foreign_net_buy'].values[0]
+            foreign_5d  = window['foreign_net_buy'].sum() if 'foreign_net_buy' in window.columns else None
+            trust_nb    = today_row['trust_net_buy'].values[0]
+            trust_5d    = window['trust_net_buy'].sum() if 'trust_net_buy' in window.columns else None
+            dealer_nb   = today_row['dealer_net_buy'].values[0] if 'dealer_net_buy' in today_row.columns else None
+            dealer_5d   = window['dealer_net_buy'].sum() if 'dealer_net_buy' in window.columns else None
+
+            # 融資餘額 5 日變化率
+            if 'margin_balance' in window.columns and len(window) >= 2:
+                m_now  = window['margin_balance'].iloc[-1]
+                m_prev = window['margin_balance'].iloc[0]
+                if m_prev and m_prev != 0 and pd.notna(m_prev) and pd.notna(m_now):
+                    margin_chg_5d = (m_now - m_prev) / abs(m_prev) * 100
+                else:
+                    margin_chg_5d = None
+            else:
+                margin_chg_5d = None
+
+            result_rows.append({
+                'stock_id': sid,
+                'foreign_net_buy': foreign_nb,
+                'foreign_buy_5d': float(foreign_5d) if pd.notna(foreign_5d) else None,
+                'trust_net_buy': trust_nb,
+                'trust_buy_5d': float(trust_5d) if pd.notna(trust_5d) else None,
+                'dealer_net_buy': float(dealer_nb) if dealer_nb is not None and pd.notna(dealer_nb) else None,
+                'dealer_buy_5d': float(dealer_5d) if dealer_5d is not None and pd.notna(dealer_5d) else None,
+                'margin_chg_5d': margin_chg_5d,
+            })
+
+        return pd.DataFrame(result_rows) if result_rows else pd.DataFrame()
 
 
 def _safe_float(val) -> Optional[float]:
