@@ -62,6 +62,20 @@ class TodaySignal(BaseModel):
     trigger_count: int          # 幾個顯著策略同時看好
     strategies: List[str]       # 觸發的策略名稱列表
     signal_date: str
+    # IC 加權統計
+    time_dimension: str = "10d"
+    threshold_low: float = 0.03
+    threshold_high: float = 0.05
+    weighted_odds_ratio: float = 1.0
+    weighted_odds_ratio_hi: float = 1.0
+    weighted_win_rate: float = 0.0
+    weighted_win_rate_hi: float = 0.0
+    weighted_loss_rate: float = 0.0
+    weighted_loss_rate_hi: float = 0.0
+    weighted_market_win_rate: float = 0.0
+    weighted_market_win_rate_hi: float = 0.0
+    weighted_market_loss_rate: float = 0.0
+    weighted_market_loss_rate_hi: float = 0.0
 
 
 class AlphaMinerResult(BaseModel):

@@ -218,19 +218,23 @@ class AlphaMinerService:
         return cls._details.get(strategy_id)
 
     @classmethod
-    def get_today_signals(cls, db: Session) -> List[TodaySignal]:
+    def get_today_signals(cls, db: Session, dimension: str = "10d") -> List[TodaySignal]:
         """彙整所有顯著策略的近期訊號，找出被多個策略同時看好的股票"""
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
             return []
 
+        tlo = 0.05 if dimension == '30d' else 0.03
+        thi = 0.10 if dimension == '30d' else 0.05
+
         stock_map: Dict[str, dict] = {}
         for ranking in result.strategies:
-            if not ranking.is_significant or ranking.time_dimension != "10d":
+            if not ranking.is_significant or ranking.time_dimension != dimension:
                 continue
             detail = cls._details.get(ranking.strategy_id)
             if not detail or not detail.recent_signals:
                 continue
+            ic = max(ranking.ic, 0.0)  # 負 IC 不貢獻加權（避免 ic_sum 趨零爆炸）
             for sig in detail.recent_signals:
                 sid = sig.stock_id
                 if sid not in stock_map:
@@ -240,12 +244,60 @@ class AlphaMinerService:
                         'trigger_count': 0,
                         'strategies': [],
                         'signal_date': sig.signal_date,
+                        '_ic_sum': 0.0,
+                        '_w_win': 0.0,
+                        '_w_win_hi': 0.0,
+                        '_w_loss': 0.0,
+                        '_w_loss_hi': 0.0,
+                        '_w_mkt_win': 0.0,
+                        '_w_mkt_win_hi': 0.0,
+                        '_w_mkt_loss': 0.0,
+                        '_w_mkt_loss_hi': 0.0,
                     }
                 stock_map[sid]['trigger_count'] += 1
                 stock_map[sid]['strategies'].append(ranking.strategy_name)
+                stock_map[sid]['_ic_sum'] += ic
+                stock_map[sid]['_w_win'] += ranking.win_rate_outsample * ic
+                stock_map[sid]['_w_win_hi'] += ranking.win_rate_outsample_hi * ic
+                stock_map[sid]['_w_loss'] += ranking.loss_rate_outsample * ic
+                stock_map[sid]['_w_loss_hi'] += ranking.loss_rate_outsample_hi * ic
+                stock_map[sid]['_w_mkt_win'] += ranking.market_win_rate * ic
+                stock_map[sid]['_w_mkt_win_hi'] += ranking.market_win_rate_hi * ic
+                stock_map[sid]['_w_mkt_loss'] += ranking.market_loss_rate * ic
+                stock_map[sid]['_w_mkt_loss_hi'] += ranking.market_loss_rate_hi * ic
 
-        signals = sorted(stock_map.values(), key=lambda x: x['trigger_count'], reverse=True)
-        return [TodaySignal(**s) for s in signals if s['trigger_count'] >= 2][:30]
+        signals = []
+        for s in stock_map.values():
+            if s['trigger_count'] < 2:
+                continue
+            ic_sum = max(s['_ic_sum'], 1e-9)
+            w_win = s['_w_win'] / ic_sum
+            w_win_hi = s['_w_win_hi'] / ic_sum
+            w_loss = s['_w_loss'] / ic_sum
+            w_loss_hi = s['_w_loss_hi'] / ic_sum
+            signals.append(TodaySignal(
+                stock_id=s['stock_id'],
+                stock_name=s['stock_name'],
+                trigger_count=s['trigger_count'],
+                strategies=s['strategies'],
+                signal_date=s['signal_date'],
+                time_dimension=dimension,
+                threshold_low=tlo,
+                threshold_high=thi,
+                weighted_odds_ratio=w_win / max(w_loss, 0.001),
+                weighted_odds_ratio_hi=w_win_hi / max(w_loss_hi, 0.001),
+                weighted_win_rate=w_win,
+                weighted_win_rate_hi=w_win_hi,
+                weighted_loss_rate=w_loss,
+                weighted_loss_rate_hi=w_loss_hi,
+                weighted_market_win_rate=s['_w_mkt_win'] / ic_sum,
+                weighted_market_win_rate_hi=s['_w_mkt_win_hi'] / ic_sum,
+                weighted_market_loss_rate=s['_w_mkt_loss'] / ic_sum,
+                weighted_market_loss_rate_hi=s['_w_mkt_loss_hi'] / ic_sum,
+            ))
+
+        signals.sort(key=lambda x: x.trigger_count, reverse=True)
+        return signals[:30]
 
     @classmethod
     def invalidate_cache(cls) -> None:

@@ -38,9 +38,9 @@ def get_strategy_detail(strategy_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/signals/today", response_model=List[TodaySignal])
-def get_today_signals(db: Session = Depends(get_db)):
+def get_today_signals(dimension: str = "10d", db: Session = Depends(get_db)):
     """回傳今日最強訊號：被多個顯著策略同時看好的股票，依觸發策略數排序"""
-    return AlphaMinerService.get_today_signals(db)
+    return AlphaMinerService.get_today_signals(db, dimension=dimension)
 
 
 @router.get("/training-progress")
