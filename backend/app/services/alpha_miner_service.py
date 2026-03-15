@@ -513,17 +513,22 @@ class AlphaMinerService:
         win_rate_outsample_hi = (
             float((top_returns > thr_hi).mean()) if len(top_returns) > 0 else 0.0
         )
-        # 策略踩雷率（Top20% 中 < -thr_lo）
+        # 策略踩雷率（Top20% 中 < -thr_lo 與 < -thr_hi）
         loss_rate_outsample = (
             float((top_returns < -thr_lo).mean()) if len(top_returns) > 0 else 0.0
         )
+        loss_rate_outsample_hi = (
+            float((top_returns < -thr_hi).mean()) if len(top_returns) > 0 else 0.0
+        )
         # 賠率比（勝率 / 踩雷率，踩雷率為 0 時用 0.001 避免除零）
-        odds_ratio = round(win_rate_outsample / max(loss_rate_outsample, 0.001), 2)
+        odds_ratio    = round(win_rate_outsample    / max(loss_rate_outsample,    0.001), 2)
+        odds_ratio_hi = round(win_rate_outsample_hi / max(loss_rate_outsample_hi, 0.001), 2)
 
         # 全市場基準（測試集所有股票）
-        market_win_rate    = float((all_returns > thr_lo).mean()) if len(all_returns) > 0 else 0.0
-        market_win_rate_hi = float((all_returns > thr_hi).mean()) if len(all_returns) > 0 else 0.0
-        market_loss_rate   = float((all_returns < -thr_lo).mean()) if len(all_returns) > 0 else 0.0
+        market_win_rate     = float((all_returns > thr_lo).mean())  if len(all_returns) > 0 else 0.0
+        market_win_rate_hi  = float((all_returns > thr_hi).mean())  if len(all_returns) > 0 else 0.0
+        market_loss_rate    = float((all_returns < -thr_lo).mean()) if len(all_returns) > 0 else 0.0
+        market_loss_rate_hi = float((all_returns < -thr_hi).mean()) if len(all_returns) > 0 else 0.0
 
         # IC：預測機率與實際報酬的 Spearman 相關
         actual_returns = test_df['forward_return'].values
@@ -572,10 +577,13 @@ class AlphaMinerService:
             win_rate_outsample=win_rate_outsample,
             win_rate_outsample_hi=win_rate_outsample_hi,
             loss_rate_outsample=loss_rate_outsample,
+            loss_rate_outsample_hi=loss_rate_outsample_hi,
             odds_ratio=odds_ratio,
+            odds_ratio_hi=odds_ratio_hi,
             market_win_rate=round(market_win_rate, 4),
             market_win_rate_hi=round(market_win_rate_hi, 4),
             market_loss_rate=round(market_loss_rate, 4),
+            market_loss_rate_hi=round(market_loss_rate_hi, 4),
             ic=ic,
             p_value=p_value,
             p_value_corrected=p_value_corrected,

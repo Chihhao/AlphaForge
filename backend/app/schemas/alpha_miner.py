@@ -33,10 +33,13 @@ class StrategyRanking(BaseModel):
     win_rate_outsample: float           # Top20% 中 > threshold_low 的比例
     win_rate_outsample_hi: float = 0.0  # Top20% 中 > threshold_high 的比例
     loss_rate_outsample: float = 0.0    # Top20% 中 < -threshold_low 的比例
-    odds_ratio: float = 1.0             # win_rate / loss_rate
+    loss_rate_outsample_hi: float = 0.0 # Top20% 中 < -threshold_high 的比例
+    odds_ratio: float = 1.0             # win_rate_lo / loss_rate_lo
+    odds_ratio_hi: float = 1.0          # win_rate_hi / loss_rate_hi
     market_win_rate: float = 0.0        # 全市場基準：> threshold_low
     market_win_rate_hi: float = 0.0     # 全市場基準：> threshold_high
     market_loss_rate: float = 0.0       # 全市場基準：< -threshold_low
+    market_loss_rate_hi: float = 0.0    # 全市場基準：< -threshold_high
     ic: float                   # Spearman IC（測試集）
     p_value: float
     p_value_corrected: float    # Bonferroni 校正後

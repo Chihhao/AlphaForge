@@ -99,7 +99,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { name: '首頁', icon: icons.home, href: '/' },
         { name: '今日最強訊號', icon: icons.signal, href: '/signals' },
         { name: '策略開發', icon: icons.strategy, href: '/strategy' },
-        { name: 'ECF 分析', icon: icons.ecf, href: '/ecf' },
+        // { name: 'ECF 分析', icon: icons.ecf, href: '/ecf' },
     ]
 
     return (
