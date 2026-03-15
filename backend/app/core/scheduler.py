@@ -9,6 +9,7 @@ from app.services.fundamental_service import FundamentalService
 from app.services.screener_service import ScreenerService
 from app.services.feature_service import FeatureService
 from app.services.chip_data_crawler import sync_daily_chip_data
+from app.services.alpha_miner_service import AlphaMinerService
 from app.db.database import SessionLocal
 
 # 設置日誌
@@ -111,6 +112,19 @@ def start_scheduler():
         trigger=CronTrigger(hour=17, minute=5),
         id="compute_daily_features",
         name="Daily feature store computation",
+        replace_existing=True
+    )
+
+    # --- 第五梯次：17:10 Alpha Miner 重訓（特徵計算完成後）---
+    def retrain_alpha_miner(db):
+        AlphaMinerService.invalidate_cache()
+        AlphaMinerService.get_strategies(db)  # 觸發背景重訓
+
+    scheduler.add_job(
+        lambda: run_with_db(retrain_alpha_miner),
+        trigger=CronTrigger(hour=17, minute=10),
+        id="retrain_alpha_miner",
+        name="Daily Alpha Miner retrain",
         replace_existing=True
     )
     

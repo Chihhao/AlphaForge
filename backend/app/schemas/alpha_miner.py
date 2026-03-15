@@ -26,12 +26,17 @@ class StrategyRanking(BaseModel):
     strategy_id: str
     strategy_name: str
     factors: List[str]
+    time_dimension: str = "10d"         # "5d" | "10d" | "30d"
+    threshold_low: float = 0.03         # 低門檻（訓練 label 用）
+    threshold_high: float = 0.05        # 高門檻（報告用）
     win_rate_insample: float
-    win_rate_outsample: float   # Top20% 中 forward_return > +3% 的比例
-    loss_rate_outsample: float = 0.0   # Top20% 中 forward_return < -3% 的比例（踩雷率）
-    odds_ratio: float = 1.0            # win_rate / loss_rate（賠率比）
-    market_win_rate: float = 0.0       # 全市場基準：>+3% 的比例
-    market_loss_rate: float = 0.0      # 全市場基準：<-3% 的比例
+    win_rate_outsample: float           # Top20% 中 > threshold_low 的比例
+    win_rate_outsample_hi: float = 0.0  # Top20% 中 > threshold_high 的比例
+    loss_rate_outsample: float = 0.0    # Top20% 中 < -threshold_low 的比例
+    odds_ratio: float = 1.0             # win_rate / loss_rate
+    market_win_rate: float = 0.0        # 全市場基準：> threshold_low
+    market_win_rate_hi: float = 0.0     # 全市場基準：> threshold_high
+    market_loss_rate: float = 0.0       # 全市場基準：< -threshold_low
     ic: float                   # Spearman IC（測試集）
     p_value: float
     p_value_corrected: float    # Bonferroni 校正後

@@ -1,11 +1,12 @@
 """
-AlphaMinerService — 邏輯迴歸多因子模型 (Phase 4B)
+AlphaMinerService — 邏輯迴歸多因子模型 (Phase 5A)
 
 設計原則：
 - 分位數排名消除跨股票量綱差異
 - 時間衰減權重（近期資料比舊資料重要）
 - 訓練/測試嚴格時間切割，留一個月空白期避免標籤洩漏
-- Bonferroni 多重校正防止 p-hacking
+- Bonferroni 多重校正防止 p-hacking（每個持有期各自校正）
+- 多時間維度：5日、10日、30日各自訓練，每維度報告兩個門檻
 - 樣本外 Spearman IC 為排序依據
 - 訓練結果持久化至 DB，後端重啟免重算
 """
@@ -13,6 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
+import multiprocessing
+import os
 import threading
 import numpy as np
 import pandas as pd
@@ -119,6 +122,38 @@ _LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())
 # Bonferroni 校正說明更新：63 組組合
 _BONFERRONI_N = len(FACTOR_COMBINATIONS)
 
+# ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────
+_PROGRESS_FILE = '/tmp/alpha_miner_progress.json'
+
+def _write_progress(data: dict) -> None:
+    try:
+        with open(_PROGRESS_FILE, 'w') as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+def _read_progress() -> dict:
+    try:
+        with open(_PROGRESS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {"current": 0, "total": 0, "percent": 0, "current_dim": "", "current_strategy": ""}
+
+def _run_training_subprocess() -> None:
+    """訓練子程序進入點（multiprocessing.Process 需要 module-level function）"""
+    import logging as _log
+    from app.db.database import SessionLocal
+    _log.basicConfig(level=logging.INFO)
+    db = SessionLocal()
+    try:
+        AlphaMinerService._train_all(db)
+    except Exception as e:
+        _log.getLogger(__name__).error(f"[AlphaMiner] 訓練子程序失敗: {e}", exc_info=True)
+        _write_progress({"current": 0, "total": 0, "percent": 0,
+                         "current_dim": "", "current_strategy": "", "error": str(e)})
+    finally:
+        db.close()
+
 
 _TRAINING_STUB = AlphaMinerResult(
     strategies=[], last_trained='', train_period='計算中…', test_period='計算中…',
@@ -132,14 +167,18 @@ class AlphaMinerService:
     _cache: Optional[AlphaMinerResult] = None
     _cache_date: Optional[date] = None
     _details: Dict[str, StrategyDetail] = {}
-    _training: bool = False      # 是否正在背景訓練
+    _process: Optional[multiprocessing.Process] = None  # 訓練子程序
     _lock: threading.Lock = threading.Lock()
 
-    FORWARD_DAYS   = 10
-    TEST_MONTHS    = 6      # 測試集保留最後幾個月
-    GAP_MONTHS     = 1      # 訓練/測試之間的空白月數（避免標籤洩漏）
-    WIN_THRESHOLD  = 0.03   # 勝率門檻：10日漲超過 +3%
-    LOSS_THRESHOLD = -0.03  # 踩雷門檻：10日跌超過 -3%
+    TEST_MONTHS = 6   # 測試集保留最後幾個月
+    GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
+
+    # 多時間維度設定：各維度獨立訓練，各自做 Bonferroni 校正（N=63）
+    DIMENSIONS = [
+        {"key": "5d",  "forward_days": 5,  "threshold_low": 0.03, "threshold_high": 0.05},
+        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05},
+        {"key": "30d", "forward_days": 30, "threshold_low": 0.05, "threshold_high": 0.10},
+    ]
 
     # ─── 公開介面 ──────────────────────────────────────────────────────────────
     @classmethod
@@ -148,33 +187,31 @@ class AlphaMinerService:
         if cls._cache is not None and cls._cache_date == today:
             return cls._cache
 
+        # 子程序剛結束 → 從 DB 快照恢復
+        if cls._process is not None and not cls._process.is_alive():
+            cls._process.join()
+            cls._process = None
+            restored = cls._load_snapshot(db, today)
+            if restored:
+                return cls._cache  # type: ignore[return-value]
+
         # 嘗試從 DB 快照恢復（後端重啟後的第一次請求）
         if cls._cache is None:
             restored = cls._load_snapshot(db, today)
             if restored:
                 return cls._cache  # type: ignore[return-value]
 
-        # 若尚未訓練且沒有執行中的訓練，啟動背景訓練
+        # 若沒有正在執行的子程序，啟動新的
         with cls._lock:
-            if not cls._training:
-                cls._training = True
-                t = threading.Thread(target=cls._train_background, daemon=True)
-                t.start()
-        # 回傳舊快取或訓練中 stub
-        return cls._cache if cls._cache is not None else _TRAINING_STUB
+            if cls._process is None or not cls._process.is_alive():
+                _write_progress({"current": 0, "total": 0, "percent": 0,
+                                 "current_dim": "", "current_strategy": ""})
+                p = multiprocessing.Process(target=_run_training_subprocess, daemon=True)
+                p.start()
+                cls._process = p
+                logger.info(f"[AlphaMiner] 訓練子程序已啟動 (PID {p.pid})")
 
-    @classmethod
-    def _train_background(cls) -> None:
-        from app.db.database import SessionLocal
-        db = SessionLocal()
-        try:
-            cls._train_all(db)
-        except Exception as e:
-            logger.error(f"[AlphaMiner] 背景訓練失敗: {e}", exc_info=True)
-        finally:
-            db.close()
-            with cls._lock:
-                cls._training = False
+        return cls._cache if cls._cache is not None else _TRAINING_STUB
 
     @classmethod
     def get_strategy_detail(cls, strategy_id: str, db: Session) -> Optional[StrategyDetail]:
@@ -189,7 +226,7 @@ class AlphaMinerService:
 
         stock_map: Dict[str, dict] = {}
         for ranking in result.strategies:
-            if not ranking.is_significant:
+            if not ranking.is_significant or ranking.time_dimension != "10d":
                 continue
             detail = cls._details.get(ranking.strategy_id)
             if not detail or not detail.recent_signals:
@@ -212,16 +249,27 @@ class AlphaMinerService:
 
     @classmethod
     def invalidate_cache(cls) -> None:
+        if cls._process is not None and cls._process.is_alive():
+            cls._process.terminate()
+            cls._process.join()
+        cls._process = None
         cls._cache = None
         cls._cache_date = None
         cls._details = {}
 
+    @classmethod
+    def get_progress(cls) -> dict:
+        is_training = cls._process is not None and cls._process.is_alive()
+        p = _read_progress()
+        p['is_training'] = is_training
+        return p
+
     # ─── 訓練流程 ──────────────────────────────────────────────────────────────
     @classmethod
     def _train_all(cls, db: Session) -> AlphaMinerResult:
-        df = cls._load_features(db)
+        df_base = cls._load_features(db)
 
-        if df.empty:
+        if df_base.empty:
             result = AlphaMinerResult(
                 strategies=[], last_trained=date.today().isoformat(),
                 train_period='N/A', test_period='N/A',
@@ -231,48 +279,62 @@ class AlphaMinerService:
             cls._cache_date = date.today()
             return result
 
-        df = cls._compute_forward_returns(df)
-
         # ── 動態切割：依實際資料的最後日期往前推算 ─────────────────────────
-        max_date = df['date'].max()
-        # 測試集：最後 TEST_MONTHS 個月
+        max_date = df_base['date'].max()
         test_start = (max_date - pd.DateOffset(months=cls.TEST_MONTHS)).date()
-        # 空白期：TEST_START 前 GAP_MONTHS 個月（避免 forward_return 標籤洩漏）
         train_end  = (max_date - pd.DateOffset(
             months=cls.TEST_MONTHS + cls.GAP_MONTHS)).date()
 
-        df = cls._compute_quantile_ranks(df)
-        df = cls._add_weights(df, train_end)
+        # 分位數排名與時間權重只需計算一次（不依賴持有期）
+        df_base = cls._compute_quantile_ranks(df_base)
+        df_base = cls._add_weights(df_base, train_end)
 
-        n = len(FACTOR_COMBINATIONS)
-        rankings: List[StrategyRanking] = []
-        details: Dict[str, StrategyDetail] = {}
+        n_combos = len(FACTOR_COMBINATIONS)
+        n_total = n_combos * len(cls.DIMENSIONS)
+        all_rankings: List[StrategyRanking] = []
+        all_details: Dict[str, StrategyDetail] = {}
 
-        for i, factors in enumerate(FACTOR_COMBINATIONS):
-            logger.info(f"[AlphaMiner] 訓練 {i+1}/{n}: {factors}")
-            ranking, detail = cls._train_one(df, factors, n, train_end, test_start)
-            if ranking is not None:
-                rankings.append(ranking)
-                details[ranking.strategy_id] = detail  # type: ignore[arg-type]
+        _write_progress({"current": 0, "total": n_total, "percent": 0,
+                         "current_dim": "", "current_strategy": ""})
 
-        rankings.sort(key=lambda x: x.ic, reverse=True)
+        completed = 0
+        for dim in cls.DIMENSIONS:
+            # 每個持有期各自計算 forward_return 與 label
+            df_dim = cls._compute_forward_returns(df_base, dim['forward_days'], dim['threshold_low'])
+            logger.info(f"[AlphaMiner] 開始訓練 {dim['key']} 維度（{n_combos} 組）")
 
-        min_date = df['date'].min()
+            for i, factors in enumerate(FACTOR_COMBINATIONS):
+                strategy_name = " + ".join(FACTOR_LABELS.get(f, f) for f in factors)
+                _write_progress({
+                    "current": completed, "total": n_total,
+                    "percent": round(completed / n_total * 100),
+                    "current_dim": dim['key'], "current_strategy": strategy_name,
+                })
+                logger.info(f"[AlphaMiner] [{dim['key']}] {i+1}/{n_combos}: {factors}")
+                ranking, detail = cls._train_one(df_dim, factors, n_combos, train_end, test_start, dim)
+                if ranking is not None:
+                    all_rankings.append(ranking)
+                    all_details[ranking.strategy_id] = detail  # type: ignore[arg-type]
+                completed += 1
+
+        all_rankings.sort(key=lambda x: x.ic, reverse=True)
+
+        min_date = df_base['date'].min()
         result = AlphaMinerResult(
-            strategies=rankings,
+            strategies=all_rankings,
             last_trained=date.today().isoformat(),
             train_period=f"{pd.Timestamp(min_date).strftime('%Y-%m')} ~ {train_end.strftime('%Y-%m')}",
             test_period=f"{test_start.strftime('%Y-%m')} ~ {pd.Timestamp(max_date).strftime('%Y-%m')}",
-            total_combinations_tested=n,
-            bonferroni_threshold=round(0.05 / n, 6),
+            total_combinations_tested=n_combos,
+            bonferroni_threshold=round(0.05 / n_combos, 6),
         )
         cls._cache = result
         cls._cache_date = date.today()
-        cls._details = details
+        cls._details = all_details
 
         # 持久化到 DB（訓練完成後存快照，重啟免重算）
         try:
-            cls._save_snapshot(db, result, details)
+            cls._save_snapshot(db, result, all_details)
         except Exception as e:
             logger.warning(f"[AlphaMiner] 快照存儲失敗（不影響結果）: {e}")
 
@@ -327,38 +389,38 @@ class AlphaMinerService:
                 f"[AlphaMiner] 從 DB 快照恢復舊結果（{snap.train_date}），"
                 "將在背景重新訓練今日模型"
             )
-            # 有舊快取可以立即回傳，但同時啟動背景重訓
+            # 有舊快取可以立即回傳，但同時啟動子程序重訓
             with cls._lock:
-                if not cls._training:
-                    cls._training = True
-                    t = threading.Thread(target=cls._train_background, daemon=True)
-                    t.start()
+                if cls._process is None or not cls._process.is_alive():
+                    _write_progress({"current": 0, "total": 0, "percent": 0,
+                                     "current_dim": "", "current_strategy": ""})
+                    p = multiprocessing.Process(target=_run_training_subprocess, daemon=True)
+                    p.start()
+                    cls._process = p
+                    logger.info(f"[AlphaMiner] 背景重訓子程序已啟動 (PID {p.pid})")
         return True
 
     # ─── 資料載入 ──────────────────────────────────────────────────────────────
     @classmethod
     def _load_features(cls, db: Session) -> pd.DataFrame:
-        cutoff = date.today() - timedelta(days=365 * 6)
-        rows = db.query(StockFeature).filter(StockFeature.date >= cutoff).all()
-        if not rows:
-            return pd.DataFrame()
-        records = [
-            {col: getattr(r, col) for col in _LOAD_COLS if hasattr(r, col)}
-            for r in rows
-        ]
-        df = pd.DataFrame(records)
+        cutoff = (date.today() - timedelta(days=365 * 2)).isoformat()
+        cols = ", ".join(_LOAD_COLS)
+        sql = f"SELECT {cols} FROM stock_features WHERE date >= '{cutoff}'"
+        df = pd.read_sql(sql, db.bind)
+        if df.empty:
+            return df
         df['date'] = pd.to_datetime(df['date'])
         return df
 
     # ─── 特徵工程 ──────────────────────────────────────────────────────────────
     @classmethod
-    def _compute_forward_returns(cls, df: pd.DataFrame) -> pd.DataFrame:
+    def _compute_forward_returns(cls, df: pd.DataFrame, forward_days: int, threshold: float) -> pd.DataFrame:
         df = df.sort_values(['stock_id', 'date']).copy()
-        df['forward_close'] = df.groupby('stock_id')['close'].shift(-cls.FORWARD_DAYS)
+        df['forward_close'] = df.groupby('stock_id')['close'].shift(-forward_days)
         close = df['close'].replace(0, np.nan)
         df['forward_return'] = (df['forward_close'] - close) / close
         df['label'] = np.where(df['forward_return'].isna(), np.nan,
-                               (df['forward_return'] > cls.WIN_THRESHOLD).astype(float))
+                               (df['forward_return'] > threshold).astype(float))
         return df
 
     @classmethod
@@ -374,12 +436,10 @@ class AlphaMinerService:
 
     @classmethod
     def _add_weights(cls, df: pd.DataFrame, train_end: date) -> pd.DataFrame:
-        # 以訓練集最後一年為基準，往前每年衰減 0.2
+        # 以訓練集最後一年為基準，往前每年衰減 0.2（向量化，避免 .apply 逐列）
         base_year = train_end.year
-        def _w(y: int) -> float:
-            delta = base_year - y
-            return max(1.0 - delta * 0.2, 0.2)
-        df['weight'] = df['date'].dt.year.apply(_w)
+        delta = base_year - df['date'].dt.year
+        df['weight'] = (1.0 - delta * 0.2).clip(lower=0.2)
         return df
 
     # ─── 單策略訓練 ────────────────────────────────────────────────────────────
@@ -391,17 +451,21 @@ class AlphaMinerService:
         n_total: int,
         train_end: date,
         test_start: date,
+        dim: dict,
     ) -> Tuple[Optional[StrategyRanking], Optional[StrategyDetail]]:
         from sklearn.linear_model import LogisticRegression
         from scipy import stats
+
+        thr_lo = dim['threshold_low']
+        thr_hi = dim['threshold_high']
 
         rank_cols = [f'{f}_rank' for f in factors]
         if any(c not in df.columns for c in rank_cols):
             return None, None
 
-        train_df = df[df['date'].dt.date <= train_end].dropna(
+        train_df = df[df['date'] <= pd.Timestamp(train_end)].dropna(
             subset=rank_cols + ['label'])
-        test_df = df[df['date'].dt.date >= test_start].dropna(
+        test_df = df[df['date'] >= pd.Timestamp(test_start)].dropna(
             subset=rank_cols + ['label', 'forward_return'])
 
         if len(train_df) < 100 or len(test_df) < 30:
@@ -413,7 +477,7 @@ class AlphaMinerService:
 
         try:
             model = LogisticRegression(
-                max_iter=500, random_state=42, solver='lbfgs', C=1.0,
+                tol=1e-3, max_iter=500, random_state=42, solver='lbfgs', C=1.0,
                 class_weight='balanced')
             model.fit(X_train, y_train, sample_weight=w_train)
         except Exception:
@@ -431,7 +495,7 @@ class AlphaMinerService:
         # 樣本內勝率（>+3%，用於過擬合檢測）
         train_returns = train_df['forward_return'].values
         win_rate_insample = (
-            float((train_returns[pos_train_mask] > cls.WIN_THRESHOLD).mean())
+            float((train_returns[pos_train_mask] > thr_lo).mean())
             if pos_train_mask.sum() > 0 else 0.5
         )
 
@@ -442,22 +506,24 @@ class AlphaMinerService:
         top_returns = test_df['forward_return'].values[pos_test_mask]
         all_returns = test_df['forward_return'].values
 
-        # 策略勝率（Top20% 中 >+3% 的比例）
+        # 策略勝率（Top20%）— 低門檻與高門檻
         win_rate_outsample = (
-            float((top_returns > cls.WIN_THRESHOLD).mean())
-            if len(top_returns) > 0 else 0.0
+            float((top_returns > thr_lo).mean()) if len(top_returns) > 0 else 0.0
         )
-        # 策略踩雷率（Top20% 中 <-3% 的比例）
+        win_rate_outsample_hi = (
+            float((top_returns > thr_hi).mean()) if len(top_returns) > 0 else 0.0
+        )
+        # 策略踩雷率（Top20% 中 < -thr_lo）
         loss_rate_outsample = (
-            float((top_returns < cls.LOSS_THRESHOLD).mean())
-            if len(top_returns) > 0 else 0.0
+            float((top_returns < -thr_lo).mean()) if len(top_returns) > 0 else 0.0
         )
         # 賠率比（勝率 / 踩雷率，踩雷率為 0 時用 0.001 避免除零）
         odds_ratio = round(win_rate_outsample / max(loss_rate_outsample, 0.001), 2)
 
         # 全市場基準（測試集所有股票）
-        market_win_rate  = float((all_returns > cls.WIN_THRESHOLD).mean()) if len(all_returns) > 0 else 0.0
-        market_loss_rate = float((all_returns < cls.LOSS_THRESHOLD).mean()) if len(all_returns) > 0 else 0.0
+        market_win_rate    = float((all_returns > thr_lo).mean()) if len(all_returns) > 0 else 0.0
+        market_win_rate_hi = float((all_returns > thr_hi).mean()) if len(all_returns) > 0 else 0.0
+        market_loss_rate   = float((all_returns < -thr_lo).mean()) if len(all_returns) > 0 else 0.0
 
         # IC：預測機率與實際報酬的 Spearman 相關
         actual_returns = test_df['forward_return'].values
@@ -479,7 +545,7 @@ class AlphaMinerService:
         if overfit_warning:
             integrity_flags.append("此策略可能存在過擬合")
 
-        strategy_id   = "_".join(factors)
+        strategy_id   = f"{dim['key']}_{'_'.join(factors)}"
         strategy_name = " + ".join(FACTOR_LABELS.get(f, f) for f in factors)
 
         factor_weights = [
@@ -499,11 +565,16 @@ class AlphaMinerService:
             strategy_id=strategy_id,
             strategy_name=strategy_name,
             factors=factors,
+            time_dimension=dim['key'],
+            threshold_low=thr_lo,
+            threshold_high=thr_hi,
             win_rate_insample=win_rate_insample,
             win_rate_outsample=win_rate_outsample,
+            win_rate_outsample_hi=win_rate_outsample_hi,
             loss_rate_outsample=loss_rate_outsample,
             odds_ratio=odds_ratio,
             market_win_rate=round(market_win_rate, 4),
+            market_win_rate_hi=round(market_win_rate_hi, 4),
             market_loss_rate=round(market_loss_rate, 4),
             ic=ic,
             p_value=p_value,

@@ -15,9 +15,10 @@ interface RecentAlphaSignal {
 }
 interface StrategyRanking {
     strategy_id: string; strategy_name: string; factors: string[]
-    win_rate_insample: number; win_rate_outsample: number
+    time_dimension: string; threshold_low: number; threshold_high: number
+    win_rate_insample: number; win_rate_outsample: number; win_rate_outsample_hi: number
     loss_rate_outsample: number; odds_ratio: number
-    market_win_rate: number; market_loss_rate: number
+    market_win_rate: number; market_win_rate_hi: number; market_loss_rate: number
     ic: number; p_value: number; p_value_corrected: number
     is_significant: boolean; overfit_warning: boolean
     sample_count_train: number; sample_count_test: number
@@ -28,10 +29,6 @@ interface StrategyDetail extends StrategyRanking {
     recent_signals: RecentAlphaSignal[]
     factor_weights: FactorWeight[]
 }
-interface TodaySignal {
-    stock_id: string; stock_name: string
-    trigger_count: number; strategies: string[]; signal_date: string
-}
 interface AlphaMinerResult {
     strategies: StrategyRanking[]; last_trained: string
     train_period: string; test_period: string
@@ -39,8 +36,16 @@ interface AlphaMinerResult {
     is_training: boolean
 }
 
+type DimKey = '5d' | '10d' | '30d'
+const DIM_CONFIG: Record<DimKey, { label: string; desc: string }> = {
+    '5d':  { label: '5日持有',  desc: '短線（門檻 3% / 5%）' },
+    '10d': { label: '10日持有', desc: '中短線（門檻 3% / 5%）' },
+    '30d': { label: '30日持有', desc: '中線（門檻 5% / 10%）' },
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const pct = (v: number, d = 1) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(d)}%`
+const toPct = (v: number, d = 1) => `${(v * 100).toFixed(d)}%`
 const Skeleton = ({ className = '' }: { className?: string }) => (
     <div className={`animate-pulse bg-zinc-800/60 rounded-xl ${className}`} />
 )
@@ -70,6 +75,8 @@ const DetailPanel = ({ strategyId, onClose }: { strategyId: string; onClose: () 
     }, [strategyId])
 
     const maxCoef = detail ? Math.max(...detail.factor_weights.map(w => Math.abs(w.coefficient)), 0.01) : 1
+    const tlo = detail ? Math.round(detail.threshold_low * 100) : 3
+    const thi = detail ? Math.round(detail.threshold_high * 100) : 5
 
     return (
         <div className="bg-zinc-900/70 border border-zinc-700 rounded-2xl p-5 space-y-5">
@@ -95,13 +102,50 @@ const DetailPanel = ({ strategyId, onClose }: { strategyId: string; onClose: () 
                         </div>
                     )}
 
-                    {/* Metric comparison */}
+                    {/* Metric comparison — 兩個門檻並排 */}
+                    <div>
+                        <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">勝率比較（策略 vs 市場基準）</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            {/* 低門檻 */}
+                            <div className="bg-zinc-800/50 rounded-xl p-3 space-y-2">
+                                <p className="text-zinc-400 text-xs text-center mb-1">門檻 &gt;{tlo}%</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="text-center">
+                                        <p className="text-zinc-500 text-[10px] mb-0.5">策略勝率</p>
+                                        <p className={`text-lg font-bold font-mono ${detail.win_rate_outsample > detail.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {toPct(detail.win_rate_outsample)}
+                                        </p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-zinc-500 text-[10px] mb-0.5">市場基準</p>
+                                        <p className="text-lg font-bold font-mono text-zinc-400">{toPct(detail.market_win_rate)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* 高門檻 */}
+                            <div className="bg-zinc-800/50 rounded-xl p-3 space-y-2">
+                                <p className="text-zinc-400 text-xs text-center mb-1">門檻 &gt;{thi}%</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="text-center">
+                                        <p className="text-zinc-500 text-[10px] mb-0.5">策略勝率</p>
+                                        <p className={`text-lg font-bold font-mono ${detail.win_rate_outsample_hi > detail.market_win_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {toPct(detail.win_rate_outsample_hi)}
+                                        </p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-zinc-500 text-[10px] mb-0.5">市場基準</p>
+                                        <p className="text-lg font-bold font-mono text-zinc-400">{toPct(detail.market_win_rate_hi)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Other metrics */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {[
-                            { label: '勝率 >3%（策略）', value: `${(detail.win_rate_outsample * 100).toFixed(1)}%`, color: detail.win_rate_outsample > detail.market_win_rate ? 'text-emerald-400' : 'text-rose-400' },
-                            { label: '勝率 >3%（市場基準）', value: `${(detail.market_win_rate * 100).toFixed(1)}%`, color: 'text-zinc-400' },
-                            { label: '踩雷率 <-3%（策略）', value: `${(detail.loss_rate_outsample * 100).toFixed(1)}%`, color: detail.loss_rate_outsample < detail.market_loss_rate ? 'text-emerald-400' : 'text-rose-400' },
-                            { label: '踩雷率 <-3%（市場基準）', value: `${(detail.market_loss_rate * 100).toFixed(1)}%`, color: 'text-zinc-400' },
+                            { label: `踩雷率 <-${tlo}%（策略）`, value: toPct(detail.loss_rate_outsample), color: detail.loss_rate_outsample < detail.market_loss_rate ? 'text-emerald-400' : 'text-rose-400' },
+                            { label: `踩雷率 <-${tlo}%（市場）`, value: toPct(detail.market_loss_rate), color: 'text-zinc-400' },
                             { label: '賠率比', value: detail.odds_ratio.toFixed(2), color: detail.odds_ratio >= 1.2 ? 'text-amber-400' : detail.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400' },
                             { label: 'IC', value: detail.ic.toFixed(3), color: detail.ic > 0 ? 'text-amber-400' : 'text-zinc-400' },
                             { label: '測試訊號數', value: detail.sample_count_test.toLocaleString(), color: 'text-zinc-300' },
@@ -178,8 +222,7 @@ const StrategyPage = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [selectedId, setSelectedId] = useState<string | null>(null)
-    const [signals, setSignals] = useState<TodaySignal[]>([])
-    const [expandedSignal, setExpandedSignal] = useState<string | null>(null)
+    const [dim, setDim] = useState<DimKey>('10d')
 
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout>
@@ -189,7 +232,6 @@ const StrategyPage = () => {
                     setResult(r.data)
                     setLoading(false)
                     if (r.data.is_training) {
-                        // 訓練中：15 秒後再輪詢
                         timer = setTimeout(fetch, 15000)
                     }
                 })
@@ -199,13 +241,9 @@ const StrategyPage = () => {
         return () => clearTimeout(timer)
     }, [])
 
-    useEffect(() => {
-        api.get('/alpha-miner/signals/today')
-            .then(r => setSignals(r.data))
-            .catch(() => {})
-    }, [])
-
-    const strategies = result?.strategies ?? []
+    const strategies = (result?.strategies ?? []).filter(s => s.time_dimension === dim)
+    const tlo = dim === '30d' ? 5 : 3
+    const thi = dim === '30d' ? 10 : 5
 
     return (
         <>
@@ -222,9 +260,9 @@ const StrategyPage = () => {
                             </h1>
                             <p className="text-zinc-400 text-sm mt-2 pl-1 border-l-2 border-amber-500/30">
                                 {result
-                                    ? `${result.total_combinations_tested} 組因子組合 · 訓練期 ${result.train_period} · 測試期 ${result.test_period}`
-                                    : result?.is_training ? '模型訓練中（約需 2 分鐘），頁面將自動更新…'
-                        : loading ? '載入中…' : 'Alpha Miner 多因子邏輯迴歸模型'
+                                    ? `${result.total_combinations_tested} 組因子組合 × 3 個持有期 · 訓練期 ${result.train_period} · 測試期 ${result.test_period}`
+                                    : result?.is_training ? '模型訓練中（約需 5 分鐘），頁面將自動更新…'
+                                    : loading ? '載入中…' : 'Alpha Miner 多因子邏輯迴歸模型'
                                 }
                             </p>
                         </div>
@@ -234,7 +272,7 @@ const StrategyPage = () => {
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                                 </span>
-                                <span className="text-zinc-300 text-xs font-bold tracking-widest uppercase">Phase 5B</span>
+                                <span className="text-zinc-300 text-xs font-bold tracking-widest uppercase">Phase 5A</span>
                             </div>
                         </div>
                     </div>
@@ -246,44 +284,23 @@ const StrategyPage = () => {
                     </div>
                 )}
 
-                {/* Today Signals */}
-                {signals.length > 0 && (
-                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
-                        <div className="flex items-baseline justify-between mb-4">
-                            <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">今日最強訊號</h3>
-                            <span className="text-zinc-600 text-xs">{signals[0]?.signal_date} · 僅供參考，不構成投資建議</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {signals.map(s => (
-                                <div
-                                    key={s.stock_id}
-                                    onClick={() => setExpandedSignal(expandedSignal === s.stock_id ? null : s.stock_id)}
-                                    className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${expandedSignal === s.stock_id ? 'bg-zinc-800/60 border-zinc-600' : 'bg-zinc-800/20 border-zinc-800 hover:border-zinc-700'}`}
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span className="text-zinc-200 font-medium truncate">{s.stock_name}</span>
-                                            <span className="text-zinc-500 text-xs shrink-0">{s.stock_id}</span>
-                                        </div>
-                                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${s.trigger_count >= 20 ? 'bg-amber-500/20 text-amber-400' : s.trigger_count >= 10 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-700 text-zinc-300'}`}>
-                                            {s.trigger_count} 策略
-                                        </span>
-                                    </div>
-                                    {expandedSignal === s.stock_id && (
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                            {s.strategies.slice(0, 8).map((name, i) => (
-                                                <span key={i} className="px-2 py-0.5 bg-zinc-700/60 text-zinc-400 rounded-full text-xs">{name}</span>
-                                            ))}
-                                            {s.strategies.length > 8 && (
-                                                <span className="px-2 py-0.5 text-zinc-600 text-xs">+{s.strategies.length - 8} 個</span>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Dimension Tab */}
+                <div className="flex gap-2">
+                    {(Object.keys(DIM_CONFIG) as DimKey[]).map(key => (
+                        <button
+                            key={key}
+                            onClick={() => { setDim(key); setSelectedId(null) }}
+                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors border ${
+                                dim === key
+                                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
+                                    : 'bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
+                            }`}
+                        >
+                            {DIM_CONFIG[key].label}
+                            <span className="hidden sm:inline text-xs ml-2 opacity-60">{DIM_CONFIG[key].desc}</span>
+                        </button>
+                    ))}
+                </div>
 
                 {/* Strategy Ranking Table */}
                 <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
@@ -291,7 +308,7 @@ const StrategyPage = () => {
                         <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest">策略排行榜（依樣本外 IC 排序）</h3>
                         {strategies.length > 0 && (
                             <span className="hidden sm:inline text-zinc-600 text-xs">
-                                市場基準：勝率 {((strategies[0]?.market_win_rate ?? 0) * 100).toFixed(1)}%・踩雷率 {((strategies[0]?.market_loss_rate ?? 0) * 100).toFixed(1)}%
+                                市場基準：&gt;{tlo}% 勝率 {((strategies[0]?.market_win_rate ?? 0) * 100).toFixed(1)}%・&gt;{thi}% 勝率 {((strategies[0]?.market_win_rate_hi ?? 0) * 100).toFixed(1)}%
                             </span>
                         )}
                     </div>
@@ -312,7 +329,6 @@ const StrategyPage = () => {
                                             onClick={() => setSelectedId(selectedId === s.strategy_id ? null : s.strategy_id)}
                                             className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${selectedId === s.strategy_id ? 'bg-zinc-800/60 border-zinc-600' : 'bg-zinc-800/20 border-zinc-800 active:bg-zinc-800/50'}`}
                                         >
-                                            {/* 第一行：排名 + 名稱 + 顯著badge */}
                                             <div className="flex items-start justify-between gap-2 mb-2">
                                                 <div className="flex items-start gap-2">
                                                     <span className="text-zinc-500 text-xs font-mono mt-0.5 w-5 shrink-0">#{idx + 1}</span>
@@ -326,24 +342,29 @@ const StrategyPage = () => {
                                                     : <span className="shrink-0 px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded-full text-xs">不顯著</span>
                                                 }
                                             </div>
-                                            {/* 第二行：三個指標 */}
-                                            <div className="grid grid-cols-3 gap-1 pl-7">
+                                            <div className="grid grid-cols-4 gap-1 pl-7">
                                                 <div className="text-center">
-                                                    <p className="text-zinc-400 text-[10px] mb-0.5">勝率&gt;3%</p>
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">&gt;{tlo}%</p>
                                                     <p className={`text-sm font-mono font-bold ${s.win_rate_outsample > s.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                        {(s.win_rate_outsample * 100).toFixed(1)}%
+                                                        {toPct(s.win_rate_outsample)}
                                                     </p>
                                                 </div>
                                                 <div className="text-center">
-                                                    <p className="text-zinc-400 text-[10px] mb-0.5">踩雷&lt;-3%</p>
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">&gt;{thi}%</p>
+                                                    <p className={`text-sm font-mono font-bold ${s.win_rate_outsample_hi > s.market_win_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {toPct(s.win_rate_outsample_hi)}
+                                                    </p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">踩雷</p>
                                                     <p className={`text-sm font-mono font-bold ${s.loss_rate_outsample < s.market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                        {(s.loss_rate_outsample * 100).toFixed(1)}%
+                                                        {toPct(s.loss_rate_outsample)}
                                                     </p>
                                                 </div>
                                                 <div className="text-center">
-                                                    <p className="text-zinc-400 text-[10px] mb-0.5">賠率比</p>
-                                                    <p className={`text-sm font-mono font-bold ${s.odds_ratio >= 1.2 ? 'text-amber-400' : s.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400'}`}>
-                                                        {s.odds_ratio.toFixed(2)}x
+                                                    <p className="text-zinc-400 text-[10px] mb-0.5">IC</p>
+                                                    <p className={`text-sm font-mono font-bold ${s.ic > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                                                        {s.ic.toFixed(3)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -364,8 +385,9 @@ const StrategyPage = () => {
                                         <tr className="text-zinc-500 text-xs uppercase tracking-widest border-b border-zinc-800">
                                             <th className="text-left py-2 pr-4 w-8">#</th>
                                             <th className="text-left py-2 pr-6">策略名稱</th>
-                                            <th className="text-right py-2 pr-4">勝率 &gt;3%</th>
-                                            <th className="text-right py-2 pr-4">踩雷 &lt;-3%</th>
+                                            <th className="text-right py-2 pr-4">勝率 &gt;{tlo}%</th>
+                                            <th className="text-right py-2 pr-4">勝率 &gt;{thi}%</th>
+                                            <th className="text-right py-2 pr-4">踩雷 &lt;-{tlo}%</th>
                                             <th className="text-right py-2 pr-4">賠率比</th>
                                             <th className="text-right py-2 pr-4">IC</th>
                                             <th className="text-right py-2 pr-4">p-value</th>
@@ -385,10 +407,15 @@ const StrategyPage = () => {
                                                         {s.overfit_warning && <span className="ml-2 text-amber-500 text-xs">⚠</span>}
                                                     </td>
                                                     <td className={`py-3 pr-4 text-right font-mono font-medium ${s.win_rate_outsample > s.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                        {(s.win_rate_outsample * 100).toFixed(1)}%
+                                                        {toPct(s.win_rate_outsample)}
+                                                        <span className="text-zinc-600 text-xs ml-1">({toPct(s.market_win_rate)})</span>
+                                                    </td>
+                                                    <td className={`py-3 pr-4 text-right font-mono font-medium ${s.win_rate_outsample_hi > s.market_win_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {toPct(s.win_rate_outsample_hi)}
+                                                        <span className="text-zinc-600 text-xs ml-1">({toPct(s.market_win_rate_hi)})</span>
                                                     </td>
                                                     <td className={`py-3 pr-4 text-right font-mono font-medium ${s.loss_rate_outsample < s.market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                        {(s.loss_rate_outsample * 100).toFixed(1)}%
+                                                        {toPct(s.loss_rate_outsample)}
                                                     </td>
                                                     <td className={`py-3 pr-4 text-right font-mono font-medium ${s.odds_ratio >= 1.2 ? 'text-amber-400' : s.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400'}`}>
                                                         {s.odds_ratio.toFixed(2)}x
@@ -408,7 +435,7 @@ const StrategyPage = () => {
                                                 </tr>
                                                 {selectedId === s.strategy_id && (
                                                     <tr>
-                                                        <td colSpan={8} className="py-3">
+                                                        <td colSpan={9} className="py-3">
                                                             <DetailPanel strategyId={s.strategy_id} onClose={() => setSelectedId(null)} />
                                                         </td>
                                                     </tr>
@@ -424,7 +451,7 @@ const StrategyPage = () => {
 
                 {/* Footer disclaimer */}
                 <p className="text-zinc-600 text-xs text-center pb-4">
-                    AlphaForge 為學習型工具，勝率為歷史統計參考，不構成投資建議。Bonferroni 校正門檻：p &lt; {result?.bonferroni_threshold.toFixed(4) ?? '…'}
+                    AlphaForge 為學習型工具，勝率為歷史統計參考，不構成投資建議。Bonferroni 校正門檻：p &lt; {result?.bonferroni_threshold.toFixed(4) ?? '…'}（每個持有期各自校正）
                 </p>
             </div>
         </>

@@ -1,8 +1,6 @@
 """
 Alpha Miner API — 邏輯迴歸多因子策略排行榜
 """
-import threading
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.orm import Session
@@ -45,22 +43,20 @@ def get_today_signals(db: Session = Depends(get_db)):
     return AlphaMinerService.get_today_signals(db)
 
 
+@router.get("/training-progress")
+def get_training_progress():
+    """回傳目前訓練進度（百分比、目前維度、目前策略）"""
+    return AlphaMinerService.get_progress()
+
+
 @router.post("/train")
 def retrain(db: Session = Depends(get_db)):
-    """手動觸發重新訓練（背景執行，立即回傳）。
+    """手動觸發重新訓練（子程序執行，立即回傳）。
 
-    會先刪除 DB 快照 + 清記憶體快取，確保不被今日快照跳過，
-    然後啟動背景 thread 從頭重算。
+    會先刪除 DB 快照 + 終止現有訓練子程序，確保從頭重算。
     """
-    # 刪除 DB 快照，確保重啟後不從舊結果恢復
     db.execute(sa_delete(AlphaMinerSnapshot))
     db.commit()
     AlphaMinerService.invalidate_cache()
-
-    with AlphaMinerService._lock:
-        if not AlphaMinerService._training:
-            AlphaMinerService._training = True
-            t = threading.Thread(target=AlphaMinerService._train_background, daemon=True)
-            t.start()
-
+    AlphaMinerService.get_strategies(db)  # 觸發新子程序啟動
     return {"status": "training_started", "message": "模型重新訓練已啟動，請稍後刷新頁面"}
