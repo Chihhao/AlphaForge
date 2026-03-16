@@ -294,6 +294,11 @@ export default function StockDetail() {
               </div>
             </div>
           </div>
+          {quote?.fundamental_updated_at && (
+            <p className="text-xs text-gray-600 mt-3 text-right">
+              基本面資料更新：{new Date(quote.fundamental_updated_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+            </p>
+          )}
         </div>
 
         {/* Technical Signal Card */}

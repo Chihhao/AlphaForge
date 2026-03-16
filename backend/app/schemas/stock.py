@@ -49,3 +49,4 @@ class StockQuote(BaseModel):
     last_revenue: Optional[float] = None
     revenue_growth_yoy: Optional[float] = None
     last_eps: Optional[float] = None
+    fundamental_updated_at: Optional[datetime] = None

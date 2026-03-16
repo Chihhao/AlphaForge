@@ -102,7 +102,8 @@ class StockService:
                         "roe": fundamental.roe_latest,
                         "last_revenue": fundamental.last_revenue,
                         "revenue_growth_yoy": fundamental.revenue_growth_yoy,
-                        "last_eps": fundamental.eps_y1
+                        "last_eps": fundamental.eps_y1,
+                        "fundamental_updated_at": fundamental.updated_at
                     }
             finally:
                 db.close()

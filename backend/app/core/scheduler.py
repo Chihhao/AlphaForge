@@ -117,6 +117,10 @@ def start_scheduler():
 
     # --- 第五梯次：17:10 Alpha Miner 重訓（特徵計算完成後）---
     def retrain_alpha_miner(db):
+        from sqlalchemy import delete as sa_delete
+        from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+        db.execute(sa_delete(AlphaMinerSnapshot))
+        db.commit()
         AlphaMinerService.invalidate_cache()
         AlphaMinerService.get_strategies(db)  # 觸發背景重訓
 
