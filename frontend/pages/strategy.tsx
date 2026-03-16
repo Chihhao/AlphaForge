@@ -291,9 +291,9 @@ const DetailPanel = ({ strategyId, onClose }: { strategyId: string; onClose: () 
 
 // ─── Mobile Strategy Card ─────────────────────────────────────────────────────
 const MobileCard = ({
-    s, idx, tlo, thi, isSelected, onToggle
+    s, idx, tlo, thi, dimLabel, isSelected, onToggle
 }: {
-    s: StrategyRanking; idx: number; tlo: number; thi: number; isSelected: boolean; onToggle: () => void
+    s: StrategyRanking; idx: number; tlo: number; thi: number; dimLabel: string; isSelected: boolean; onToggle: () => void
 }) => {
     const winLo = s.win_rate_outsample
     const winHi = s.win_rate_outsample_hi
@@ -314,10 +314,15 @@ const MobileCard = ({
                             {s.overfit_warning && <span className="ml-1.5 text-amber-500 text-sm">⚠</span>}
                         </p>
                     </div>
-                    {s.is_significant
-                        ? <span className="shrink-0 px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-bold">顯著</span>
-                        : <span className="shrink-0 px-2.5 py-1 bg-zinc-800 text-zinc-500 border border-zinc-700 rounded-full text-xs">不顯著</span>
-                    }
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-700/60 text-zinc-400 border border-zinc-700">
+                            {dimLabel}
+                        </span>
+                        {s.is_significant
+                            ? <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-bold">顯著</span>
+                            : <span className="px-2.5 py-1 bg-zinc-800 text-zinc-500 border border-zinc-700 rounded-full text-xs">不顯著</span>
+                        }
+                    </div>
                 </div>
 
                 {/* Row 2: 低門檻 | 高門檻 兩欄 */}
@@ -505,6 +510,7 @@ const StrategyPage = () => {
                                         idx={idx}
                                         tlo={tlo}
                                         thi={thi}
+                                        dimLabel={`${DIM_CONFIG[dim].shortLabel}後`}
                                         isSelected={selectedId === s.strategy_id}
                                         onToggle={() => setSelectedId(selectedId === s.strategy_id ? null : s.strategy_id)}
                                     />

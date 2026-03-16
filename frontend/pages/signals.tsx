@@ -199,14 +199,17 @@ export default function SignalsPage() {
                                             className="w-full text-left px-4 py-4 cursor-pointer active:bg-zinc-800/30"
                                         >
                                             {/* Row 1: Name + Badge */}
-                                            <div className="flex items-start gap-2.5 mb-3.5">
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-zinc-100 text-base font-semibold leading-snug">
-                                                        {s.stock_name}
-                                                    </p>
-                                                    <p className="text-zinc-500 text-xs font-mono mt-0.5">{s.stock_id}</p>
+                                            <div className="flex items-center gap-2.5 mb-3.5">
+                                                <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                                                    <p className="text-zinc-100 text-base font-semibold leading-snug truncate">{s.stock_name}</p>
+                                                    <p className="text-zinc-500 text-xs font-mono shrink-0">{s.stock_id}</p>
                                                 </div>
-                                                <TriggerBadge count={s.trigger_count} />
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-700/60 text-zinc-400 border border-zinc-700">
+                                                        {DIM_CONFIG[dim].shortLabel}後
+                                                    </span>
+                                                    <TriggerBadge count={s.trigger_count} />
+                                                </div>
                                             </div>
 
                                             {/* Row 2: 雙欄統計 */}
