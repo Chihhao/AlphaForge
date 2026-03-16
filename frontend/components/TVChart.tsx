@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 // 改為動態引入類型
-import type { Time as LWTime, IChartApi, IPriceLine, Logical } from 'lightweight-charts';
+import type { Time as LWTime, IChartApi, IPriceLine } from 'lightweight-charts';
 
 export interface KLineData {
     time: LWTime;
@@ -65,7 +65,6 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
     const dataRef = useRef<KLineData[]>(data);
     const highPriceLineRef = useRef<IPriceLine | null>(null);
     const lowPriceLineRef = useRef<IPriceLine | null>(null);
-    const lastLabelRef = useRef<HTMLDivElement | null>(null);
     const [isMounted, setIsMounted] = useState(false);
     const [visibleBars, setVisibleBars] = useState(200);
     const [legendValues, setLegendValues] = useState<{ ma5: number | null, ma10: number | null, ma20: number | null }>({
@@ -409,31 +408,6 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
             // 初次呼叫標示最高最低價
             setTimeout(updateHighLowMarkers, 100);
 
-            // 確保最新一筆資料的 X 軸標籤永遠顯示
-            const updateLastLabel = () => {
-                if (!lastLabelRef.current || !chartContainerRef.current || isDisposed) return;
-                const lastIndex = data.length - 1;
-                const x = chart.timeScale().logicalToCoordinate(lastIndex as unknown as Logical);
-                if (x === null || x < 0 || x > chartContainerRef.current.clientWidth) {
-                    lastLabelRef.current.style.opacity = '0';
-                    return;
-                }
-                const lastBar = data[lastIndex];
-                const originalTime = (lastBar as any).originalTime;
-                let dateStr = '';
-                if (originalTime) {
-                    const date = new Date((originalTime + 8 * 3600) * 1000);
-                    dateStr = `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
-                } else if (typeof lastBar.time === 'string') {
-                    const parts = (lastBar.time as string).split('-');
-                    dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-                }
-                lastLabelRef.current.textContent = dateStr;
-                lastLabelRef.current.style.left = `${x}px`;
-                lastLabelRef.current.style.opacity = '1';
-            };
-            chart.timeScale().subscribeVisibleLogicalRangeChange(updateLastLabel);
-            setTimeout(updateLastLabel, 150);
 
             window.addEventListener('resize', handleResize);
         };
@@ -495,12 +469,6 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                     </button>
                 </div>
                 <div ref={chartContainerRef} className="w-full h-[400px]" />
-                {/* 最新一筆 X 軸標籤 overlay */}
-                <div
-                    ref={lastLabelRef}
-                    className="absolute z-10 text-[11px] pointer-events-none"
-                    style={{ opacity: 0, transform: 'translateX(-50%)', bottom: '4px', color: textColor, fontSize: '13px' }}
-                />
             </div>
         </div>
     );

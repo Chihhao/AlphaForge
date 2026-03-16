@@ -9,6 +9,29 @@ import { formatPrice } from '../../lib/formatters'
 
 const TVChart = dynamic(() => import('../../components/TVChart'), { ssr: false })
 
+const FUND_FAMILY_MAP: Record<string, string> = {
+  'Yuanta': '元大投信',
+  'Cathay': '國泰投信',
+  'Fubon': '富邦投信',
+  'CTBC': '中信投信',
+  'Capital': '群益投信',
+  'SinoPac': '永豐投信',
+  'Taishin': '台新投信',
+  'KGI': '凱基投信',
+  'Allianz': '安聯投信',
+  'Uni-President': '統一投信',
+  'PGIM': '瀚亞投信',
+  'Fuh Hwa': '復華投信',
+  'Jih Sun': '日盛投信',
+}
+function formatFundFamily(name: string | null | undefined): string {
+  if (!name) return 'ETF'
+  for (const [key, zh] of Object.entries(FUND_FAMILY_MAP)) {
+    if (name.includes(key)) return zh
+  }
+  return name
+}
+
 export default function StockDetail() {
   const router = useRouter()
   const { id } = router.query
@@ -201,7 +224,7 @@ export default function StockDetail() {
         </div>
 
         {/* Chart Section */}
-        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 pb-0 sm:p-6 mb-0 sm:mb-6">
           {/* Selectors: interval + sub-chart in one row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <div className="flex items-center gap-1">
@@ -256,21 +279,25 @@ export default function StockDetail() {
                 <span className="text-base text-gray-400 flex items-center gap-1">本益比 <EducationalHint glossaryId="pe-ratio" /></span>
                 <span className="font-mono text-lg text-gray-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(1) : '---'}</span>
               </div>
-              <div className="flex justify-between items-center py-1.5">
-                <span className="text-base text-gray-400 flex items-center gap-1">股價淨值比 <EducationalHint glossaryId="pb-ratio" /></span>
-                <span className="font-mono text-lg text-gray-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
-              </div>
+              {quote?.total_assets == null && (
+                <div className="flex justify-between items-center py-1.5">
+                  <span className="text-base text-gray-400 flex items-center gap-1">股價淨值比 <EducationalHint glossaryId="pb-ratio" /></span>
+                  <span className="font-mono text-lg text-gray-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
+                </div>
+              )}
             </div>
 
             {/* 獲利與配息 */}
             <div>
               <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-rose-500 pl-1.5 mb-2">獲利</p>
-              <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
-                <span className="text-base text-gray-400 flex items-center gap-1">權益報酬率 <EducationalHint glossaryId="roe-indicator" /></span>
-                <span className={`font-mono text-sm ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-gray-100'}`}>
-                  {quote?.roe ? `${quote.roe.toFixed(1)}%` : '---'}
-                </span>
-              </div>
+              {quote?.total_assets == null && (
+                <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+                  <span className="text-base text-gray-400 flex items-center gap-1">權益報酬率 <EducationalHint glossaryId="roe-indicator" /></span>
+                  <span className={`font-mono text-sm ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-gray-100'}`}>
+                    {quote?.roe ? `${quote.roe.toFixed(1)}%` : '---'}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-center py-1.5">
                 <span className="text-base text-gray-400 flex items-center gap-1">現金殖利率 <EducationalHint glossaryId="dividend-yield" /></span>
                 <span className={`font-mono text-sm ${quote?.yield_rate >= 5 ? 'text-rose-400' : 'text-gray-100'}`}>
@@ -279,19 +306,37 @@ export default function StockDetail() {
               </div>
             </div>
 
-            {/* 營收動能 */}
+            {/* 營收動能（股票）/ 基金資訊（ETF）*/}
             <div className="col-span-2 md:col-span-1 mt-3 md:mt-0">
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">營收</p>
-              <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
-                <span className="text-base text-gray-400">單月 (億)</span>
-                <span className="font-mono text-lg text-gray-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5">
-                <span className="text-base text-gray-400">年增率</span>
-                <span className={`font-mono text-sm ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-gray-100'}`}>
-                  {quote?.revenue_growth_yoy ? `${quote.revenue_growth_yoy > 0 ? '+' : ''}${quote.revenue_growth_yoy.toFixed(1)}%` : '---'}
-                </span>
-              </div>
+              {quote?.total_assets != null ? (
+                <>
+                  <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">基金</p>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+                    <span className="text-base text-gray-400">規模 (億)</span>
+                    <span className="font-mono text-lg text-gray-100">
+                      {(quote.total_assets / 1e8).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5">
+                    <span className="text-base text-gray-400">基金公司</span>
+                    <span className="font-mono text-sm text-gray-100">{formatFundFamily(quote?.fund_family)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">營收</p>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
+                    <span className="text-base text-gray-400">單月 (億)</span>
+                    <span className="font-mono text-lg text-gray-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5">
+                    <span className="text-base text-gray-400">年增率</span>
+                    <span className={`font-mono text-sm ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-gray-100'}`}>
+                      {quote?.revenue_growth_yoy ? `${quote.revenue_growth_yoy > 0 ? '+' : ''}${quote.revenue_growth_yoy.toFixed(1)}%` : '---'}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           {quote?.fundamental_updated_at && (

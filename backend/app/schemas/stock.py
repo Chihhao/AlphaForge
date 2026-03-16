@@ -50,3 +50,5 @@ class StockQuote(BaseModel):
     revenue_growth_yoy: Optional[float] = None
     last_eps: Optional[float] = None
     fundamental_updated_at: Optional[datetime] = None
+    total_assets: Optional[float] = None  # ETF 基金規模（元）
+    fund_family: Optional[str] = None     # ETF 基金公司

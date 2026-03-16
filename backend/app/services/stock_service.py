@@ -90,21 +90,43 @@ class StockService:
             stock_name = twstock_info.name if twstock_info else f"股票 {stock_id}"
 
             # --- 整合基本面數據 ---
+            # 先取 yfinance info（判斷是否為 ETF，並抓 ETF 專屬欄位）
+            try:
+                info = stock.info
+            except Exception:
+                info = {}
+
+            is_etf = info.get("quoteType", "").upper() == "ETF"
+
             db = SessionLocal()
             fundamental_data = {}
             try:
-                fundamental = db.query(StockFundamental).filter(StockFundamental.stock_id == stock_id).first()
-                if fundamental:
+                if is_etf:
+                    # ETF：從 yfinance info 填入可用欄位
+                    pe = info.get("trailingPE")
+                    dy = info.get("dividendYield")  # yfinance 回傳百分比值（如 1.68 代表 1.68%）
+                    ta = info.get("totalAssets")
+                    ff = info.get("fundFamily")
                     fundamental_data = {
-                        "pe_ratio": fundamental.pe_ratio,
-                        "pb_ratio": fundamental.pb_ratio,
-                        "yield_rate": fundamental.yield_rate,
-                        "roe": fundamental.roe_latest,
-                        "last_revenue": fundamental.last_revenue,
-                        "revenue_growth_yoy": fundamental.revenue_growth_yoy,
-                        "last_eps": fundamental.eps_y1,
-                        "fundamental_updated_at": fundamental.updated_at
+                        "pe_ratio": float(pe) if pe else None,
+                        "yield_rate": float(dy) if dy else None,
+                        "total_assets": float(ta) if ta else None,
+                        "fund_family": ff if ff else None,
+                        "fundamental_updated_at": datetime.utcnow(),
                     }
+                else:
+                    fundamental = db.query(StockFundamental).filter(StockFundamental.stock_id == stock_id).first()
+                    if fundamental:
+                        fundamental_data = {
+                            "pe_ratio": fundamental.pe_ratio,
+                            "pb_ratio": fundamental.pb_ratio,
+                            "yield_rate": fundamental.yield_rate,
+                            "roe": fundamental.roe_latest,
+                            "last_revenue": fundamental.last_revenue,
+                            "revenue_growth_yoy": fundamental.revenue_growth_yoy,
+                            "last_eps": fundamental.eps_y1,
+                            "fundamental_updated_at": fundamental.updated_at
+                        }
             finally:
                 db.close()
 

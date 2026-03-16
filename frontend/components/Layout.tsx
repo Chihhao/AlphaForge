@@ -121,9 +121,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 </div>
 
                                 <div className="flex items-center gap-1">
-                                    <button onClick={() => setGlossaryOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400 transition-colors" title="每日知識卡">
-                                        <SVGPresenter path={icons.book} size={28} />
-                                    </button>
                                     <button onClick={() => setSearchOpen(true)} className="p-2 text-zinc-400 hover:text-emerald-400 transition-colors" title="搜尋股票">
                                         <SVGPresenter path={icons.magnify} size={28} />
                                     </button>
