@@ -33,6 +33,9 @@ class Settings(BaseSettings):
         "https://junesnow39.synology.me",
     ]
     
+    # Groq AI 分析
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+
     # 數據源配置
     STOCK_SEARCH_LIMIT: int = 20
     

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import api from '../../lib/api'
 import KDIndicator from '../../components/KDIndicator'
+import StockAIAnalysis from '../../components/StockAIAnalysis'
 import EducationalHint from '../../components/EducationalHint'
 import { formatPrice } from '../../lib/formatters'
 
@@ -413,6 +414,9 @@ export default function StockDetail() {
             </div>
           )
         })()}
+        {/* AI Analysis Card */}
+        {id && <StockAIAnalysis stockId={id as string} stockName={displayName} />}
+
       </div>
     </div>
   )

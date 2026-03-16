@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import date as date_type
 
 from app.db.database import get_db
 from app.schemas.stock import Stock, StockCreate, StockQuote
 from app.schemas.market import MarketRankingResponse
 from app.services.stock_service import StockService
 from app.services.market_service import MarketService
+from app.services.ai_analysis_service import get_or_create_analysis
 from app.models.user import Stock as StockModel
 
 
@@ -218,6 +220,40 @@ def get_fundamental_trends(stock_id: str, db: Session = Depends(get_db)):
             } for e in eps_history
         ]
     }
+
+
+@router.get("/{stock_id}/ai-analysis")
+def get_ai_analysis(
+    stock_id: str,
+    refresh: bool = False,
+    db: Session = Depends(get_db),
+):
+    """
+    取得個股 AI 智慧解讀（當日快取，同日多人共用同一份分析）
+
+    - **stock_id**: 股票代號，如 "2330"
+    - **refresh**: 傳 true 強制重新分析（忽略快取）
+    """
+    # 取得股名
+    quote = StockService.get_stock_quote(stock_id)
+    stock_name = getattr(quote, "stock_name", stock_id) if quote else stock_id
+
+    today = date_type.today().strftime("%Y-%m-%d")
+
+    try:
+        result = get_or_create_analysis(
+            db=db,
+            stock_id=stock_id,
+            stock_name=stock_name,
+            today=today,
+            force_refresh=refresh,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {"stock_id": stock_id, "date": today, **result}
 
 
 # 導入 pandas

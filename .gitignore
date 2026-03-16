@@ -13,6 +13,8 @@ node_modules/
 out/
 build/
 .env*.local
+.env
+backend/.env
 *.tsbuildinfo
 
 # Build and Archives

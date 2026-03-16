@@ -15,6 +15,7 @@ from app.models.system_event import SystemEvent
 from app.models.stock_feature import StockFeature
 from app.models.stock_chip_data import StockChipData
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+from app.models.stock_ai_analysis import StockAIAnalysis
 from app.core.scheduler import start_scheduler, stop_scheduler
 
 
