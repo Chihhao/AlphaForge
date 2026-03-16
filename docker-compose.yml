@@ -12,6 +12,8 @@ services:
     volumes:
       # Map the local database file to persist data if any
       - ./backend/test.db:/app/test.db
+    env_file:
+      - ./backend/.env
     environment:
       - TZ=Asia/Taipei
 
