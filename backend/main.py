@@ -93,14 +93,67 @@ def _maybe_catchup_sync():
             finally:
                 db2.close()
 
+        # 檢查今日特徵快照是否已計算
+        db3 = SessionLocal()
+        try:
+            from app.models.stock_feature import StockFeature
+            latest_feat = db3.query(func.max(StockFeature.date)).scalar()
+            needs_features = (latest_feat is None or latest_feat < today)
+        finally:
+            db3.close()
+
+        if needs_price:
+            # 補同步籌碼資料
+            db4 = SessionLocal()
+            try:
+                from app.services.chip_data_crawler import sync_daily_chip_data
+                sync_daily_chip_data(db4)
+                logger.info("[Startup] 籌碼資料補同步完成。")
+            except Exception as e:
+                logger.error(f"[Startup] 籌碼資料補同步失敗: {e}")
+            finally:
+                db4.close()
+
+        if needs_features or needs_price:
+            # 計算每日特徵快照
+            db5 = SessionLocal()
+            try:
+                from app.services.feature_service import FeatureService
+                FeatureService.compute_daily(db5)
+                logger.info("[Startup] 特徵快照計算完成。")
+            except Exception as e:
+                logger.error(f"[Startup] 特徵快照計算失敗: {e}")
+            finally:
+                db5.close()
+
         if needs_price or needs_fundamental:
             try:
                 from app.services.screener_service import ScreenerService
                 ScreenerService.invalidate_cache()
                 ScreenerService.get_screener_results()
-                logger.info("[Startup] 補同步完成，選股快取已刷新。")
+                logger.info("[Startup] 選股快取已刷新。")
             except Exception as e:
                 logger.error(f"[Startup] 選股快取刷新失敗: {e}")
+
+        if needs_features or needs_price:
+            # 觸發 Alpha Miner 重訓
+            try:
+                from sqlalchemy import delete as sa_delete
+                from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+                from app.services.alpha_miner_service import AlphaMinerService
+                db6 = SessionLocal()
+                db6.execute(sa_delete(AlphaMinerSnapshot))
+                db6.commit()
+                db6.close()
+                AlphaMinerService.invalidate_cache()
+                db7 = SessionLocal()
+                AlphaMinerService.get_strategies(db7)  # 觸發背景重訓子程序
+                db7.close()
+                logger.info("[Startup] Alpha Miner 重訓已啟動。")
+            except Exception as e:
+                logger.error(f"[Startup] Alpha Miner 重訓啟動失敗: {e}")
+
+        logger.info("[Startup] 補同步流程完成。")
 
     threading.Thread(target=catchup, daemon=True).start()
 
