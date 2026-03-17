@@ -47,16 +47,23 @@ class ScreenerService:
 
     @staticmethod
     def get_stock_name(stock_id: str) -> str:
-        """嘗試獲取股票名稱"""
+        """嘗試獲取股票名稱：twstock → 本地 DB → fallback"""
         info = twstock.codes.get(stock_id)
         if info:
             return info.name
-
-        fallback = {
-            "2330": "台積電", "2317": "鴻海", "2454": "聯發科",
-            "2382": "廣達", "2308": "台達電"
-        }
-        return fallback.get(stock_id, f"股票 {stock_id}")
+        # 查本地 stocks 表
+        try:
+            import sqlalchemy as sa
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa.text("SELECT stock_name FROM stocks WHERE stock_id = :sid"),
+                    {"sid": stock_id}
+                ).fetchone()
+            if row and row[0]:
+                return row[0]
+        except Exception:
+            pass
+        return stock_id
 
     @staticmethod
     def _apply_live_prices(results: List[StrategyResult]) -> None:

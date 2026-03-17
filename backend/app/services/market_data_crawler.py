@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any
 import time
 
 from app.models.stock_price import StockPrice
+from app.models.user import Stock
 from app.db.database import SessionLocal
 from app.services.system_logger import SystemLogger
 
@@ -284,7 +285,21 @@ class MarketDataCrawler:
                     db.bulk_save_objects(chunk)
                     db.commit()
                     inserted_count += len(chunk)
-                    
+
+            # 同步更新 stocks 表的股票名稱（upsert）
+            if 'stock_name' in combined_df.columns:
+                existing_stock_ids = {r[0] for r in db.query(Stock.stock_id).all()}
+                name_records = []
+                for _, row in combined_df.iterrows():
+                    sid = str(row['stock_id'])
+                    name = str(row['stock_name']).strip()
+                    if name and sid not in existing_stock_ids:
+                        name_records.append(Stock(stock_id=sid, stock_name=name, market=str(row.get('market', ''))))
+                        existing_stock_ids.add(sid)
+                if name_records:
+                    db.bulk_save_objects(name_records)
+                    db.commit()
+
             success_msg = f"行情數據同步完成：新增 {inserted_count} 筆，跳過 {skipped_count} 筆。"
             SystemLogger.success(success_msg, category="crawler")
             

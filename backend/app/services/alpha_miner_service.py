@@ -170,6 +170,34 @@ class AlphaMinerService:
     _details: Dict[str, StrategyDetail] = {}
     _process: Optional[multiprocessing.Process] = None  # 訓練子程序
     _lock: threading.Lock = threading.Lock()
+    _stock_names: Dict[str, str] = {}  # 股票代號 → 名稱快取
+
+    @classmethod
+    def _lookup_name(cls, stock_id: str) -> str:
+        """查詢股票名稱：優先用 twstock，找不到再查本地 DB"""
+        if stock_id in cls._stock_names:
+            return cls._stock_names[stock_id]
+        try:
+            import twstock
+            info = twstock.codes.get(stock_id)
+            if info:
+                cls._stock_names[stock_id] = info.name
+                return info.name
+        except Exception:
+            pass
+        # fallback：查本地 stocks 表
+        try:
+            from app.models.user import Stock as StockModel
+            db = engine.connect()
+            import sqlalchemy as sa
+            row = db.execute(sa.text("SELECT stock_name FROM stocks WHERE stock_id = :sid"), {"sid": stock_id}).fetchone()
+            db.close()
+            if row and row[0]:
+                cls._stock_names[stock_id] = row[0]
+                return row[0]
+        except Exception:
+            pass
+        return stock_id
 
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
@@ -708,14 +736,7 @@ class AlphaMinerService:
         result: List[RecentAlphaSignal] = []
         for i, (_, row) in enumerate(recent[mask].head(50).iterrows()):
             stock_id = str(row['stock_id'])
-            name = stock_id
-            if twstock:
-                try:
-                    info = twstock.codes.get(stock_id)
-                    if info:
-                        name = info.name
-                except Exception:
-                    pass
+            name = cls._lookup_name(stock_id)
             result.append(RecentAlphaSignal(
                 stock_id=stock_id,
                 stock_name=name,
