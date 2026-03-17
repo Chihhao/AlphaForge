@@ -8,7 +8,7 @@
 NAS_HOST="10.0.4.3"
 NAS_PORT="22"
 NAS_USER="chihhaolai"
-NAS_PROJECT_DIR="/volume1/homes/chihhaolai/Drive/Documents_Mac_Lai/GitHub/AlphaForge"
+NAS_PROJECT_DIR="/volume1/homes/chihhaolai/Drive/Documents-mac-m1/GitHub/AlphaForge"
 
 # 顯示選單
 echo "=========================================="
