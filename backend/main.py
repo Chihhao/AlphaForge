@@ -33,6 +33,76 @@ app = FastAPI(
 @app.on_event("startup")
 def startup_event():
     start_scheduler()
+    _maybe_catchup_sync()
+
+
+def _maybe_catchup_sync():
+    """
+    補跑機制：若 backend 在排程時間後才啟動（例如 NAS 晚間重啟），
+    檢查今天的基本面與行情資料是否已更新，若否則在背景補同步。
+    條件：現在時間 > 15:30（市場已收盤），且今日資料尚未入庫。
+    """
+    import threading
+    from datetime import datetime, date as date_type
+    from app.db.database import SessionLocal
+    from app.models.stock_fundamental import StockFundamental
+    from app.models.stock_price import StockPrice
+    from sqlalchemy import func
+    import logging
+
+    logger = logging.getLogger(__name__)
+    now = datetime.now()
+
+    # 只在收盤後才補跑
+    if now.hour < 15 or (now.hour == 15 and now.minute < 30):
+        return
+
+    def catchup():
+        db = SessionLocal()
+        try:
+            today = date_type.today()
+
+            # 檢查基本面是否已在今天更新過
+            latest_fund = db.query(func.max(StockFundamental.updated_at)).scalar()
+            needs_fundamental = (latest_fund is None or latest_fund < today)
+
+            # 檢查今天的行情資料是否已入庫
+            latest_price = db.query(func.max(StockPrice.date)).scalar()
+            needs_price = (latest_price is None or latest_price < today)
+        finally:
+            db.close()
+
+        if needs_price:
+            logger.info("[Startup] 行情資料未更新，補跑市場資料同步...")
+            try:
+                from app.services.market_data_crawler import MarketDataCrawler
+                MarketDataCrawler.sync_daily_market_data()
+            except Exception as e:
+                logger.error(f"[Startup] 市場資料補同步失敗: {e}")
+
+        if needs_fundamental:
+            logger.info("[Startup] 基本面資料未更新，補跑基本面同步...")
+            db2 = SessionLocal()
+            try:
+                from app.services.fundamental_service import FundamentalService
+                FundamentalService.sync_twse_valuation(db2)
+                FundamentalService.sync_tpex_valuation(db2)
+                FundamentalService.update_volume_avg(db2)
+            except Exception as e:
+                logger.error(f"[Startup] 基本面補同步失敗: {e}")
+            finally:
+                db2.close()
+
+        if needs_price or needs_fundamental:
+            try:
+                from app.services.screener_service import ScreenerService
+                ScreenerService.invalidate_cache()
+                ScreenerService.get_screener_results()
+                logger.info("[Startup] 補同步完成，選股快取已刷新。")
+            except Exception as e:
+                logger.error(f"[Startup] 選股快取刷新失敗: {e}")
+
+    threading.Thread(target=catchup, daemon=True).start()
 
 @app.on_event("shutdown")
 def shutdown_event():

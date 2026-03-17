@@ -27,6 +27,7 @@ from sqlalchemy import delete
 
 logger = logging.getLogger(__name__)
 
+from app.db.database import engine
 from app.models.stock_feature import StockFeature
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from app.schemas.alpha_miner import (
@@ -458,7 +459,7 @@ class AlphaMinerService:
         cutoff = (date.today() - timedelta(days=365 * 2)).isoformat()
         cols = ", ".join(_LOAD_COLS)
         sql = f"SELECT {cols} FROM stock_features WHERE date >= '{cutoff}'"
-        df = pd.read_sql(sql, db.bind)
+        df = pd.read_sql(sql, engine)
         if df.empty:
             return df
         df['date'] = pd.to_datetime(df['date'])

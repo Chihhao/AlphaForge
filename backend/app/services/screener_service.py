@@ -9,7 +9,7 @@ from app.services.fundamental_service import FundamentalService
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_price import StockPrice
 from app.models.screener_cache import ScreenerCache
-from app.db.database import SessionLocal
+from app.db.database import SessionLocal, engine
 import json
 import yfinance as yf
 from datetime import datetime, date, timedelta
@@ -232,7 +232,7 @@ class ScreenerService:
                 StockPrice.low, StockPrice.close, StockPrice.volume
             ).filter(StockPrice.date >= cutoff_date).statement
             
-            raw_df = pd.read_sql(query, db.bind)
+            raw_df = pd.read_sql(query, engine)
             af_choice_fundamentals = FundamentalService.get_af_choice_stocks(db)
             
         except Exception as e:

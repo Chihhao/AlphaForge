@@ -188,8 +188,8 @@ class StockService:
                     last_db_date = db_prices[-1].date
                     first_db_date = db_prices[0].date
                     
-                    # 如果是週末或收盤前，最後一筆是昨天的通常也算充足
-                    is_recent = (date.today() - last_db_date).days <= 1
+                    # 允許最多 4 天差距，以涵蓋週末與連假（例如週一盤中，最後一筆為上週五）
+                    is_recent = (date.today() - last_db_date).days <= 4
                     
                     # 由於交易日大約是日曆日的 5/7，我們檢查筆數是否足夠，或第一筆資料日期是否夠早
                     expected_trading_days = int(days * 0.6)

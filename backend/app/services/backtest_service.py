@@ -11,6 +11,8 @@ from typing import Optional
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.db.database import engine
+
 from app.models.stock_price import StockPrice
 from app.services.indicator_service import IndicatorService
 from app.schemas.market import AlphaStats, EquityCurvePoint, RecentSignal
@@ -68,7 +70,7 @@ class BacktestService:
             StockPrice.date >= cutoff,
         ).statement
 
-        raw_df = pd.read_sql(price_query, db.bind)
+        raw_df = pd.read_sql(price_query, engine)
         if raw_df.empty:
             return BacktestService._empty_stats()
 
