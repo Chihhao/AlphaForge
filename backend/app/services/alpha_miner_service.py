@@ -258,7 +258,7 @@ class AlphaMinerService:
 
         stock_map: Dict[str, dict] = {}
         for ranking in result.strategies:
-            if not ranking.is_significant or ranking.time_dimension != dimension:
+            if not ranking.is_significant or ranking.time_dimension != dimension or ranking.ic <= 0:
                 continue
             detail = cls._details.get(ranking.strategy_id)
             if not detail or not detail.recent_signals:
@@ -744,19 +744,21 @@ class AlphaMinerService:
 
         X = recent[rank_cols].values
         prob = model.predict_proba(X)[:, 1]
-        # Top 20% 作為訊號門檻
+        # Top 20% 作為訊號門檻，按機率排序後取前 50
         threshold = np.percentile(prob, 80)
-        mask = prob >= threshold
+        recent = recent.copy()
+        recent['_prob'] = prob
+        top_recent = recent[recent['_prob'] >= threshold].sort_values('_prob', ascending=False).head(50)
 
         result: List[RecentAlphaSignal] = []
-        for i, (_, row) in enumerate(recent[mask].head(50).iterrows()):
+        for _, row in top_recent.iterrows():
             stock_id = str(row['stock_id'])
             name = cls._lookup_name(stock_id)
             result.append(RecentAlphaSignal(
                 stock_id=stock_id,
                 stock_name=name,
                 signal_date=latest_date.strftime('%Y-%m-%d'),
-                predicted_prob=round(float(prob[mask][i]), 3),
+                predicted_prob=round(float(row['_prob']), 3),
                 trigger_factors=factors,
             ))
         return result
