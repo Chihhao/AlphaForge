@@ -392,7 +392,7 @@ class AlphaMinerService:
                     "current_dim": dim['key'], "current_strategy": strategy_name,
                 })
                 logger.info(f"[AlphaMiner] [{dim['key']}] {i+1}/{n_combos}: {factors}")
-                ranking, detail = cls._train_one(df_dim, factors, n_combos, train_end, test_start, dim)
+                ranking, detail = cls._train_one(df_dim, factors, n_total, train_end, test_start, dim)
                 if ranking is not None:
                     all_rankings.append(ranking)
                     all_details[ranking.strategy_id] = detail  # type: ignore[arg-type]
@@ -407,7 +407,7 @@ class AlphaMinerService:
             train_period=f"{pd.Timestamp(min_date).strftime('%Y-%m')} ~ {train_end.strftime('%Y-%m')}",
             test_period=f"{test_start.strftime('%Y-%m')} ~ {pd.Timestamp(max_date).strftime('%Y-%m')}",
             total_combinations_tested=n_combos,
-            bonferroni_threshold=round(0.05 / n_combos, 6),
+            bonferroni_threshold=round(0.05 / n_total, 6),
         )
         cls._cache = result
         cls._cache_date = date.today()
@@ -611,12 +611,27 @@ class AlphaMinerService:
         market_loss_rate    = float((all_returns < -thr_lo).mean()) if len(all_returns) > 0 else 0.0
         market_loss_rate_hi = float((all_returns < -thr_hi).mean()) if len(all_returns) > 0 else 0.0
 
-        # IC：預測機率與實際報酬的 Spearman 相關
-        actual_returns = test_df['forward_return'].values
+        # IC：逐日計算 Spearman 相關後對 IC 時間序列做 t-test
+        # 原本用整個 panel 一次 spearmanr 會因樣本數膨脹（~20萬筆）導致 p-value 趨近 0
+        # 正確做法：每日 IC 為一個獨立觀測值，t-test 自然處理橫截面相關性
         if len(prob_test) < 10:
             return None, None
-        ic_val, p_val = stats.spearmanr(prob_test, actual_returns)
-        ic = float(ic_val) if not np.isnan(ic_val) else 0.0
+        test_df_copy = test_df.copy()
+        test_df_copy['_prob'] = prob_test
+        daily_ics = []
+        for _, grp in test_df_copy.groupby('date'):
+            if len(grp) < 10:
+                continue
+            if grp['_prob'].nunique() < 2 or grp['forward_return'].nunique() < 2:
+                continue
+            ic_day, _ = stats.spearmanr(grp['_prob'], grp['forward_return'])
+            if not np.isnan(ic_day):
+                daily_ics.append(ic_day)
+        if len(daily_ics) < 10:
+            return None, None
+        daily_ics_arr = np.array(daily_ics)
+        ic = float(np.mean(daily_ics_arr))
+        t_stat, p_val = stats.ttest_1samp(daily_ics_arr, 0)
         p_value = float(p_val) if not np.isnan(p_val) else 1.0
         p_value_corrected = min(p_value * n_total, 1.0)
 
