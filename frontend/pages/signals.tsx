@@ -44,17 +44,17 @@ const TriggerBadge = ({ count, maxCount }: { count: number; maxCount: number }) 
     const ratio = maxCount > 0 ? count / maxCount : 0
     if (ratio >= 0.7) return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
-            {count}/{maxCount} 共鳴
+            超強共鳴
         </span>
     )
     if (ratio >= 0.4) return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
-            {count}/{maxCount} 共鳴
+            強共鳴
         </span>
     )
     return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-700 text-zinc-300 border border-zinc-600 shrink-0">
-            {count}/{maxCount} 共鳴
+            {count} 策略共鳴
         </span>
     )
 }
