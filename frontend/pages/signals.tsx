@@ -39,21 +39,53 @@ const Skeleton = ({ className = '' }: { className?: string }) => (
     <div className={`animate-pulse bg-zinc-800/60 rounded-xl ${className}`} />
 )
 
-const TriggerBadge = ({ count }: { count: number }) => {
-    if (count >= 20) return (
+// 動態門檻：依 maxCount（有效策略數）的百分比決定等級
+const TriggerBadge = ({ count, maxCount }: { count: number; maxCount: number }) => {
+    const ratio = maxCount > 0 ? count / maxCount : 0
+    if (ratio >= 0.7) return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
-            {count} 策略共鳴
+            {count}/{maxCount} 共鳴
         </span>
     )
-    if (count >= 10) return (
+    if (ratio >= 0.4) return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
-            {count} 策略共鳴
+            {count}/{maxCount} 共鳴
         </span>
     )
     return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-700 text-zinc-300 border border-zinc-600 shrink-0">
-            {count} 策略共鳴
+            {count}/{maxCount} 共鳴
         </span>
+    )
+}
+
+interface StrategyItem { time_dimension: string; is_significant: boolean; ic: number }
+
+// 模型健康警示 banner
+const ModelHealthBanner = ({ posIc, totalSig }: { posIc: number; totalSig: number }) => {
+    if (totalSig === 0) return null
+    const ratio = posIc / totalSig
+    if (ratio >= 0.5) return null  // 健康，不顯示
+    const pct = Math.round(ratio * 100)
+    const level = ratio < 0.2 ? 'critical' : 'warn'
+    return (
+        <div className={`flex gap-3 items-start rounded-2xl border px-4 py-3 text-sm ${
+            level === 'critical'
+                ? 'bg-rose-900/15 border-rose-800/40 text-rose-300'
+                : 'bg-amber-900/15 border-amber-800/40 text-amber-300'
+        }`}>
+            <svg viewBox="0 0 24 24" width={18} height={18} className="shrink-0 mt-0.5 fill-current opacity-80">
+                <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
+            </svg>
+            <div>
+                <p className="font-semibold mb-0.5">近期市場環境警示</p>
+                <p className="text-xs opacity-80 leading-relaxed">
+                    本維度共 {totalSig} 個顯著策略，但只有 {posIc} 個（{pct}%）在測試期表現正向。
+                    其餘策略的預測方向與實際報酬相反，代表近期市場環境可能已與訓練期有所不同。
+                    訊號僅供參考，<strong>請務必自行判斷</strong>。
+                </p>
+            </div>
+        </div>
     )
 }
 
@@ -63,6 +95,26 @@ export default function SignalsPage() {
     const [error, setError] = useState<string | null>(null)
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [dim, setDim] = useState<DimKey>('10d')
+    const [dimStats, setDimStats] = useState<Record<DimKey, { posIc: number; totalSig: number }>>({
+        '5d': { posIc: 0, totalSig: 0 },
+        '10d': { posIc: 0, totalSig: 0 },
+        '30d': { posIc: 0, totalSig: 0 },
+    })
+
+    // 一次性載入策略資料，計算各維度模型健康度
+    useEffect(() => {
+        api.get('/alpha-miner/strategies').then(r => {
+            const strats: StrategyItem[] = r.data?.strategies ?? []
+            const stats = { '5d': { posIc: 0, totalSig: 0 }, '10d': { posIc: 0, totalSig: 0 }, '30d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
+            strats.forEach(s => {
+                const d = s.time_dimension as DimKey
+                if (!stats[d] || !s.is_significant) return
+                stats[d].totalSig++
+                if (s.ic > 0) stats[d].posIc++
+            })
+            setDimStats(stats)
+        }).catch(() => {})
+    }, [])
 
     useEffect(() => {
         setLoading(true)
@@ -76,8 +128,9 @@ export default function SignalsPage() {
     const thi = dim === '30d' ? 10 : 5
 
     const signalDate = signals[0]?.signal_date ?? ''
-    const topCount = signals.filter(s => s.trigger_count >= 20).length
-    const midCount = signals.filter(s => s.trigger_count >= 10 && s.trigger_count < 20).length
+    const maxPossibleTrigger = dimStats[dim].posIc  // 有效策略數 = 最大可能 trigger_count
+    const topCount = signals.filter(s => maxPossibleTrigger > 0 && s.trigger_count / maxPossibleTrigger >= 0.7).length
+    const midCount = signals.filter(s => maxPossibleTrigger > 0 && s.trigger_count / maxPossibleTrigger >= 0.4 && s.trigger_count / maxPossibleTrigger < 0.7).length
 
     return (
         <>
@@ -106,6 +159,9 @@ export default function SignalsPage() {
 
                     </div>
                 </div>
+
+                {/* ── Model Health Banner ─────────────────────────────── */}
+                <ModelHealthBanner posIc={dimStats[dim].posIc} totalSig={dimStats[dim].totalSig} />
 
                 {/* ── Error ───────────────────────────────────────────── */}
                 {error && (
@@ -146,13 +202,13 @@ export default function SignalsPage() {
                         <div className="flex items-center gap-2 mb-3 px-1 flex-wrap">
                             <span className="text-zinc-600 text-xs uppercase tracking-widest">訊號分布</span>
                             <span className="text-amber-400 font-bold text-xs">{topCount}</span>
-                            <span className="text-zinc-500 text-xs">超強共鳴<span className="hidden sm:inline">（≥20 策略）</span></span>
+                            <span className="text-zinc-500 text-xs">超強共鳴<span className="hidden sm:inline">（≥70%）</span></span>
                             <span className="text-zinc-700 text-xs">·</span>
                             <span className="text-emerald-400 font-bold text-xs">{midCount}</span>
-                            <span className="text-zinc-500 text-xs">強共鳴<span className="hidden sm:inline">（10–19 策略）</span></span>
+                            <span className="text-zinc-500 text-xs">強共鳴<span className="hidden sm:inline">（40–69%）</span></span>
                             <span className="text-zinc-700 text-xs">·</span>
                             <span className="text-zinc-300 font-bold text-xs">{signals.length - topCount - midCount}</span>
-                            <span className="text-zinc-500 text-xs">一般<span className="hidden sm:inline">（&lt;10 策略）</span></span>
+                            <span className="text-zinc-500 text-xs">一般<span className="hidden sm:inline">（&lt;40%）</span></span>
                         </div>
                     )}
 
@@ -208,7 +264,7 @@ export default function SignalsPage() {
                                                     <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-700/60 text-zinc-400 border border-zinc-700">
                                                         {DIM_CONFIG[dim].shortLabel}後
                                                     </span>
-                                                    <TriggerBadge count={s.trigger_count} />
+                                                    <TriggerBadge count={s.trigger_count} maxCount={maxPossibleTrigger} />
                                                 </div>
                                             </div>
 
