@@ -86,3 +86,15 @@ class AlphaMinerResult(BaseModel):
     total_combinations_tested: int
     bonferroni_threshold: float
     is_training: bool = False   # 訓練進行中，前端應輪詢
+
+
+class SignalHistoryItem(BaseModel):
+    signal_date: str
+    stock_id: str
+    stock_name: str
+    time_dimension: str
+    trigger_count: int
+    weighted_win_rate: float
+    weighted_odds_ratio: float
+    actual_return: Optional[float]
+    is_resolved: bool

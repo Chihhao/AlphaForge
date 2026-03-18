@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from app.services.alpha_miner_service import AlphaMinerService
-from app.schemas.alpha_miner import AlphaMinerResult, StrategyDetail, TodaySignal
+from app.schemas.alpha_miner import AlphaMinerResult, StrategyDetail, TodaySignal, SignalHistoryItem
 from typing import List
 
 router = APIRouter(prefix="/alpha-miner", tags=["alpha-miner"])
@@ -47,6 +47,16 @@ def get_today_signals(dimension: str = "10d", db: Session = Depends(get_db)):
 def get_training_progress():
     """回傳目前訓練進度（百分比、目前維度、目前策略）"""
     return AlphaMinerService.get_progress()
+
+
+@router.get("/signals/history", response_model=List[SignalHistoryItem])
+def get_signals_history(
+    days: int = 14,
+    dimension: str = "10d",
+    db: Session = Depends(get_db),
+):
+    """回傳近 days 天的訊號歷史記錄，包含已到期的實際報酬"""
+    return AlphaMinerService.get_signal_history(db, days=days, dimension=dimension)
 
 
 @router.post("/train")

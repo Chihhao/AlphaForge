@@ -140,7 +140,28 @@ def start_scheduler():
         name="Daily Alpha Miner retrain",
         replace_existing=True
     )
-    
+
+    # --- 第六梯次：17:15 儲存今日訊號至歷史記錄 ---
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: [
+            AlphaMinerService.save_today_signals(db, dim)
+            for dim in ["5d", "10d", "30d"]
+        ]),
+        trigger=CronTrigger(hour=17, minute=15),
+        id="save_signal_history",
+        name="Save today alpha signals to history",
+        replace_existing=True
+    )
+
+    # --- 第七梯次：17:20 回填已到期訊號的實際報酬 ---
+    scheduler.add_job(
+        lambda: run_with_db(AlphaMinerService.update_signal_returns),
+        trigger=CronTrigger(hour=17, minute=20),
+        id="update_signal_returns",
+        name="Backfill actual returns for expired signals",
+        replace_existing=True
+    )
+
     scheduler.start()
     logger.info("Scheduler started and daily sync job added.")
 

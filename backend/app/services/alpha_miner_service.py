@@ -30,9 +30,11 @@ logger = logging.getLogger(__name__)
 from app.db.database import engine
 from app.models.stock_feature import StockFeature
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+from app.models.alpha_signal_history import AlphaSignalHistory
 from app.schemas.alpha_miner import (
     AlphaMinerResult, StrategyRanking, StrategyDetail,
     FactorWeight, RecentAlphaSignal, EquityCurvePoint, TodaySignal,
+    SignalHistoryItem,
 )
 
 # ─── 因子中文標籤 ──────────────────────────────────────────────────────────────
@@ -295,9 +297,16 @@ class AlphaMinerService:
                 stock_map[sid]['_w_mkt_loss'] += ranking.market_loss_rate * ic
                 stock_map[sid]['_w_mkt_loss_hi'] += ranking.market_loss_rate_hi * ic
 
+        # 動態門檻：有效策略數 × 40%（至少 2）
+        valid_strategy_count = sum(
+            1 for r in result.strategies
+            if r.is_significant and r.time_dimension == dimension and r.ic > 0
+        )
+        min_triggers = max(2, round(valid_strategy_count * 0.4))
+
         signals = []
         for s in stock_map.values():
-            if s['trigger_count'] < 2:
+            if s['trigger_count'] < min_triggers:
                 continue
             ic_sum = max(s['_ic_sum'], 1e-9)
             w_win = s['_w_win'] / ic_sum
@@ -326,7 +335,7 @@ class AlphaMinerService:
             ))
 
         signals.sort(key=lambda x: x.trigger_count, reverse=True)
-        return signals[:30]
+        return signals[:20]
 
     @classmethod
     def invalidate_cache(cls) -> None:
@@ -762,3 +771,154 @@ class AlphaMinerService:
                 trigger_factors=factors,
             ))
         return result
+
+    # ─── 訊號歷史：儲存 / 回填 / 查詢 ────────────────────────────────────────
+    @classmethod
+    def save_today_signals(cls, db: Session, dimension: str) -> int:
+        """將今日 get_today_signals 結果持久化到 alpha_signal_history。
+
+        同一 (signal_date, stock_id, time_dimension) 組合已存在時跳過（冪等）。
+        回傳實際寫入筆數。
+        """
+        today = date.today()
+        signals = cls.get_today_signals(db, dimension=dimension)
+        if not signals:
+            logger.info(f"[SignalHistory] {dimension} 無訊號，跳過儲存")
+            return 0
+
+        # 查出今日已存在的 stock_id 集合（避免重複）
+        existing = {
+            row.stock_id
+            for row in db.query(AlphaSignalHistory.stock_id)
+            .filter(
+                AlphaSignalHistory.signal_date == today,
+                AlphaSignalHistory.time_dimension == dimension,
+            )
+            .all()
+        }
+
+        rows = []
+        for s in signals:
+            if s.stock_id in existing:
+                continue
+            rows.append(AlphaSignalHistory(
+                signal_date=today,
+                stock_id=s.stock_id,
+                stock_name=s.stock_name,
+                time_dimension=dimension,
+                trigger_count=s.trigger_count,
+                weighted_win_rate=s.weighted_win_rate,
+                weighted_odds_ratio=s.weighted_odds_ratio,
+            ))
+
+        if rows:
+            db.add_all(rows)
+            db.commit()
+            logger.info(f"[SignalHistory] 儲存 {dimension} 訊號 {len(rows)} 筆（{today}）")
+        return len(rows)
+
+    @classmethod
+    def update_signal_returns(cls, db: Session) -> int:
+        """對已到期但尚未結算的歷史訊號回填實際報酬率。
+
+        持有期到期判斷（加 buffer 確保收盤資料已入庫）：
+          5d  → signal_date + 7 天前
+          10d → signal_date + 14 天前
+          30d → signal_date + 35 天前
+
+        使用批次查詢避免 N+1。回傳成功結算筆數。
+        """
+        today = date.today()
+        HOLDING = {"5d": 7, "10d": 14, "30d": 35}
+
+        pending = (
+            db.query(AlphaSignalHistory)
+            .filter(AlphaSignalHistory.is_resolved == False)  # noqa: E712
+            .all()
+        )
+        if not pending:
+            return 0
+
+        # 篩出已到期的記錄
+        expired = [
+            r for r in pending
+            if (today - r.signal_date).days >= HOLDING.get(r.time_dimension, 14)
+        ]
+        if not expired:
+            logger.info("[SignalHistory] 尚無到期訊號需要結算")
+            return 0
+
+        # 批次取所有需要的 stock_prices（用 ORM 避免 SQLite tuple 綁定問題）
+        from app.models.stock_price import StockPrice as SP
+        stock_ids = list({r.stock_id for r in expired})
+        min_date  = min(r.signal_date for r in expired)
+
+        price_rows = (
+            db.query(SP.stock_id, SP.date, SP.close)
+            .filter(SP.stock_id.in_(stock_ids), SP.date >= min_date)
+            .order_by(SP.stock_id, SP.date)
+            .all()
+        )
+
+        # 建立 {stock_id: sorted list of (date, close)}
+        price_map: Dict[str, List[Tuple]] = {}
+        for row in price_rows:
+            price_map.setdefault(row.stock_id, []).append((row.date, row.close))
+
+        def _find_price(stock_id: str, target_date) -> Optional[float]:
+            """找 target_date 當日或最接近的後一個交易日收盤價"""
+            prices = price_map.get(stock_id, [])
+            for d, c in prices:
+                if d >= target_date:
+                    return float(c)
+            return None
+
+        resolved_count = 0
+        for rec in expired:
+            holding_days = {"5d": 5, "10d": 10, "30d": 30}.get(rec.time_dimension, 10)
+            entry = _find_price(rec.stock_id, rec.signal_date)
+            exit_date = rec.signal_date + timedelta(days=holding_days)
+            exit_price = _find_price(rec.stock_id, exit_date)
+
+            if entry is None or exit_price is None or entry == 0:
+                continue
+
+            rec.actual_return = round((exit_price - entry) / entry, 4)
+            rec.resolved_date = today
+            rec.is_resolved   = True
+            resolved_count += 1
+
+        if resolved_count:
+            db.commit()
+            logger.info(f"[SignalHistory] 結算 {resolved_count} 筆訊號報酬")
+        return resolved_count
+
+    @classmethod
+    def get_signal_history(
+        cls, db: Session, days: int = 14, dimension: str = "10d"
+    ) -> List[SignalHistoryItem]:
+        """查詢近 days 天的訊號歷史記錄"""
+        cutoff = date.today() - timedelta(days=days)
+        rows = (
+            db.query(AlphaSignalHistory)
+            .filter(
+                AlphaSignalHistory.time_dimension == dimension,
+                AlphaSignalHistory.signal_date >= cutoff,
+            )
+            .order_by(AlphaSignalHistory.signal_date.desc(), AlphaSignalHistory.trigger_count.desc())
+            .all()
+        )
+        return [
+            SignalHistoryItem(
+                signal_date=r.signal_date.isoformat(),
+                stock_id=r.stock_id,
+                stock_name=r.stock_name,
+                time_dimension=r.time_dimension,
+                trigger_count=r.trigger_count,
+                weighted_win_rate=r.weighted_win_rate,
+                weighted_odds_ratio=r.weighted_odds_ratio,
+                actual_return=r.actual_return,
+                is_resolved=r.is_resolved,
+            )
+            for r in rows
+        ]

@@ -59,6 +59,18 @@ const TriggerBadge = ({ count, maxCount }: { count: number; maxCount: number }) 
     )
 }
 
+interface SignalHistoryItem {
+    signal_date: string
+    stock_id: string
+    stock_name: string
+    time_dimension: string
+    trigger_count: number
+    weighted_win_rate: number
+    weighted_odds_ratio: number
+    actual_return: number | null
+    is_resolved: boolean
+}
+
 interface StrategyItem { time_dimension: string; is_significant: boolean; ic: number }
 
 // 模型健康警示 banner
@@ -89,6 +101,105 @@ const ModelHealthBanner = ({ posIc, totalSig }: { posIc: number; totalSig: numbe
     )
 }
 
+// ── 近期訊號表現元件 ──────────────────────────────────────────────────────────
+interface DayGroup {
+    date: string
+    items: SignalHistoryItem[]
+    resolved: SignalHistoryItem[]
+    hitCount: number   // actual_return > threshold_low
+}
+
+const HISTORY_THR: Record<DimKey, number> = { '5d': 0.03, '10d': 0.03, '30d': 0.05 }
+
+function SignalHistorySection({ history, dim }: { history: SignalHistoryItem[]; dim: DimKey }) {
+    if (history.length === 0) return null
+
+    // 按日期分組
+    const byDate = history.reduce<Record<string, SignalHistoryItem[]>>((acc, r) => {
+        ;(acc[r.signal_date] ??= []).push(r)
+        return acc
+    }, {})
+
+    const thr = HISTORY_THR[dim]
+    const groups: DayGroup[] = Object.entries(byDate)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([d, items]) => {
+            const resolved = items.filter(i => i.is_resolved)
+            const hitCount = resolved.filter(i => (i.actual_return ?? 0) > thr).length
+            return { date: d, items, resolved, hitCount }
+        })
+
+    // 只顯示有足夠已結算記錄的日期（≥3 筆）
+    const hasStats = groups.some(g => g.resolved.length >= 3)
+
+    return (
+        <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-4 sm:p-6">
+            <div className="flex items-center gap-2 mb-4">
+                <svg viewBox="0 0 24 24" width={16} height={16} className="fill-zinc-400 shrink-0">
+                    <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M17,13H13V17H11V13H7V11H11V7H13V11H17V13Z" />
+                </svg>
+                <h2 className="text-zinc-200 text-sm font-semibold">近期訊號表現</h2>
+                {!hasStats && (
+                    <span className="text-zinc-600 text-xs">（結算中，持有期未到）</span>
+                )}
+            </div>
+
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                    <thead>
+                        <tr className="text-zinc-500 border-b border-zinc-800">
+                            <th className="text-left pb-2 pr-4 font-normal whitespace-nowrap">日期</th>
+                            <th className="text-right pb-2 pr-4 font-normal whitespace-nowrap">發出訊號</th>
+                            <th className="text-right pb-2 pr-4 font-normal whitespace-nowrap">已結算</th>
+                            <th className="text-right pb-2 pr-4 font-normal whitespace-nowrap">命中率</th>
+                            <th className="text-right pb-2 font-normal whitespace-nowrap">平均報酬</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {groups.map(g => {
+                            const hitRate = g.resolved.length >= 3
+                                ? g.hitCount / g.resolved.length
+                                : null
+                            const avgReturn = g.resolved.length >= 3
+                                ? g.resolved.reduce((s, i) => s + (i.actual_return ?? 0), 0) / g.resolved.length
+                                : null
+
+                            return (
+                                <tr key={g.date} className="border-b border-zinc-800/40 hover:bg-zinc-800/20">
+                                    <td className="py-2 pr-4 text-zinc-400 font-mono whitespace-nowrap">{g.date}</td>
+                                    <td className="py-2 pr-4 text-right text-zinc-300">{g.items.length}</td>
+                                    <td className="py-2 pr-4 text-right">
+                                        {g.resolved.length > 0
+                                            ? <span className="text-zinc-300">{g.resolved.length}</span>
+                                            : <span className="text-zinc-600">—</span>}
+                                    </td>
+                                    <td className="py-2 pr-4 text-right">
+                                        {hitRate !== null
+                                            ? <span className={hitRate >= 0.5 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                                                {(hitRate * 100).toFixed(0)}%
+                                              </span>
+                                            : <span className="text-zinc-600 text-[10px]">待觀察</span>}
+                                    </td>
+                                    <td className="py-2 text-right">
+                                        {avgReturn !== null
+                                            ? <span className={avgReturn >= 0 ? 'text-emerald-400 font-mono' : 'text-rose-400 font-mono'}>
+                                                {avgReturn >= 0 ? '+' : ''}{(avgReturn * 100).toFixed(1)}%
+                                              </span>
+                                            : <span className="text-zinc-600 text-[10px]">待觀察</span>}
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <p className="text-zinc-600 text-[10px] mt-3 leading-relaxed">
+                命中率 = 持有期實際漲幅 &gt; {(thr * 100).toFixed(0)}%。結算需至少 3 筆記錄才顯示統計。
+            </p>
+        </div>
+    )
+}
+
 export default function SignalsPage() {
     const [signals, setSignals] = useState<TodaySignal[]>([])
     const [loading, setLoading] = useState(true)
@@ -100,6 +211,7 @@ export default function SignalsPage() {
         '10d': { posIc: 0, totalSig: 0 },
         '30d': { posIc: 0, totalSig: 0 },
     })
+    const [history, setHistory] = useState<SignalHistoryItem[]>([])
 
     // 一次性載入策略資料，計算各維度模型健康度
     useEffect(() => {
@@ -122,6 +234,10 @@ export default function SignalsPage() {
         api.get(`/alpha-miner/signals/today?dimension=${dim}`)
             .then(r => { setSignals(r.data); setLoading(false) })
             .catch(e => { setError(e.message); setLoading(false) })
+        const historyDays = dim === '30d' ? 60 : 45
+        api.get(`/alpha-miner/signals/history?dimension=${dim}&days=${historyDays}`)
+            .then(r => setHistory(r.data))
+            .catch(() => {})
     }, [dim])
 
     const tlo = dim === '30d' ? 5 : 3
@@ -360,6 +476,9 @@ export default function SignalsPage() {
                         </div>
                     )}
                 </div>
+
+                {/* ── Signal History ──────────────────────────────────── */}
+                <SignalHistorySection history={history} dim={dim} />
 
                 {/* ── Footer Disclaimer ───────────────────────────────── */}
                 {!loading && signals.length > 0 && (
