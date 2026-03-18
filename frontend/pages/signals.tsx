@@ -43,17 +43,17 @@ const Skeleton = ({ className = '' }: { className?: string }) => (
 const TriggerBadge = ({ count, maxCount }: { count: number; maxCount: number }) => {
     const ratio = maxCount > 0 ? count / maxCount : 0
     if (ratio >= 0.7) return (
-        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-xs font-normal bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
             超強共鳴
         </span>
     )
     if (ratio >= 0.4) return (
-        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-xs font-normal bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
             強共鳴
         </span>
     )
     return (
-        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-700 text-zinc-300 border border-zinc-600 shrink-0">
+        <span className="px-2.5 py-1 rounded-full text-xs font-normal bg-zinc-700 text-zinc-300 border border-zinc-600 shrink-0">
             {count} 策略共鳴
         </span>
     )
@@ -261,7 +261,7 @@ export default function SignalsPage() {
                                                     <p className="text-zinc-500 text-xs font-mono shrink-0">{s.stock_id}</p>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 shrink-0">
-                                                    <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-700/60 text-zinc-400 border border-zinc-700">
+                                                    <span className="px-2.5 py-1 rounded-full text-xs font-normal bg-zinc-700/60 text-zinc-400 border border-zinc-700 shrink-0">
                                                         {DIM_CONFIG[dim].shortLabel}後
                                                     </span>
                                                     <TriggerBadge count={s.trigger_count} maxCount={maxPossibleTrigger} />
