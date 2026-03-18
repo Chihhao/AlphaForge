@@ -62,6 +62,15 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # 每日下午 3:35 同步加權指數 (^TWII) — MarketDataCrawler 只同步個股，^TWII 需獨立從 yfinance 更新
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: StockSyncService.sync_stock_data(db, "^TWII", days=5)),
+        trigger=CronTrigger(hour=15, minute=35),
+        id="sync_taiex_daily",
+        name="Daily TAIEX (^TWII) sync via yfinance",
+        replace_existing=True
+    )
+
     # --- 第二梯次：17:00 最終確認更新 (確保所有官方統計已入庫) ---
     def _sync_with_retry(func, db, name: str, max_retries: int = 3, retry_delay: int = 300):
         """執行單一同步任務，失敗時最多重試 max_retries 次，間隔 retry_delay 秒。"""

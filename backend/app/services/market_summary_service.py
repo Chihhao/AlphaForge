@@ -96,19 +96,21 @@ class MarketSummaryService:
                         live_hist = ticker.history(period="2d")
                         if not live_hist.empty:
                             live_price = live_hist.iloc[-1]['Close']
-                            # 如果 yf 抓到的資料是今天的 (或是交易時間內且跟 DB 不同)
-                            is_yf_today = live_hist.index[-1].date() == now.date()
-                            
-                            if is_yf_today or (is_trading_hour and abs(live_price - latest_db.close) > 0.01):
+                            yf_date = live_hist.index[-1].date()
+                            # 如果 yf 資料是今天的、比 DB 新、或是交易時間內且跟 DB 不同
+                            is_yf_today = yf_date == now.date()
+                            is_yf_newer = yf_date > latest_db.date
+
+                            if is_yf_today or is_yf_newer or (is_trading_hour and abs(live_price - latest_db.close) > 0.01):
                                 taiex_price = round(live_price, 2)
                                 if len(live_hist) >= 2:
                                     prev_close = live_hist.iloc[-2]['Close']
                                 elif latest_db.date < now.date():
                                     prev_close = latest_db.close
-                                
+
                                 # 使用 yf 的最新時間
                                 last_updated = now.strftime("%H:%M:%S") # yf 沒有秒級 quote time，用目前時間
-                                data_date = now.date()
+                                data_date = yf_date  # 使用 yfinance 實際資料日期，而非今天
                                 if is_trading_hour:
                                     is_live = True
                 except Exception as yfe:
