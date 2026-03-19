@@ -1,6 +1,20 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: alphaforge-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=alphaforge
+      - POSTGRES_USER=alphaforge
+      - POSTGRES_PASSWORD=alphaforge_secret
+      - TZ=Asia/Taipei
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
   backend:
     build:
       context: ./backend
@@ -10,12 +24,15 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Map the local database file to persist data if any
-      - ./backend/test.db:/app/test.db
+      # SQLite 唯讀掛載，僅供資料遷移腳本使用，遷移完成後可移除
+      - ./backend/test.db:/app/test.db:ro
     env_file:
       - ./backend/.env
     environment:
       - TZ=Asia/Taipei
+      - DATABASE_URL=postgresql://alphaforge:alphaforge_secret@postgres:5432/alphaforge
+    depends_on:
+      - postgres
 
   frontend:
     build:
@@ -34,3 +51,6 @@ services:
       - INTERNAL_API_URL=http://backend:8000
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
