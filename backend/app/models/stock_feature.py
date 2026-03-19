@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Index
+from sqlalchemy import Column, Integer, BigInteger, String, Float, Date, Index
 from app.db.database import Base
 
 
@@ -47,7 +47,7 @@ class StockFeature(Base):
     bb_pctb = Column(Float)          # %B 位置 (0~1)
 
     # --- 成交量 ---
-    volume = Column(Integer)
+    volume = Column(BigInteger)
     vol_ma5 = Column(Float)          # 5 日均量
     vol_ratio = Column(Float)        # 量比 (volume / vol_ma5)
 

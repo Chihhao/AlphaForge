@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Index
+from sqlalchemy import Column, Integer, BigInteger, String, Float, Date, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -16,7 +16,7 @@ class StockPrice(Base):
     low = Column(Float)
     close = Column(Float)
     adj_close = Column(Float)  # 調整後收盤價
-    volume = Column(Integer)
+    volume = Column(BigInteger)
 
     # 複合索引：加速特定股票的時間區間查詢
     __table_args__ = (
