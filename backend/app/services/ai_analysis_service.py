@@ -3,7 +3,7 @@
 import httpx
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.config import settings
 from app.models.stock_ai_analysis import StockAIAnalysis
@@ -174,9 +174,9 @@ def get_or_create_analysis(
 
     text = resp.json()["choices"][0]["message"]["content"].strip()
 
-    # upsert（SQLite INSERT OR REPLACE）
+    # upsert（PostgreSQL INSERT ON CONFLICT DO UPDATE）
     stmt = (
-        sqlite_insert(StockAIAnalysis)
+        pg_insert(StockAIAnalysis)
         .values(stock_id=stock_id, date=today, analysis_text=text, model=GROQ_MODEL)
         .on_conflict_do_update(
             index_elements=["stock_id", "date"],
