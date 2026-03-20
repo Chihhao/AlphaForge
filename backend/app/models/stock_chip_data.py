@@ -24,6 +24,9 @@ class StockChipData(Base):
     margin_balance = Column(BigInteger)    # 融資餘額
     short_balance = Column(BigInteger)     # 融券餘額
 
+    # --- 外資持股比率（Phase 6）---
+    foreign_hold_pct = Column(Float, nullable=True)  # 外資持股比率（%，僅上市；上櫃為 NULL）
+
     __table_args__ = (
         Index('ix_chip_sid_date', 'stock_id', 'date', unique=True),
     )

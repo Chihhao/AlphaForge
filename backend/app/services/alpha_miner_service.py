@@ -64,6 +64,10 @@ FACTOR_LABELS: Dict[str, str] = {
     'dealer_buy_5d':   '自營商5日累積',
     'price_vs_high20': '距高點乖離',
     'ma_trend':        '均線多頭排列',
+    # Phase 6 新增
+    'sector_rs':            '產業相對強度',
+    'foreign_hold_pct':     '外資持股比率',
+    'foreign_hold_chg_5d':  '外資持股5日變化',
 }
 
 # ─── 預定義因子組合（63 組，Bonferroni 校正門檻 = 0.05/63 ≈ 0.00079）─────────
@@ -118,11 +122,26 @@ FACTOR_COMBINATIONS: List[List[str]] = [
     ['ma_trend', 'vol_ratio'],
     ['ma_trend', 'trust_buy_5d'],
     ['ma_trend', 'foreign_buy_5d'],
+    # 單因子（Phase 6）
+    ['sector_rs'],
+    ['foreign_hold_pct'],
+    ['foreign_hold_chg_5d'],
+    # 產業相對強度複合
+    ['sector_rs', 'rsi14'],
+    ['sector_rs', 'vol_ratio'],
+    ['sector_rs', 'foreign_buy_5d'],
+    # 外資持股複合
+    ['foreign_hold_chg_5d', 'foreign_buy_5d'],   # 存量+流量
+    ['foreign_hold_pct', 'pb_ratio'],
+    ['foreign_hold_chg_5d', 'rsi14'],
+    ['foreign_hold_chg_5d', 'trust_buy_5d'],
+    # 三因子（Phase 6）
+    ['sector_rs', 'rsi14', 'vol_ratio'],
 ]
 
 _LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())
 
-# Bonferroni 校正說明更新：63 組組合
+# Bonferroni 校正說明更新：74 組組合
 _BONFERRONI_N = len(FACTOR_COMBINATIONS)
 
 # ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────

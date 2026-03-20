@@ -72,6 +72,11 @@ class StockFeature(Base):
     price_vs_high20 = Column(Float, nullable=True)   # (close - 20日高點) / 20日高點
     ma_trend        = Column(Float, nullable=True)   # 均線多頭排列：MA5>MA10>MA20=1，否則=0
 
+    # --- 產業相對強度 + 外資持股（Phase 6）---
+    sector_rs           = Column(Float, nullable=True)  # 個股20日報酬 - 同產業中位數報酬
+    foreign_hold_pct    = Column(Float, nullable=True)  # 全體外資持股比率（%，僅上市）
+    foreign_hold_chg_5d = Column(Float, nullable=True)  # 外資持股比率5日變化（百分點）
+
     # 複合唯一索引：每支股票每天只有一筆
     __table_args__ = (
         Index('ix_sf_sid_date', 'stock_id', 'date', unique=True),

@@ -17,6 +17,7 @@ from app.models.stock_price import StockPrice
 from app.models.stock_feature import StockFeature
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_chip_data import StockChipData
+from app.models.user import Stock
 from app.services.indicator_service import IndicatorService
 
 logger = logging.getLogger(__name__)
@@ -89,12 +90,21 @@ class FeatureService:
         df['ma_trend'] = ((df['ma5'] > df['ma10']) & (df['ma10'] > df['ma20'])).astype(float)
         df.loc[df['ma5'].isna() | df['ma10'].isna() | df['ma20'].isna(), 'ma_trend'] = np.nan
 
+        # 產業相對強度（Phase 6A）：需在全市場 df 上計算再切 target_date
+        df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
+
         # 5. 只取 target_date 當日的資料
         target_df = df[df['date'] == target_date].copy()
 
         if target_df.empty:
             logger.warning(f"[FeatureService] {target_date} 非交易日或無資料")
             return 0
+
+        # 計算 sector_rs：個股 20 日報酬 - 同產業中位數
+        industry_map = {r.stock_id: r.industry for r in db.query(Stock.stock_id, Stock.industry).all()}
+        target_df['industry'] = target_df['stock_id'].map(industry_map)
+        target_df['sector_median_ret20'] = target_df.groupby('industry')['ret20'].transform('median')
+        target_df['sector_rs'] = target_df['ret20'] - target_df['sector_median_ret20']
 
         # 6. Left join 基本面快照
         fundamentals = db.query(StockFundamental).all()
@@ -122,7 +132,8 @@ class FeatureService:
         else:
             for col in ('foreign_net_buy', 'foreign_buy_5d',
                         'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
-                        'dealer_net_buy', 'dealer_buy_5d'):
+                        'dealer_net_buy', 'dealer_buy_5d',
+                        'foreign_hold_pct', 'foreign_hold_chg_5d'):
                 target_df[col] = None
 
         # 7. 刪除當日已存在的記錄（upsert 邏輯）
@@ -170,6 +181,9 @@ class FeatureService:
                 dealer_buy_5d=_safe_float(row.get('dealer_buy_5d')),
                 price_vs_high20=_safe_float(row.get('price_vs_high20')),
                 ma_trend=_safe_float(row.get('ma_trend')),
+                sector_rs=_safe_float(row.get('sector_rs')),
+                foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
+                foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
             ))
 
         if records:
@@ -225,6 +239,12 @@ class FeatureService:
         df['ma_trend'] = ((df['ma5'] > df['ma10']) & (df['ma10'] > df['ma20'])).astype(float)
         df.loc[df['ma5'].isna() | df['ma10'].isna() | df['ma20'].isna(), 'ma_trend'] = np.nan
 
+        # 產業相對強度（Phase 6A）：在全市場 df 上向量化計算
+        df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
+        industry_map = {r.stock_id: r.industry for r in db.query(Stock.stock_id, Stock.industry).all()}
+        df['industry'] = df['stock_id'].map(industry_map)
+        df['sector_rs'] = df['ret20'] - df.groupby(['date', 'industry'])['ret20'].transform('median')
+
         # 只取回補期間的資料
         mask = (df['date'] >= start_date) & (df['date'] <= end_date)
         backfill_df = df[mask].copy()
@@ -261,6 +281,7 @@ class FeatureService:
                 'trust_net_buy': c.trust_net_buy,
                 'dealer_net_buy': c.dealer_net_buy,
                 'margin_balance': c.margin_balance,
+                'foreign_hold_pct': getattr(c, 'foreign_hold_pct', None),
             } for c in chip_rows])
             chip_all = chip_all.sort_values(['stock_id', 'date'])
             # 為每個目標日期建立特徵（傳入完整 chip_all，讓函數自行取 5 天窗口）
@@ -273,7 +294,8 @@ class FeatureService:
         # 初始化籌碼欄位
         for col in ('foreign_net_buy', 'foreign_buy_5d',
                     'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
-                    'dealer_net_buy', 'dealer_buy_5d'):
+                    'dealer_net_buy', 'dealer_buy_5d',
+                    'foreign_hold_pct', 'foreign_hold_chg_5d'):
             backfill_df[col] = None
 
         # 刪除已存在的記錄
@@ -296,7 +318,8 @@ class FeatureService:
             # 先移除預先初始化的 None 欄位，避免 merge 後產生 _x/_y 衝突
             chip_cols = ['foreign_net_buy', 'foreign_buy_5d',
                          'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
-                         'dealer_net_buy', 'dealer_buy_5d']
+                         'dealer_net_buy', 'dealer_buy_5d',
+                         'foreign_hold_pct', 'foreign_hold_chg_5d']
             day_df = day_df.drop(columns=[c for c in chip_cols if c in day_df.columns])
 
             ts_key = pd.Timestamp(batch_date)
@@ -346,6 +369,9 @@ class FeatureService:
                     dealer_buy_5d=_safe_float(row.get('dealer_buy_5d')),
                     price_vs_high20=_safe_float(row.get('price_vs_high20')),
                     ma_trend=_safe_float(row.get('ma_trend')),
+                    sector_rs=_safe_float(row.get('sector_rs')),
+                    foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
+                    foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
                 ))
 
             if records:
@@ -376,7 +402,7 @@ class FeatureService:
         target_date,
         _chip_df: Optional[pd.DataFrame] = None,
     ) -> pd.DataFrame:
-        """計算單日籌碼衍生指標，回傳 DataFrame(stock_id, 5 欄位)
+        """計算單日籌碼衍生指標（向量化版），回傳 DataFrame(stock_id, 各欄位)
 
         Args:
             chip_rows: StockChipData ORM 物件列表（若傳入則轉換為 DataFrame）
@@ -395,6 +421,7 @@ class FeatureService:
                 'trust_net_buy': c.trust_net_buy,
                 'dealer_net_buy': c.dealer_net_buy,
                 'margin_balance': c.margin_balance,
+                'foreign_hold_pct': getattr(c, 'foreign_hold_pct', None),
             } for c in chip_rows])
 
         if raw.empty:
@@ -403,48 +430,50 @@ class FeatureService:
         raw['date'] = pd.to_datetime(raw['date'])
         raw = raw.sort_values(['stock_id', 'date'])
 
-        target_ts = pd.Timestamp(target_date)
-
-        # 5 日累積買超（用過去 5 個交易日含今日的窗口）
-        result_rows = []
-        for sid, grp in raw.groupby('stock_id'):
-            grp = grp.sort_values('date')
-            today_row = grp[grp['date'] == target_ts]
-            if today_row.empty:
-                continue
-
-            window = grp[grp['date'] <= target_ts].tail(5)
-
-            foreign_nb  = today_row['foreign_net_buy'].values[0]
-            foreign_5d  = window['foreign_net_buy'].sum() if 'foreign_net_buy' in window.columns else None
-            trust_nb    = today_row['trust_net_buy'].values[0]
-            trust_5d    = window['trust_net_buy'].sum() if 'trust_net_buy' in window.columns else None
-            dealer_nb   = today_row['dealer_net_buy'].values[0] if 'dealer_net_buy' in today_row.columns else None
-            dealer_5d   = window['dealer_net_buy'].sum() if 'dealer_net_buy' in window.columns else None
-
-            # 融資餘額 5 日變化率
-            if 'margin_balance' in window.columns and len(window) >= 2:
-                m_now  = window['margin_balance'].iloc[-1]
-                m_prev = window['margin_balance'].iloc[0]
-                if m_prev and m_prev != 0 and pd.notna(m_prev) and pd.notna(m_now):
-                    margin_chg_5d = (m_now - m_prev) / abs(m_prev) * 100
-                else:
-                    margin_chg_5d = None
+        # ── 向量化計算 5 日累積淨買超 ──
+        for src_col, dst_col in [
+            ('foreign_net_buy', 'foreign_buy_5d'),
+            ('trust_net_buy', 'trust_buy_5d'),
+            ('dealer_net_buy', 'dealer_buy_5d'),
+        ]:
+            if src_col in raw.columns:
+                raw[dst_col] = raw.groupby('stock_id')[src_col].transform(
+                    lambda x: x.rolling(5, min_periods=1).sum()
+                )
             else:
-                margin_chg_5d = None
+                raw[dst_col] = None
 
-            result_rows.append({
-                'stock_id': sid,
-                'foreign_net_buy': foreign_nb,
-                'foreign_buy_5d': float(foreign_5d) if pd.notna(foreign_5d) else None,
-                'trust_net_buy': trust_nb,
-                'trust_buy_5d': float(trust_5d) if pd.notna(trust_5d) else None,
-                'dealer_net_buy': float(dealer_nb) if dealer_nb is not None and pd.notna(dealer_nb) else None,
-                'dealer_buy_5d': float(dealer_5d) if dealer_5d is not None and pd.notna(dealer_5d) else None,
-                'margin_chg_5d': margin_chg_5d,
-            })
+        # ── 向量化計算融資 5 日變化率 ──
+        if 'margin_balance' in raw.columns:
+            margin_shift = raw.groupby('stock_id')['margin_balance'].transform(lambda x: x.shift(4))
+            raw['margin_chg_5d'] = (
+                (raw['margin_balance'] - margin_shift)
+                / margin_shift.replace(0, np.nan).abs()
+                * 100
+            )
+        else:
+            raw['margin_chg_5d'] = None
 
-        return pd.DataFrame(result_rows) if result_rows else pd.DataFrame()
+        # ── 外資持股比率 5 日變化（百分點差）──
+        if 'foreign_hold_pct' in raw.columns:
+            hold_shift = raw.groupby('stock_id')['foreign_hold_pct'].transform(lambda x: x.shift(4))
+            raw['foreign_hold_chg_5d'] = raw['foreign_hold_pct'] - hold_shift
+        else:
+            raw['foreign_hold_pct'] = None
+            raw['foreign_hold_chg_5d'] = None
+
+        # ── 只取 target_date 當日結果 ──
+        target_ts = pd.Timestamp(target_date)
+        result = raw[raw['date'] == target_ts].copy()
+
+        keep_cols = [
+            'stock_id', 'foreign_net_buy', 'foreign_buy_5d',
+            'trust_net_buy', 'trust_buy_5d',
+            'margin_chg_5d', 'dealer_net_buy', 'dealer_buy_5d',
+            'foreign_hold_pct', 'foreign_hold_chg_5d',
+        ]
+        result = result[[c for c in keep_cols if c in result.columns]]
+        return result.reset_index(drop=True)
 
 
 def _safe_float(val) -> Optional[float]:

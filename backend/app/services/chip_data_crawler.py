@@ -239,6 +239,54 @@ def fetch_tpex_institutional(target_date: date) -> pd.DataFrame:
     return result.reset_index(drop=True)
 
 
+# ─── TWSE 外資持股比率 (MI_QFIIS) ────────────────────────────────────────────
+
+def fetch_twse_foreign_holding(target_date: date) -> pd.DataFrame:
+    """抓取上市股票全體外資持股比率（TWSE MI_QFIIS）
+
+    回傳欄位：stock_id, foreign_hold_pct（外資持股比率 %）
+    注意：僅覆蓋上市股票（TWSE），上櫃股票不在此 API 中
+    """
+    date_str = target_date.strftime("%Y%m%d")
+    url = "https://www.twse.com.tw/fund/MI_QFIIS"
+    params = {"response": "json", "date": date_str, "selectType": "ALLBUT0999"}
+
+    try:
+        resp = requests.get(url, params=params, headers=_HEADERS, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        logger.warning(f"[ChipCrawler] TWSE MI_QFIIS 請求失敗 {date_str}: {e}")
+        return pd.DataFrame()
+
+    fields = data.get("fields", [])
+    rows = data.get("data", [])
+    if not fields or not rows:
+        logger.info(f"[ChipCrawler] TWSE MI_QFIIS 無資料: {date_str}")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows, columns=fields)
+
+    # 只保留 4 碼純數字（普通股）
+    id_col = fields[0]  # 第 0 欄為證券代號
+    df = df[df[id_col].astype(str).str.match(r"^[1-9]\d{3}$", na=False)].copy()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # 持股比率：第 7 欄（全體外資及陸資持股比率）
+    hold_col = fields[7] if len(fields) > 7 else None
+    if hold_col is None:
+        logger.warning(f"[ChipCrawler] MI_QFIIS 欄位結構異常: {fields}")
+        return pd.DataFrame()
+
+    result = pd.DataFrame()
+    result["stock_id"] = df[id_col].astype(str).str.strip()
+    result["foreign_hold_pct"] = df[hold_col].apply(_clean_num)
+
+    return result.reset_index(drop=True)
+
+
 # ─── TPEx 融資融券 ───────────────────────────────────────────────────────────
 
 def fetch_tpex_margin(target_date: date) -> pd.DataFrame:
@@ -316,6 +364,8 @@ def sync_daily_chip_data(db: Session, target_date: Optional[date] = None) -> Dic
     tpex_inst   = fetch_tpex_institutional(target_date)
     time.sleep(1)
     tpex_margin = fetch_tpex_margin(target_date)
+    time.sleep(1)
+    twse_holding = fetch_twse_foreign_holding(target_date)
 
     # 2. 合併三大法人（TWSE + TPEx）
     inst_dfs = [df for df in [twse_inst, tpex_inst] if not df.empty]
@@ -344,6 +394,12 @@ def sync_daily_chip_data(db: Session, target_date: Optional[date] = None) -> Dic
     # 去重（保留第一筆，避免同股票重複）
     merged = merged.drop_duplicates(subset=["stock_id"], keep="first")
 
+    # Merge 外資持股比率（只有上市股票有資料）
+    if not twse_holding.empty:
+        merged = pd.merge(merged, twse_holding, on="stock_id", how="left")
+    else:
+        merged["foreign_hold_pct"] = None
+
     # 4. Upsert（先刪後插）
     db.execute(delete(StockChipData).where(StockChipData.date == target_date))
 
@@ -360,6 +416,7 @@ def sync_daily_chip_data(db: Session, target_date: Optional[date] = None) -> Dic
             dealer_net_buy=_safe_float(row.get("dealer_net_buy")),
             margin_balance=_safe_int(row.get("margin_balance")),
             short_balance=_safe_int(row.get("short_balance")),
+            foreign_hold_pct=_safe_float(row.get("foreign_hold_pct")),
         ))
 
     if records:
