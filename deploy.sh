@@ -36,7 +36,7 @@ case $choice in
         echo "正在更新全系統服務..."
         ;;
     4)
-        DEPLOY_CMD="cd $NAS_PROJECT_DIR && sudo docker-compose build --no-cache && sudo docker-compose up -d"
+        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo docker-compose build --no-cache && sudo docker-compose up -d"
         echo "正在強制重新建置所有服務..."
         ;;
     q)
