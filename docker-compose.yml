@@ -23,9 +23,6 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    volumes:
-      # SQLite 唯讀掛載，僅供資料遷移腳本使用，遷移完成後可移除
-      - ./backend/test.db:/app/test.db:ro
     env_file:
       - ./backend/.env
     environment:
