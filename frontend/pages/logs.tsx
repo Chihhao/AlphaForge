@@ -81,8 +81,8 @@ export default function LogsPage() {
             <Head>
                 <title>系統日誌 - AlphaForge</title>
             </Head>
-            <div className="max-w-4xl mx-auto px-4 pt-6 pb-12">
-                <div className="flex items-center justify-between mb-4">
+            <div className="max-w-4xl mx-auto px-4 pt-6 pb-12 flex flex-col sm:block" style={{ height: 'calc(100dvh - 64px - 40px)' }}>
+                <div className="flex items-center justify-between mb-4 shrink-0">
                     <div className="flex items-center gap-2">
                         <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
@@ -97,7 +97,7 @@ export default function LogsPage() {
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
-                    className="bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-xs leading-relaxed custom-scrollbar min-h-[60vh] max-h-[75vh] overflow-y-auto"
+                    className="bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-xs leading-relaxed custom-scrollbar overflow-y-auto flex-1 sm:min-h-[60vh] sm:max-h-[75vh]"
                 >
                     {events.length === 0 ? (
                         <div className="text-zinc-600 italic px-2">Waiting for system events...</div>
