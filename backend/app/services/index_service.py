@@ -1,8 +1,11 @@
 import requests
 import json
+import logging
 from typing import List, Optional
 from datetime import date
 from app.services.system_logger import SystemLogger
+
+logger = logging.getLogger(__name__)
 
 class IndexService:
     """指數成分股服務"""
@@ -47,13 +50,12 @@ class IndexService:
                             return constituents
                 except json.JSONDecodeError:
                     # 如果不是 JSON，可能是被導向到錯誤頁面或空本文
-                    SystemLogger.warning("0050 名單更新延後，系統將繼續使用預設名單", category="index")
+                    logger.debug("0050 名單更新延後，使用預設名單")
             else:
                 SystemLogger.warning("0050 名單更新延後，系統將繼續使用預設名單", category="index")
         
         except Exception:
-            # 將 ERROR 改為 WARNING，因為我們有穩定的回退機制
-            SystemLogger.warning("0050 名單更新延後，系統將繼續使用預設名單", category="index")
+            logger.debug("0050 名單更新延後，使用預設名單")
         
         # 硬編碼回退清單 (確保系統始終能運作)
         fallback = [
