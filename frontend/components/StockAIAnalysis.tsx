@@ -94,10 +94,10 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
           : score >= 70 ? 'text-rose-400'
           : score >= 40 ? 'text-amber-400'
           : 'text-emerald-400'
-        const barColor = score === null ? 'bg-gray-600'
-          : score >= 70 ? 'bg-rose-500'
-          : score >= 40 ? 'bg-amber-500'
-          : 'bg-emerald-500'
+        // 雙向條：以 50 為中心，計算偏移量與方向
+        const offset = score !== null ? score - 50 : 0   // -50 ~ +50
+        const barWidth = Math.abs(offset) * 2            // 0% ~ 100% of half-width
+        const isBullish = offset >= 0
 
         return (
         <div>
@@ -105,17 +105,33 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
           {score !== null && (
             <div className="mb-4 p-3 bg-gray-900/60 rounded-lg border border-gray-700">
               <div className="flex items-center gap-3">
-                {/* 左：分數 */}
-                <span className={`text-3xl font-bold font-mono leading-none ${scoreColor}`}>{score}</span>
-                {/* 中：進度條 + meta */}
+                {/* 左：大號分數 */}
+                <span className={`text-3xl font-bold font-mono leading-none shrink-0 ${scoreColor}`}>{score}</span>
+                {/* 右：bar + meta */}
                 <div className="flex-1 min-w-0">
-                  <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden mb-1.5">
-                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${score}%` }} />
+                  {/* 看跌 ── bar ── 看漲 */}
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-[10px] text-emerald-500 shrink-0">看跌</span>
+                    <div className="flex flex-1 h-1.5">
+                      <div className="flex-1 bg-gray-700 rounded-l-full overflow-hidden flex justify-end">
+                        {!isBullish && (
+                          <div className="h-full bg-emerald-500" style={{ width: `${barWidth}%` }} />
+                        )}
+                      </div>
+                      <div className="w-px bg-gray-500 shrink-0" />
+                      <div className="flex-1 bg-gray-700 rounded-r-full overflow-hidden">
+                        {isBullish && (
+                          <div className="h-full bg-rose-500" style={{ width: `${barWidth}%` }} />
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-rose-400 shrink-0">看漲</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span>AI 看漲分數</span>
-                    {stockName && <><span>·</span><span className="text-gray-300">{stockName}</span><span className="text-gray-600">{stockId}</span></>}
-                    <span>·</span>
+                  {/* 股名左、日期右 */}
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      {stockName && <><span className="text-gray-300">{stockName}</span><span className="text-gray-400">{stockId}</span></>}
+                    </div>
                     <span>{result.date}</span>
                   </div>
                 </div>
