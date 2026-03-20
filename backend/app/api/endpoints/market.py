@@ -19,7 +19,7 @@ from app.db.database import SessionLocal
 router = APIRouter(prefix="/market", tags=["market"])
 
 @router.get("/system-events")
-def get_system_events(limit: int = 20):
+def get_system_events(limit: int = 500):
     """獲取最近的系統事件日誌"""
     db = SessionLocal()
     try:
