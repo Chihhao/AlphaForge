@@ -14,6 +14,13 @@ export default function LogsPage() {
     const [events, setEvents] = useState<SystemEvent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const isAtBottomRef = useRef(true);
+
+    const handleScroll = () => {
+        const el = scrollRef.current;
+        if (!el) return;
+        isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    };
 
     const fetchEvents = async () => {
         try {
@@ -31,7 +38,7 @@ export default function LogsPage() {
     }, []);
 
     useEffect(() => {
-        if (scrollRef.current) {
+        if (scrollRef.current && isAtBottomRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [events]);
@@ -112,6 +119,7 @@ export default function LogsPage() {
 
                 <div
                     ref={scrollRef}
+                    onScroll={handleScroll}
                     className="bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-xs leading-relaxed custom-scrollbar min-h-[60vh] max-h-[75vh] overflow-y-auto"
                 >
                     {events.length === 0 ? (
