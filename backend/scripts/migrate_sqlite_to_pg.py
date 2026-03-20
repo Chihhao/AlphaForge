@@ -14,7 +14,7 @@ import os
 import sys
 import logging
 import pandas as pd
-from sqlalchemy import create_engine, text, inspect
+from sqlalchemy import create_engine, text, inspect, types as sa_types
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -85,10 +85,24 @@ def migrate():
             logger.info(f"[{table}] 無資料，跳過")
             continue
 
-        logger.info(f"[{table}] 開始遷移，共 {total:,} 筆...")
+        # 取得 PostgreSQL 各欄位型別，用於 Boolean 轉換
+        pg_bool_cols = set()
+        with pg_engine.connect() as conn:
+            col_rows = conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name=:t AND data_type='boolean'"
+            ), {"t": table}).fetchall()
+            pg_bool_cols = {r[0] for r in col_rows}
+
+        logger.info(f"[{table}] 開始遷移，共 {total:,} 筆..." +
+                    (f"（Boolean 欄位：{pg_bool_cols}）" if pg_bool_cols else ""))
 
         inserted = 0
         for chunk_df in pd.read_sql(f"SELECT * FROM {table}", sqlite_engine, chunksize=CHUNK_SIZE):
+            # SQLite 把 Boolean 存成 0/1 整數，需轉成 Python bool 才能寫入 PG Boolean 欄位
+            for col in pg_bool_cols:
+                if col in chunk_df.columns:
+                    chunk_df[col] = chunk_df[col].astype(bool)
             chunk_df.to_sql(
                 table, pg_engine,
                 if_exists="append",
