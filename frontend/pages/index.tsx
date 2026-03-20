@@ -1,7 +1,6 @@
 import Head from 'next/head';
 import MarketSummary from '../components/MarketSummary';
 import StrategyScreener from '../components/StrategyScreener';
-import SystemConsole from '../components/SystemConsole';
 
 export default function Home() {
 
@@ -22,9 +21,6 @@ export default function Home() {
           <StrategyScreener />
         </section>
       </div>
-
-      {/* 系統狀態看板 */}
-      <SystemConsole />
     </>
   )
 }
