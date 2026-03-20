@@ -81,23 +81,11 @@ export default function LogsPage() {
             <Head>
                 <title>系統日誌 - AlphaForge</title>
             </Head>
-            <div className="max-w-4xl mx-auto px-4 pt-6 pb-12 flex flex-col sm:block" style={{ height: 'calc(100dvh - 64px - 40px)' }}>
-                <div className="flex items-center justify-between mb-4 shrink-0">
-                    <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
-                        </svg>
-                        <h1 className="text-sm font-mono font-bold text-zinc-400 tracking-wider uppercase">SYSTEM CONSOLE</h1>
-                        {events.length > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        )}
-                    </div>
-                </div>
-
+            <div className="flex flex-col sm:max-w-4xl sm:mx-auto sm:px-4 sm:pt-6 sm:pb-12" style={{ height: 'calc(100dvh - 64px - 40px)' }}>
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
-                    className="bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-xs leading-relaxed custom-scrollbar overflow-y-auto flex-1 sm:min-h-[60vh] sm:max-h-[75vh]"
+                    className="bg-black/40 sm:border sm:border-white/10 sm:rounded-xl p-4 font-mono text-xs leading-relaxed custom-scrollbar overflow-y-auto flex-1 sm:min-h-[60vh] sm:max-h-[75vh]"
                 >
                     {events.length === 0 ? (
                         <div className="text-zinc-600 italic px-2">Waiting for system events...</div>
