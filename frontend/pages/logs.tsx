@@ -12,7 +12,6 @@ interface SystemEvent {
 
 export default function LogsPage() {
     const [events, setEvents] = useState<SystemEvent[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isAtBottomRef = useRef(true);
 
@@ -77,18 +76,6 @@ export default function LogsPage() {
         }
     };
 
-    const handleManualSync = async () => {
-        setIsLoading(true);
-        try {
-            await api.post('/market/sync/daily');
-            await fetchEvents();
-        } catch (error) {
-            console.error('Manual sync failed:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     return (
         <>
             <Head>
@@ -105,16 +92,6 @@ export default function LogsPage() {
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         )}
                     </div>
-                    <button
-                        onClick={handleManualSync}
-                        disabled={isLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs transition-all disabled:opacity-50"
-                    >
-                        <svg className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Sync Now
-                    </button>
                 </div>
 
                 <div
