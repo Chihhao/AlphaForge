@@ -429,7 +429,7 @@ const StrategyPage = () => {
                             </h1>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
                                 {result
-                                    ? `${result.strategies.length} 組顯著策略 · ${result.total_combinations_tested} 組因子 × 3 持有期 · 訓練 ${result.train_period} · 測試 ${result.test_period}`
+                                    ? `${result.strategies.filter(s => s.is_significant).length} 組顯著策略（共 ${result.strategies.length} 組）· ${result.total_combinations_tested} 組因子 × 3 持有期 · 訓練 ${result.train_period} · 測試 ${result.test_period}`
                                     : loading ? '載入中…' : 'Alpha Miner 多因子邏輯迴歸'
                                 }
                             </p>

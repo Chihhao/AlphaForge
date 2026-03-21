@@ -50,6 +50,8 @@ docker-compose up -d --build  # 重新建置並啟動
 
 > **若 deploy 失敗顯示 CACHED**：代表 Synology Drive 尚未同步完成，等候後再重試。
 
+> **⚠️ 絕對不要直接用 `docker build` 部署前端**：前端需要 `NEXT_PUBLIC_API_URL=/alphaforge/api` build arg，直接執行 `docker build` 不會帶入此參數，導致前端 API 請求路徑錯誤，頁面無法顯示。一律透過 `./deploy.sh` 或 `docker-compose build` 部署。
+
 ### 測試
 ```bash
 cd backend && ./.venv/bin/python -m pytest                    # 執行所有後端測試

@@ -136,8 +136,8 @@ def _maybe_catchup_sync():
             except Exception as e:
                 logger.error(f"[Startup] 選股快取刷新失敗: {e}")
 
-        if needs_features or needs_price:
-            # 觸發 Alpha Miner 重訓
+        if (needs_features or needs_price) and not settings.ALPHA_MINER_READONLY:
+            # 觸發 Alpha Miner 重訓（READONLY 模式下跳過，只讀 NAS 快照）
             try:
                 from sqlalchemy import delete as sa_delete
                 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot

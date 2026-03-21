@@ -27,6 +27,7 @@ from sqlalchemy import delete
 
 logger = logging.getLogger(__name__)
 
+from app.core.config import settings
 from app.db.database import engine
 from app.models.stock_feature import StockFeature
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
@@ -250,6 +251,11 @@ class AlphaMinerService:
             restored = cls._load_snapshot(db, today)
             if restored:
                 return cls._cache  # type: ignore[return-value]
+
+        # READONLY 模式（本地 dev）：不觸發重訓，直接回傳 stub
+        if settings.ALPHA_MINER_READONLY:
+            logger.info("[AlphaMiner] READONLY 模式，跳過重訓")
+            return cls._cache or _TRAINING_STUB
 
         # 若沒有正在執行的子程序，啟動新的
         with cls._lock:
@@ -493,6 +499,8 @@ class AlphaMinerService:
 
         if snap.train_date == today:
             logger.info(f"[AlphaMiner] 從 DB 快照恢復今日結果（{today}），跳過重算")
+        elif settings.ALPHA_MINER_READONLY:
+            logger.info(f"[AlphaMiner] READONLY 模式：使用舊快照（{snap.train_date}），不觸發重訓")
         else:
             logger.info(
                 f"[AlphaMiner] 從 DB 快照恢復舊結果（{snap.train_date}），"

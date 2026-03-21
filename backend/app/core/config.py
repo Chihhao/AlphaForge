@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # Groq AI 分析
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
+    # Alpha Miner：設為 True 時只讀 snapshot，不觸發重訓（本地 dev 用）
+    ALPHA_MINER_READONLY: bool = os.getenv("ALPHA_MINER_READONLY", "False").lower() == "true"
+
     # 數據源配置
     STOCK_SEARCH_LIMIT: int = 20
     
