@@ -33,12 +33,40 @@ const toStars = (score: number) => {
     return '★'.repeat(n)
 }
 
+// 根據勝率與報酬產生 mock 歷史交易（確定性隨機，同股票每次一樣）
+function genMockTrades(pick: StrategyPick, count = 8) {
+    const trades = []
+    let seed = pick.stock_id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+    const rand = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff }
+
+    let d = new Date('2026-03-20')
+    for (let i = 0; i < count; i++) {
+        d = new Date(d)
+        d.setDate(d.getDate() - Math.floor(rand() * 12 + 5))
+        const isWin = rand() * 100 < pick.win_rate
+        const pct = isWin
+            ? +(pick.avg_return * (0.7 + rand() * 0.8)).toFixed(1)
+            : -(pick.stop_loss_pct * (0.5 + rand() * 0.8)).toFixed(1)
+        const entryPrice = Math.round(pick.entry_price * (0.93 + rand() * 0.14))
+        trades.push({
+            date: d.toISOString().slice(0, 10),
+            entry: entryPrice,
+            result: isWin ? '停利' : '停損',
+            pct,
+            win: isWin,
+        })
+    }
+    return trades
+}
+
 const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
+    const [expanded, setExpanded] = useState(false)
     const takeProfit = Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100))
     const stopLoss   = Math.round(pick.entry_price * (1 - pick.stop_loss_pct  / 100))
+    const trades     = expanded ? genMockTrades(pick) : []
 
     return (
-        <div className="border-b border-zinc-800 px-3 py-3 last:border-0">
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
             {/* Row 1: rank + name + id + score */}
             <div className="flex items-baseline gap-1.5 mb-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5">#{rank}</span>
@@ -59,8 +87,11 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 <span className="text-emerald-400 font-mono font-bold text-lg">▼{stopLoss.toLocaleString()}</span>
             </div>
 
-            {/* Row 3: meta — all on one line, no wrapping */}
-            <div className="flex items-center gap-2 text-sm text-zinc-500 whitespace-nowrap overflow-hidden">
+            {/* Row 3: meta + expand toggle */}
+            <div
+                className="flex items-center gap-2 text-sm text-zinc-500 whitespace-nowrap overflow-hidden cursor-pointer select-none"
+                onClick={() => setExpanded(v => !v)}
+            >
                 <span>{pick.strategy_count} 策略</span>
                 <span className="text-zinc-700">·</span>
                 <span>{pick.hold_days_max}天</span>
@@ -70,7 +101,30 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 <span className="text-rose-400">均+{pick.avg_return}%</span>
                 <span className="text-zinc-700">·</span>
                 <span>{pick.trade_count}筆</span>
+                <span className="ml-auto text-zinc-600 text-xs">{expanded ? '▲' : '▼'}</span>
             </div>
+
+            {/* Expanded: 歷史交易紀錄 */}
+            {expanded && (
+                <div className="mt-3 border-t border-zinc-800 pt-3">
+                    <div className="grid grid-cols-4 text-xs text-zinc-600 uppercase tracking-widest mb-1.5 px-1">
+                        <span>日期</span>
+                        <span className="text-right">買入</span>
+                        <span className="text-right">結果</span>
+                        <span className="text-right">報酬</span>
+                    </div>
+                    {trades.map((t, i) => (
+                        <div key={i} className="grid grid-cols-4 text-xs py-1.5 px-1 border-t border-zinc-800/50">
+                            <span className="text-zinc-500 font-mono">{t.date.slice(5)}</span>
+                            <span className="text-right text-zinc-400 font-mono">{t.entry.toLocaleString()}</span>
+                            <span className={`text-right font-medium ${t.win ? 'text-rose-400' : 'text-emerald-400'}`}>{t.result}</span>
+                            <span className={`text-right font-mono font-bold ${t.win ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {t.pct > 0 ? '+' : ''}{t.pct}%
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -484,7 +538,7 @@ const StrategyPage = () => {
 
     return (
         <>
-            <Head><title>策略推薦 | AlphaForge</title></Head>
+            <Head><title>每日精選 | AlphaForge</title></Head>
             <div className="min-h-[calc(100vh-64px)] flex flex-col gap-4 sm:gap-6 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
 
                 {/* ── Header ───────────────────────────────────────────── */}
@@ -492,15 +546,21 @@ const StrategyPage = () => {
                     <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-amber-500/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
                     <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
-                                Alpha Miner{' '}
-                                <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">策略金鑰</span>
-                            </h1>
+                            <div className="flex items-center gap-3">
+                                <span className="absolute top-0 right-0 px-2.5 py-1 bg-zinc-800 border border-zinc-700 text-zinc-500 rounded-full text-xs font-mono">開發中</span>
+                                <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight flex items-center gap-2">
+                                    <svg viewBox="0 0 24 24" width="28" height="28" className="fill-amber-400 shrink-0 self-center">
+                                        <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                                    </svg>
+                                    每日{' '}
+                                    <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">精選</span>
+                                </h1>
+                                <span className="text-zinc-500 text-sm font-mono">
+                                    {new Date().toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
+                                </span>
+                            </div>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
-                                {result
-                                    ? `${result.strategies.filter(s => s.is_significant).length} 組顯著策略（共 ${result.strategies.length} 組）· ${result.total_combinations_tested} 組因子 × 3 持有期 · 訓練 ${result.train_period} · 測試 ${result.test_period}`
-                                    : loading ? '載入中…' : 'Alpha Miner 多因子邏輯迴歸'
-                                }
+                                量化模型每日精算 · 買入區間 · 停利停損一次到位 · 勝率為歷史統計參考，不構成投資建議。
                             </p>
                         </div>
                     </div>
@@ -513,176 +573,14 @@ const StrategyPage = () => {
                 )}
 
                 {/* ── 今日推薦 ──────────────────────────────────────────── */}
-                <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl sm:rounded-3xl p-3 sm:p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-amber-500 pl-2">
-                                今日推薦
-                            </p>
-                            <p className="text-zinc-600 text-xs mt-0.5 pl-3">盤後計算 · 明日開盤參考買入 · 最多 10 檔</p>
-                        </div>
-                        <span className="px-2.5 py-1 bg-zinc-800 border border-zinc-700 text-zinc-500 rounded-full text-xs">
-                            模擬資料（Strategy Miner 開發中）
-                        </span>
-                    </div>
-
-                    <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
+                <div>
+                    <div className="flex flex-col gap-2">
                         {MOCK_PICKS.map((pick, i) => (
                             <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
                         ))}
                     </div>
                 </div>
 
-                {/* ── Alpha Miner 策略庫（縮小呈現） ─────────────────────── */}
-                <div>
-                    <p className="text-xs font-bold text-zinc-600 uppercase tracking-widest border-l-2 border-zinc-700 pl-2 mb-3">
-                        Alpha Miner 策略庫
-                    </p>
-                </div>
-
-                {/* ── Dimension Tabs ────────────────────────────────────── */}
-                <div className="flex gap-2">
-                    {(Object.keys(DIM_CONFIG) as DimKey[]).map(key => {
-                        const cfg = DIM_CONFIG[key]
-                        const active = dim === key
-                        return (
-                            <button
-                                key={key}
-                                onClick={() => { setDim(key); setSelectedId(null) }}
-                                className={`flex-1 sm:flex-none px-3 sm:px-5 py-2.5 sm:py-2 rounded-xl text-sm font-semibold transition-all duration-200 border cursor-pointer ${
-                                    active
-                                        ? 'bg-amber-500/10 border-amber-500/50 text-amber-400 shadow-sm shadow-amber-500/10'
-                                        : 'bg-zinc-900/40 border-zinc-800 text-zinc-500 hover:text-zinc-200 hover:border-zinc-600'
-                                }`}
-                            >
-                                <span className="sm:hidden">{cfg.shortLabel}</span>
-                                <span className="hidden sm:inline">{cfg.label}</span>
-                                {active && (
-                                    <span className="hidden sm:inline text-xs ml-2 opacity-50">{cfg.desc}</span>
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-
-                {/* ── Strategy List ─────────────────────────────────────── */}
-                <div className="flex-1">
-                    {/* Market baseline banner */}
-                    {strategies.length > 0 && (
-                        <div className="flex items-center gap-2 mb-3 px-1">
-                            <span className="text-zinc-600 text-xs uppercase tracking-widest">市場基準</span>
-                            <span className="text-zinc-500 text-xs">
-                                &gt;{tlo}% 勝率 {toPct(strategies[0]?.market_win_rate ?? 0)}
-                                ・&gt;{thi}% 勝率 {toPct(strategies[0]?.market_win_rate_hi ?? 0)}
-                            </span>
-                        </div>
-                    )}
-
-                    {loading ? (
-                        <div className="space-y-2.5">
-                            {Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-28" />)}
-                        </div>
-                    ) : strategies.length === 0 ? (
-                        <div className="h-40 flex flex-col items-center justify-center gap-2 text-zinc-600 text-sm bg-zinc-900/30 border border-zinc-800 rounded-2xl">
-                            <span className="text-2xl">⛏</span>
-                            {result?.is_training ? '模型訓練中，每 15 秒自動更新…' : '尚無資料（stock_features 資料不足）'}
-                        </div>
-                    ) : (
-                        <>
-                            {/* ── 手機版：卡片列表 ─────────────────────── */}
-                            <div className="md:hidden space-y-2.5">
-                                {strategies.map((s, idx) => (
-                                    <MobileCard
-                                        key={s.strategy_id}
-                                        s={s}
-                                        idx={idx}
-                                        tlo={tlo}
-                                        thi={thi}
-                                        dimLabel={`${DIM_CONFIG[dim].shortLabel}後`}
-                                        isSelected={selectedId === s.strategy_id}
-                                        onToggle={() => setSelectedId(selectedId === s.strategy_id ? null : s.strategy_id)}
-                                    />
-                                ))}
-                            </div>
-
-                            {/* ── 桌機版：表格 ─────────────────────────── */}
-                            <div className="hidden md:block bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="text-zinc-600 text-xs uppercase tracking-widest border-b border-zinc-800">
-                                                <th className="text-left py-2 pr-4 w-8">#</th>
-                                                <th className="text-left py-2 pr-6">策略名稱</th>
-                                                <th className="text-right py-2 pr-4">勝率 &gt;{tlo}%</th>
-                                                <th className="text-right py-2 pr-4">勝率 &gt;{thi}%</th>
-                                                <th className="text-right py-2 pr-4">踩雷 &lt;-{tlo}%</th>
-                                                <th className="text-right py-2 pr-4">賠率比</th>
-                                                <th className="text-right py-2 pr-4">IC</th>
-                                                <th className="text-right py-2 pr-4">p-value</th>
-                                                <th className="text-center py-2">狀態</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {strategies.map((s, idx) => (
-                                                <React.Fragment key={s.strategy_id}>
-                                                    <tr
-                                                        onClick={() => setSelectedId(selectedId === s.strategy_id ? null : s.strategy_id)}
-                                                        className={`border-b border-zinc-800/50 cursor-pointer transition-colors duration-150 ${selectedId === s.strategy_id ? 'bg-zinc-800/40' : 'hover:bg-zinc-800/20'}`}
-                                                    >
-                                                        <td className="py-3 pr-4 text-zinc-600 font-mono text-xs">{idx + 1}</td>
-                                                        <td className="py-3 pr-6">
-                                                            <span className="text-zinc-200 font-medium">{s.strategy_name}</span>
-                                                            {s.overfit_warning && <span className="ml-2 text-amber-500 text-xs">⚠</span>}
-                                                        </td>
-                                                        <td className={`py-3 pr-4 text-right font-mono font-medium ${s.win_rate_outsample > s.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                            {toPct(s.win_rate_outsample)}
-                                                            <span className="text-zinc-600 text-xs ml-1">({toPct(s.market_win_rate)})</span>
-                                                        </td>
-                                                        <td className={`py-3 pr-4 text-right font-mono font-medium ${s.win_rate_outsample_hi > s.market_win_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                            {toPct(s.win_rate_outsample_hi)}
-                                                            <span className="text-zinc-600 text-xs ml-1">({toPct(s.market_win_rate_hi)})</span>
-                                                        </td>
-                                                        <td className={`py-3 pr-4 text-right font-mono font-medium ${s.loss_rate_outsample < s.market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                            {toPct(s.loss_rate_outsample)}
-                                                        </td>
-                                                        <td className={`py-3 pr-4 text-right font-mono font-medium ${s.odds_ratio >= 1.2 ? 'text-amber-400' : s.odds_ratio >= 1.0 ? 'text-zinc-300' : 'text-rose-400'}`}>
-                                                            {s.odds_ratio.toFixed(2)}x
-                                                        </td>
-                                                        <td className={`py-3 pr-4 text-right font-mono ${s.ic > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
-                                                            {s.ic.toFixed(3)}
-                                                        </td>
-                                                        <td className="py-3 pr-4 text-right font-mono text-zinc-400 text-xs">
-                                                            {s.p_value_corrected < 0.001 ? '<0.001' : s.p_value_corrected.toFixed(3)}
-                                                        </td>
-                                                        <td className="py-3 text-center">
-                                                            {s.is_significant
-                                                                ? <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-bold">顯著</span>
-                                                                : <span className="px-2 py-0.5 bg-zinc-800 text-zinc-500 rounded-full text-xs">不顯著</span>
-                                                            }
-                                                        </td>
-                                                    </tr>
-                                                    {selectedId === s.strategy_id && (
-                                                        <tr>
-                                                            <td colSpan={9} className="py-3 px-2">
-                                                                <DetailPanel strategyId={s.strategy_id} onClose={() => setSelectedId(null)} />
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* ── Footer Disclaimer ─────────────────────────────────── */}
-                <p className="text-zinc-600 text-xs text-center pb-2 leading-relaxed">
-                    AlphaForge 為學習型工具，勝率為歷史統計參考，不構成投資建議。<br className="sm:hidden" />
-                    Bonferroni 校正門檻：p &lt; {result?.bonferroni_threshold.toFixed(4) ?? '…'}（各持有期獨立校正）
-                </p>
             </div>
         </>
     )
