@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import api from '../lib/api'
 
@@ -19,6 +19,11 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setResult(null)
+    setError(null)
+  }, [stockId])
 
   async function fetchAnalysis(refresh = false) {
     setLoading(true)
