@@ -6,6 +6,75 @@ import {
     ResponsiveContainer, CartesianGrid, ReferenceLine
 } from 'recharts'
 
+// ─── Strategy Miner Mock Data ─────────────────────────────────────────────────
+interface StrategyPick {
+    stock_id: string; stock_name: string
+    entry_price: number; take_profit_pct: number; stop_loss_pct: number
+    hold_days_max: number; weighted_score: number; strategy_count: number
+    win_rate: number; avg_return: number; trade_count: number
+}
+
+const MOCK_PICKS: StrategyPick[] = [
+    { stock_id: '2330', stock_name: '台積電',   entry_price: 895,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 4.21, strategy_count: 6, win_rate: 64, avg_return: 3.2, trade_count: 22 },
+    { stock_id: '2454', stock_name: '聯發科',   entry_price: 1230, take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 3.87, strategy_count: 5, win_rate: 61, avg_return: 2.8, trade_count: 19 },
+    { stock_id: '6505', stock_name: '台塑化',   entry_price: 88,   take_profit_pct: 5,  stop_loss_pct: 3, hold_days_max: 10, weighted_score: 3.54, strategy_count: 5, win_rate: 58, avg_return: 2.1, trade_count: 31 },
+    { stock_id: '2317', stock_name: '鴻海',     entry_price: 182,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 20, weighted_score: 3.31, strategy_count: 4, win_rate: 60, avg_return: 3.5, trade_count: 17 },
+    { stock_id: '2308', stock_name: '台達電',   entry_price: 365,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 3.10, strategy_count: 4, win_rate: 57, avg_return: 2.6, trade_count: 21 },
+    { stock_id: '3008', stock_name: '大立光',   entry_price: 2100, take_profit_pct: 12, stop_loss_pct: 8, hold_days_max: 20, weighted_score: 2.98, strategy_count: 4, win_rate: 55, avg_return: 4.1, trade_count: 13 },
+    { stock_id: '2382', stock_name: '廣達',     entry_price: 245,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 2.74, strategy_count: 4, win_rate: 62, avg_return: 2.9, trade_count: 18 },
+    { stock_id: '2379', stock_name: '瑞昱',     entry_price: 590,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 2.61, strategy_count: 4, win_rate: 59, avg_return: 2.3, trade_count: 24 },
+    { stock_id: '4938', stock_name: '和碩',     entry_price: 77,   take_profit_pct: 5,  stop_loss_pct: 3, hold_days_max: 10, weighted_score: 2.43, strategy_count: 4, win_rate: 56, avg_return: 1.8, trade_count: 28 },
+    { stock_id: '2303', stock_name: '聯電',     entry_price: 48,   take_profit_pct: 5,  stop_loss_pct: 3, hold_days_max: 10, weighted_score: 2.20, strategy_count: 4, win_rate: 54, avg_return: 1.5, trade_count: 33 },
+]
+
+// ─── Today Pick Card ──────────────────────────────────────────────────────────
+const toStars = (score: number) => {
+    const n = score >= 4.0 ? 5 : score >= 3.5 ? 4 : score >= 3.0 ? 3 : score >= 2.5 ? 2 : 1
+    return '★'.repeat(n)
+}
+
+const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
+    const takeProfit = Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100))
+    const stopLoss   = Math.round(pick.entry_price * (1 - pick.stop_loss_pct  / 100))
+
+    return (
+        <div className="border-b border-zinc-800 px-3 py-3 last:border-0">
+            {/* Row 1: rank + name + id + score */}
+            <div className="flex items-baseline gap-1.5 mb-1.5">
+                <span className="text-zinc-600 font-mono text-xs shrink-0 w-5">#{rank}</span>
+                <span className="text-white font-bold text-xl leading-none">{pick.stock_name}</span>
+                <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
+                <span className="ml-auto text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
+            </div>
+
+            {/* Row 2: prices */}
+            <div className="flex items-baseline gap-2 mb-1.5">
+                <span className="text-zinc-500 text-xs">買入</span>
+                <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
+                <span className="text-zinc-600">→</span>
+                <span className="text-zinc-500 text-xs">停利</span>
+                <span className="text-rose-400 font-mono font-bold text-lg">▲{takeProfit.toLocaleString()}</span>
+                <span className="text-zinc-700">/</span>
+                <span className="text-zinc-500 text-xs">停損</span>
+                <span className="text-emerald-400 font-mono font-bold text-lg">▼{stopLoss.toLocaleString()}</span>
+            </div>
+
+            {/* Row 3: meta — all on one line, no wrapping */}
+            <div className="flex items-center gap-2 text-sm text-zinc-500 whitespace-nowrap overflow-hidden">
+                <span>{pick.strategy_count} 策略</span>
+                <span className="text-zinc-700">·</span>
+                <span>{pick.hold_days_max}天</span>
+                <span className="text-zinc-700">·</span>
+                <span className={pick.win_rate >= 60 ? 'text-rose-400' : ''}>勝率{pick.win_rate}%</span>
+                <span className="text-zinc-700">·</span>
+                <span className="text-rose-400">均+{pick.avg_return}%</span>
+                <span className="text-zinc-700">·</span>
+                <span>{pick.trade_count}筆</span>
+            </div>
+        </div>
+    )
+}
+
 // ─── 因子白話描述 ──────────────────────────────────────────────────────────────
 const FACTOR_DESC: Record<string, string> = {
     rsi14:           'RSI 超賣反彈',
@@ -415,7 +484,7 @@ const StrategyPage = () => {
 
     return (
         <>
-            <Head><title>Alpha Miner | AlphaForge</title></Head>
+            <Head><title>策略推薦 | AlphaForge</title></Head>
             <div className="min-h-[calc(100vh-64px)] flex flex-col gap-4 sm:gap-6 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
 
                 {/* ── Header ───────────────────────────────────────────── */}
@@ -442,6 +511,34 @@ const StrategyPage = () => {
                         載入失敗：{error}
                     </div>
                 )}
+
+                {/* ── 今日推薦 ──────────────────────────────────────────── */}
+                <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl sm:rounded-3xl p-3 sm:p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-amber-500 pl-2">
+                                今日推薦
+                            </p>
+                            <p className="text-zinc-600 text-xs mt-0.5 pl-3">盤後計算 · 明日開盤參考買入 · 最多 10 檔</p>
+                        </div>
+                        <span className="px-2.5 py-1 bg-zinc-800 border border-zinc-700 text-zinc-500 rounded-full text-xs">
+                            模擬資料（Strategy Miner 開發中）
+                        </span>
+                    </div>
+
+                    <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
+                        {MOCK_PICKS.map((pick, i) => (
+                            <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── Alpha Miner 策略庫（縮小呈現） ─────────────────────── */}
+                <div>
+                    <p className="text-xs font-bold text-zinc-600 uppercase tracking-widest border-l-2 border-zinc-700 pl-2 mb-3">
+                        Alpha Miner 策略庫
+                    </p>
+                </div>
 
                 {/* ── Dimension Tabs ────────────────────────────────────── */}
                 <div className="flex gap-2">

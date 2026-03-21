@@ -147,8 +147,13 @@ API 呼叫透過 `/api/*` 路由，由 Next.js rewrites（`next.config.js`）代
 | `docker-nas-ops-helper` | `.agent/skills/docker-nas-ops-helper/` | Synology NAS Docker 部署與運維 |
 | `ui-ux-pro-max` | `~/.claude/skills/ui-ux-pro-max/` | UI/UX 設計資料庫（配色、字體、風格，可用腳本查詢） |
 
+### 前端型別檢查
+**絕對不要**在 dev server 執行中時跑 `npm run build`——兩者同時執行會造成 `.next` 快取衝突，產生 `Cannot find module './chunks/vendor-chunks/next.js'` 錯誤。
+- 型別檢查只用：`npx tsc --noEmit`
+- 若必須跑完整 build，先停止 dev server
+
 ### 除錯
-- Next.js 404 無限重整：執行 `npm run clean` 後重啟開發伺服器。原因為 `.next` 快取在 build 與 dev 同時執行時衝突。
+- Next.js 快取衝突（`Cannot find module './chunks/vendor-chunks/next.js'`）：執行 `npm run clean` 後重啟開發伺服器。原因為 `next build` 與 `next dev` 同時執行時衝突。
 - API 文件：`http://localhost:8000/docs`（Swagger UI）
 - 系統事件：查看 `SystemEvent` 資料表或 `GET /market/system-events`
 - 理解介面時優先閱讀原始碼，避免頻繁啟動瀏覽器查看 API docs。
