@@ -423,22 +423,13 @@ const StrategyPage = () => {
                     <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-amber-500/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
                     <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="relative flex h-1.5 w-1.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
-                                    </span>
-                                    <span className="text-amber-500 text-[10px] font-bold tracking-widest uppercase">Phase 5A</span>
-                                </div>
-                            </div>
                             <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
                                 Alpha Miner{' '}
                                 <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">策略金鑰</span>
                             </h1>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
                                 {result
-                                    ? `${result.total_combinations_tested} 組因子 × 3 持有期 · 訓練 ${result.train_period} · 測試 ${result.test_period}`
+                                    ? `${result.strategies.length} 組顯著策略 · ${result.total_combinations_tested} 組因子 × 3 持有期 · 訓練 ${result.train_period} · 測試 ${result.test_period}`
                                     : loading ? '載入中…' : 'Alpha Miner 多因子邏輯迴歸'
                                 }
                             </p>
