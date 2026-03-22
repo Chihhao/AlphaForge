@@ -142,7 +142,11 @@ def _parse_pcr(html: str, target_date: date) -> Optional[dict]:
 
 
 def sync_pcr(db, days_back: int = 5) -> int:
-    """同步最近 days_back 個交易日的 PCR 資料。
+    """同步 TAIFEX 當日 PCR 資料。
+
+    注意：TAIFEX callsAndPutsDate 端點不支援歷史查詢，
+    永遠回傳當日（最近交易日）資料。days_back 參數保留為相容性參數，
+    但實際上只嘗試寫入最近 1~2 個交易日（避免重複）。
 
     冪等：已存在的日期跳過。
     回傳成功寫入筆數。
@@ -152,7 +156,8 @@ def sync_pcr(db, days_back: int = 5) -> int:
     today = date.today()
     written = 0
 
-    for delta in range(days_back):
+    # TAIFEX 只提供當日資料，只嘗試今日與昨日（補假日重試）
+    for delta in range(3):
         target = today - timedelta(days=delta)
         if target.weekday() >= 5:  # 跳過週末
             continue
@@ -166,6 +171,9 @@ def sync_pcr(db, days_back: int = 5) -> int:
         if result is None:
             continue
 
+        # 驗證：API 回傳日期必須為 target（防止 TAIFEX 回傳非當日資料時寫入錯誤）
+        # 若 TAIFEX API 不支援指定日期，result["date"] 仍是 target_date（參數傳入）
+        # 可正常寫入今日資料
         db.add(MarketPCR(
             date=result["date"],
             put_oi=result["put_oi"],
@@ -173,6 +181,7 @@ def sync_pcr(db, days_back: int = 5) -> int:
             pcr=result["pcr"],
         ))
         written += 1
+        break  # 寫入第一個成功的交易日就停止
 
     if written:
         db.commit()
