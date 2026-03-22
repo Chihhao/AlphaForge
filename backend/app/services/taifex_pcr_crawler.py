@@ -55,64 +55,90 @@ def fetch_taifex_pcr(target_date: date) -> Optional[dict]:
 def _parse_pcr(html: str, target_date: date) -> Optional[dict]:
     """解析 TAIFEX HTML 表格，抽取台指選擇權的 Put/Call OI。
 
-    TAIFEX 回傳的 HTML 包含多個商品的 OI 表格。
-    我們只取「台指選擇權」（TXO）的 PUT 和 CALL 合計口數。
+    TAIFEX 回傳的 HTML 包含多個商品的 OI 表格，使用中文欄位「買權」/「賣權」。
+    透過 pandas read_html 解析多層標頭，取「臺指選擇權」的 Put/Call 未平倉口數合計。
     """
     try:
-        from bs4 import BeautifulSoup
+        import io
+        import pandas as pd
     except ImportError:
-        logger.error("[PCR] 需要安裝 beautifulsoup4：pip install beautifulsoup4")
+        logger.error("[PCR] 需要安裝 pandas：pip install pandas lxml")
         return None
 
     try:
-        soup = BeautifulSoup(html, "html.parser")
-        tables = soup.find_all("table", class_="table_f")
-
-        put_oi = 0
-        call_oi = 0
-
-        for table in tables:
-            rows = table.find_all("tr")
-            for row in rows:
-                cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
-                if not cells:
-                    continue
-                # 尋找包含 "臺指選擇權" 或 "TXO" 的行
-                row_text = " ".join(cells)
-                if "臺指選擇權" not in row_text and "TXO" not in row_text:
-                    continue
-                # 解析：CALL 合計 OI 和 PUT 合計 OI
-                # 典型欄位順序：商品名稱, CALL/PUT, 到期月, OI...
-                for i, cell in enumerate(cells):
-                    cell_clean = cell.replace(",", "")
-                    if "CALL" in cell.upper() and i + 1 < len(cells):
-                        try:
-                            val = int(cells[i + 1].replace(",", ""))
-                            call_oi += val
-                        except (ValueError, IndexError):
-                            pass
-                    elif "PUT" in cell.upper() and i + 1 < len(cells):
-                        try:
-                            val = int(cells[i + 1].replace(",", ""))
-                            put_oi += val
-                        except (ValueError, IndexError):
-                            pass
-
-        if call_oi == 0:
-            logger.info(f"[PCR] {target_date}: 無法解析 CALL OI（非交易日或資料格式變更）")
-            return None
-
-        pcr = round(put_oi / call_oi, 4) if call_oi > 0 else None
-        logger.info(f"[PCR] {target_date}: PUT={put_oi:,} CALL={call_oi:,} PCR={pcr}")
-        return {
-            "date": target_date,
-            "put_oi": put_oi,
-            "call_oi": call_oi,
-            "pcr": pcr,
-        }
+        dfs = pd.read_html(io.StringIO(html), flavor="lxml")
     except Exception as e:
-        logger.warning(f"[PCR] 解析 {target_date} 失敗: {e}")
+        logger.warning(f"[PCR] read_html 失敗 {target_date}: {e}")
         return None
+
+    for df in dfs:
+        # 展平多層欄位標頭
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [" ".join(str(c) for c in col).strip() for col in df.columns]
+
+        # 確認是否含有臺指選擇權資料
+        text_repr = df.to_string()
+        if "臺指選擇權" not in text_repr:
+            continue
+
+        try:
+            # 轉為字串方便搜尋；去除逗號數字後轉回數值
+            df_str = df.astype(str)
+
+            call_oi = 0
+            put_oi = 0
+
+            for _, row in df_str.iterrows():
+                row_values = list(row.values)
+                row_text = " ".join(row_values)
+
+                if "臺指選擇權" not in row_text:
+                    continue
+
+                is_call = "買權" in row_text
+                is_put  = "賣權" in row_text
+
+                if not is_call and not is_put:
+                    continue
+
+                # 找出所有可能的數字欄，取最後一個足夠大的整數（未平倉口數通常是最大值）
+                nums = []
+                for v in row_values:
+                    cleaned = v.replace(",", "").strip()
+                    try:
+                        nums.append(int(float(cleaned)))
+                    except (ValueError, TypeError):
+                        pass
+
+                # 取最大的整數作為 OI（通常是合計欄）
+                if not nums:
+                    continue
+                oi_val = max(nums)
+
+                if is_call:
+                    call_oi += oi_val
+                elif is_put:
+                    put_oi += oi_val
+
+            if call_oi == 0:
+                logger.info(f"[PCR] {target_date}: 無法解析 CALL OI（非交易日或資料格式變更）")
+                return None
+
+            pcr = round(put_oi / call_oi, 4) if call_oi > 0 else None
+            logger.info(f"[PCR] {target_date}: PUT={put_oi:,} CALL={call_oi:,} PCR={pcr}")
+            return {
+                "date": target_date,
+                "put_oi": put_oi,
+                "call_oi": call_oi,
+                "pcr": pcr,
+            }
+
+        except Exception as e:
+            logger.warning(f"[PCR] 解析表格 {target_date} 失敗: {e}")
+            continue
+
+    logger.info(f"[PCR] {target_date}: 找不到臺指選擇權資料（非交易日？）")
+    return None
 
 
 def sync_pcr(db, days_back: int = 5) -> int:
