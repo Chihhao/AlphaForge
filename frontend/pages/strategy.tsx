@@ -617,6 +617,22 @@ const StrategyPage = () => {
     const [perfData, setPerfData] = useState<Record<string, any> | null>(null)
     const [perfLoading, setPerfLoading] = useState(false)
 
+    // 近期精選歷史
+    const [histExpanded, setHistExpanded] = useState(false)
+    const [histPicks, setHistPicks] = useState<StrategyMinerPick[]>([])
+    const [histLoading, setHistLoading] = useState(false)
+
+    const handleHistExpand = () => {
+        const next = !histExpanded
+        setHistExpanded(next)
+        if (next && histPicks.length === 0 && !histLoading) {
+            setHistLoading(true)
+            api.get('/strategy-miner/picks/history?days=14')
+                .then(r => { setHistPicks(r.data ?? []); setHistLoading(false) })
+                .catch(() => setHistLoading(false))
+        }
+    }
+
     const handlePerfExpand = () => {
         const next = !perfExpanded
         setPerfExpanded(next)
@@ -798,6 +814,73 @@ const StrategyPage = () => {
                     {picks.map((pick, i) => (
                         <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
                     ))}
+                </div>
+
+                {/* ── 近期精選歷史（折疊）─────────────────────────────── */}
+                <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
+                    <button
+                        onClick={handleHistExpand}
+                        className="w-full flex items-center justify-between px-4 py-4 bg-zinc-900/40 hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <svg viewBox="0 0 24 24" width="18" height="18" className="fill-zinc-500 shrink-0">
+                                <path d="M9,11H7V13H9V11M13,11H11V13H13V11M17,11H15V13H17V11M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V8H19V19Z" />
+                            </svg>
+                            <span className="text-zinc-400 font-semibold text-sm">近期精選歷史</span>
+                            {histPicks.length > 0 && (
+                                <span className="text-zinc-600 text-xs font-mono">近 14 日</span>
+                            )}
+                        </div>
+                        <span className="text-zinc-600 text-xs">{histExpanded ? '▲ 收起' : '▼ 展開'}</span>
+                    </button>
+
+                    {histExpanded && (
+                        <div className="px-3 pb-3 pt-1">
+                            {histLoading && (
+                                <div className="space-y-1.5 py-2">
+                                    {[1,2,3].map(i => <div key={i} className="h-8 bg-zinc-800/40 rounded animate-pulse" />)}
+                                </div>
+                            )}
+                            {!histLoading && histPicks.length === 0 && (
+                                <p className="text-zinc-600 text-sm text-center py-4">近 14 日無精選記錄</p>
+                            )}
+                            {!histLoading && histPicks.length > 0 && (() => {
+                                // 按日期分組
+                                const byDate = histPicks.reduce<Record<string, StrategyMinerPick[]>>((acc, p) => {
+                                    ;(acc[p.pick_date] ??= []).push(p)
+                                    return acc
+                                }, {})
+                                return (
+                                    <div className="space-y-2 mt-1">
+                                        {Object.entries(byDate)
+                                            .sort(([a], [b]) => b.localeCompare(a))
+                                            .map(([d, dayPicks]) => (
+                                                <div key={d}>
+                                                    <p className="text-zinc-600 text-[10px] font-mono px-1 mb-1">
+                                                        {new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {dayPicks.map(p => (
+                                                            <Link
+                                                                key={p.stock_id}
+                                                                href={`/stock/${p.stock_id}`}
+                                                                className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
+                                                            >
+                                                                <span className="text-zinc-300 font-medium">{p.stock_name}</span>
+                                                                <span className="text-zinc-600 font-mono">{p.stock_id}</span>
+                                                                <span className="text-amber-500 font-mono">
+                                                                    +{Math.round(p.take_profit_pct * 100)}%
+                                                                </span>
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )
+                            })()}
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Strategy Miner 回測績效（折疊）─────────────────── */}
