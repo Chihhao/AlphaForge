@@ -578,6 +578,22 @@ const StrategyPage = () => {
     const [activeDim, setActiveDim] = useState<DimKey>('5d')
     const [selectedStratId, setSelectedStratId] = useState<string | null>(null)
 
+    // Strategy Miner 回測績效
+    const [perfExpanded, setPerfExpanded] = useState(false)
+    const [perfData, setPerfData] = useState<Record<string, any> | null>(null)
+    const [perfLoading, setPerfLoading] = useState(false)
+
+    const handlePerfExpand = () => {
+        const next = !perfExpanded
+        setPerfExpanded(next)
+        if (next && !perfData && !perfLoading) {
+            setPerfLoading(true)
+            api.get('/strategy-miner/performance')
+                .then(r => { setPerfData(r.data); setPerfLoading(false) })
+                .catch(() => setPerfLoading(false))
+        }
+    }
+
     const handleAlphaExpand = () => {
         const next = !alphaExpanded
         setAlphaExpanded(next)
@@ -747,6 +763,86 @@ const StrategyPage = () => {
                     {picks.map((pick, i) => (
                         <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
                     ))}
+                </div>
+
+                {/* ── Strategy Miner 回測績效（折疊）─────────────────── */}
+                <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
+                    <button
+                        onClick={handlePerfExpand}
+                        className="w-full flex items-center justify-between px-4 py-4 bg-zinc-900/40 hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <svg viewBox="0 0 24 24" width="18" height="18" className="fill-zinc-500 shrink-0">
+                                <path d="M22,21H2V3H4V19H6V10H10V19H12V14H16V19H18V7H22V21Z" />
+                            </svg>
+                            <span className="text-zinc-400 font-semibold text-sm">Strategy Miner 回測績效</span>
+                            {perfData && !perfLoading && (
+                                <span className="text-zinc-600 text-xs font-mono">
+                                    {Object.keys(perfData).length} 個維度已優化
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-zinc-600 text-xs">{perfExpanded ? '▲ 收起' : '▼ 展開'}</span>
+                    </button>
+
+                    {perfExpanded && (
+                        <div className="px-3 pb-4 pt-2 space-y-3">
+                            {perfLoading && (
+                                <div className="space-y-2">
+                                    {[1, 2, 3].map(i => <div key={i} className="h-16 bg-zinc-800/40 rounded-xl animate-pulse" />)}
+                                </div>
+                            )}
+                            {!perfLoading && perfData && Object.keys(perfData).length === 0 && (
+                                <p className="text-zinc-600 text-sm text-center py-4">尚無回測資料（需先執行參數尋優）</p>
+                            )}
+                            {!perfLoading && perfData && Object.keys(perfData).length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {(['5d', '10d', '30d'] as const).map(dim => {
+                                        const p = perfData[dim]
+                                        if (!p) return null
+                                        return (
+                                            <div key={dim} className="bg-zinc-800/50 rounded-xl px-3 py-3 space-y-1.5">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-zinc-300 font-semibold text-sm">{dim === '5d' ? '5日持有' : dim === '10d' ? '10日持有' : '30日持有'}</span>
+                                                    {p.computed_at && (
+                                                        <span className="text-zinc-700 text-[10px] font-mono">{p.computed_at}</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-zinc-500 text-xs">最優參數</span>
+                                                    <span className="text-amber-400 font-mono text-xs font-bold">
+                                                        +{Math.round(p.take_profit_pct * 100)}% / -{Math.round(p.stop_loss_pct * 100)}% / {p.hold_days_max}天
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-zinc-500 text-xs">測試集 Sharpe</span>
+                                                    <span className={`font-mono text-sm font-bold ${p.sharpe_test > 0.5 ? 'text-emerald-400' : p.sharpe_test > 0 ? 'text-zinc-300' : 'text-rose-400'}`}>
+                                                        {p.sharpe_test?.toFixed(3) ?? '—'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-zinc-500 text-xs">測試集勝率</span>
+                                                    <span className={`font-mono text-sm font-bold ${(p.win_rate_test ?? 0) >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                                                        {p.win_rate_test ? `${(p.win_rate_test * 100).toFixed(1)}%` : '—'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-zinc-500 text-xs">平均報酬</span>
+                                                    <span className={`font-mono text-sm font-bold ${(p.avg_return_test ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                        {p.avg_return_test != null ? `${p.avg_return_test >= 0 ? '+' : ''}${p.avg_return_test.toFixed(2)}%` : '—'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-zinc-500 text-xs">測試交易筆數</span>
+                                                    <span className="font-mono text-sm text-zinc-400">{p.trade_count_test ?? '—'}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Alpha Miner 策略庫（折疊）──────────────────────── */}
