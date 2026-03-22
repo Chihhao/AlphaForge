@@ -4,11 +4,11 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import api from '../../lib/api'
 import KDIndicator from '../../components/KDIndicator'
-import StockAIAnalysis from '../../components/StockAIAnalysis'
 import EducationalHint from '../../components/EducationalHint'
 import { formatPrice } from '../../lib/formatters'
 
 const TVChart = dynamic(() => import('../../components/TVChart'), { ssr: false })
+const StockAIAnalysis = dynamic(() => import('../../components/StockAIAnalysis'), { ssr: false })
 
 const FUND_FAMILY_MAP: Record<string, string> = {
   'Yuanta': '元大投信',
