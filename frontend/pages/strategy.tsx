@@ -256,7 +256,6 @@ const FACTOR_DESC: Record<string, string> = {
     dealer_buy_5d:   '自營商5日累積買超',
     price_vs_high20: '距近期高點距離',
     ma_trend:        '均線多頭排列',
-    market_pcr:      '選擇權 PCR 恐慌指標',
     etf_net_flow_5d: 'ETF 5日淨申購資金流',
 }
 

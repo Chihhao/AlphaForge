@@ -197,18 +197,18 @@ export default function StockDetail() {
     <div className="flex-grow">
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-6">
         {/* Stock Header */}
-        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+        <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
           <div className="flex justify-between items-center mb-3">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-4xl font-bold text-gray-100 leading-tight">
+                <h1 className="text-2xl sm:text-4xl font-bold text-zinc-100 leading-tight">
                   {displayName}
-                  <span className="text-gray-500 text-base font-normal ml-2">{id}</span>
+                  <span className="text-zinc-500 text-base font-normal ml-2">{id}</span>
                 </h1>
                 <button
                   onClick={() => toggle(id as string, displayName)}
                   title={has(id as string) ? '從觀察清單移除' : '加入觀察清單'}
-                  className={`shrink-0 p-1.5 rounded-full transition-colors ${has(id as string) ? 'text-amber-400 hover:text-amber-300' : 'text-gray-600 hover:text-amber-400'}`}
+                  className={`shrink-0 p-1.5 rounded-full transition-colors ${has(id as string) ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-amber-400'}`}
                 >
                   <svg viewBox="0 0 24 24" width="20" height="20" className="fill-current">
                     <path d={has(id as string)
@@ -220,7 +220,7 @@ export default function StockDetail() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl sm:text-4xl font-bold text-gray-100 tabular-nums">{formatPrice(displayPrice)}</p>
+              <p className="text-2xl sm:text-4xl font-bold text-zinc-100 tabular-nums">{formatPrice(displayPrice)}</p>
               <p className={`text-base sm:text-xl font-semibold tabular-nums ${displayChange >= 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
                 {displayChange >= 0 ? '+' : ''}{displayChange.toFixed(2)}%
               </p>
@@ -236,29 +236,29 @@ export default function StockDetail() {
                 </svg>
                 今日精選
               </span>
-              <span className="text-xs text-gray-500 font-mono">
+              <span className="text-xs text-zinc-500 font-mono">
                 入場 {strategyPick.entry_price?.toLocaleString()}
                 <span className="text-rose-400 ml-2">▲停利 +{Math.round(strategyPick.take_profit_pct * 100)}%</span>
                 <span className="text-emerald-400 ml-2">▼停損 -{Math.round(strategyPick.stop_loss_pct * 100)}%</span>
               </span>
             </div>
           )}
-          <div className="-mx-4 sm:mx-0 border-t border-gray-700 mb-0" />
+          <div className="-mx-4 sm:mx-0 border-t border-zinc-800/60 mb-0" />
           <div className="grid grid-cols-4 gap-2 pt-3">
             <div>
-              <p className="text-base text-gray-500">開盤</p>
+              <p className="text-base text-zinc-500">開盤</p>
               <p className="text-lg sm:text-xl font-semibold tabular-nums">{formatPrice(quote?.open_price)}</p>
             </div>
             <div>
-              <p className="text-base text-gray-500">最高</p>
+              <p className="text-base text-zinc-500">最高</p>
               <p className="text-lg sm:text-xl font-semibold tabular-nums">{formatPrice(quote?.high_price)}</p>
             </div>
             <div>
-              <p className="text-base text-gray-500">最低</p>
+              <p className="text-base text-zinc-500">最低</p>
               <p className="text-lg sm:text-xl font-semibold tabular-nums">{formatPrice(quote?.low_price)}</p>
             </div>
             <div>
-              <p className="text-base text-gray-500">成交量</p>
+              <p className="text-base text-zinc-500">成交量</p>
               <p className="text-lg sm:text-xl font-semibold tabular-nums">
                 {quote?.volume
                   ? (() => {
@@ -274,7 +274,7 @@ export default function StockDetail() {
         </div>
 
         {/* Chart Section */}
-        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 pb-0 sm:p-6 mb-0 sm:mb-6">
+        <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 pb-0 sm:p-6 mb-0 sm:mb-6">
           {/* Selectors: interval + sub-chart in one row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <div className="flex items-center gap-1">
@@ -283,23 +283,23 @@ export default function StockDetail() {
                   key={i}
                   onClick={() => setInterval(i)}
                   className={`px-3 py-1.5 rounded text-base font-medium transition-colors ${interval === i
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-zinc-700 text-amber-400 font-bold'
+                    : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
                   {i === '30m' ? '30分' : i === '1h' ? '時' : i === '1d' ? '日' : i === '1wk' ? '週' : '月'}
                 </button>
               ))}
             </div>
-            <span className="text-gray-700">|</span>
+            <span className="text-zinc-700">|</span>
             <div className="flex items-center gap-1">
               {(['volume', 'rsi', 'bias'] as const).map(s => (
                 <button
                   key={s}
                   onClick={() => setSubChart(s)}
                   className={`px-3 py-1.5 rounded text-base font-medium transition-colors ${subChart === s
-                    ? (s === 'volume' ? 'bg-blue-600' : s === 'rsi' ? 'bg-orange-600' : 'bg-purple-600') + ' text-white'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-zinc-700 text-amber-400 font-bold'
+                    : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
                   {s === 'volume' ? '量' : s === 'rsi' ? 'RSI' : '乖離'}
@@ -308,11 +308,11 @@ export default function StockDetail() {
             </div>
           </div>
 
-          <div className="-mx-4 sm:mx-0 border-y border-x-0 sm:border sm:rounded border-gray-700 min-h-[450px]">
+          <div className="-mx-4 sm:mx-0 border-y border-x-0 sm:border sm:rounded-xl border-zinc-800/60 min-h-[450px]">
             {chartData.length > 0 ? (
               <TVChart data={chartData} interval={interval} subChart={subChart} />
             ) : (
-              <div className="flex items-center justify-center h-[450px] text-gray-500 bg-gray-900">
+              <div className="flex items-center justify-center h-[450px] text-zinc-500 bg-zinc-900">
                 載入圖表中...
               </div>
             )}
@@ -320,19 +320,19 @@ export default function StockDetail() {
         </div>
 
         {/* Fundamental Section */}
-        <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+        <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0">
             {/* 價值評估 */}
             <div>
               <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-blue-500 pl-1.5 mb-2">估值</p>
-              <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
-                <span className="text-base text-gray-400 flex items-center gap-1">本益比 <EducationalHint glossaryId="pe-ratio" /></span>
-                <span className="font-mono text-lg text-gray-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(1) : '---'}</span>
+              <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
+                <span className="text-base text-zinc-400 flex items-center gap-1">本益比 <EducationalHint glossaryId="pe-ratio" /></span>
+                <span className="font-mono text-lg text-zinc-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(1) : '---'}</span>
               </div>
               {quote?.total_assets == null && (
                 <div className="flex justify-between items-center py-1.5">
-                  <span className="text-base text-gray-400 flex items-center gap-1">股價淨值比 <EducationalHint glossaryId="pb-ratio" /></span>
-                  <span className="font-mono text-lg text-gray-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
+                  <span className="text-base text-zinc-400 flex items-center gap-1">股價淨值比 <EducationalHint glossaryId="pb-ratio" /></span>
+                  <span className="font-mono text-lg text-zinc-100">{quote?.pb_ratio ? quote.pb_ratio.toFixed(2) : '---'}</span>
                 </div>
               )}
             </div>
@@ -341,16 +341,16 @@ export default function StockDetail() {
             <div>
               <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-rose-500 pl-1.5 mb-2">獲利</p>
               {quote?.total_assets == null && (
-                <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
-                  <span className="text-base text-gray-400 flex items-center gap-1">權益報酬率 <EducationalHint glossaryId="roe-indicator" /></span>
-                  <span className={`font-mono text-sm ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-gray-100'}`}>
+                <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
+                  <span className="text-base text-zinc-400 flex items-center gap-1">權益報酬率 <EducationalHint glossaryId="roe-indicator" /></span>
+                  <span className={`font-mono text-sm ${quote?.roe >= 10 ? 'text-cyan-400' : 'text-zinc-100'}`}>
                     {quote?.roe ? `${quote.roe.toFixed(1)}%` : '---'}
                   </span>
                 </div>
               )}
               <div className="flex justify-between items-center py-1.5">
-                <span className="text-base text-gray-400 flex items-center gap-1">現金殖利率 <EducationalHint glossaryId="dividend-yield" /></span>
-                <span className={`font-mono text-sm ${quote?.yield_rate >= 5 ? 'text-rose-400' : 'text-gray-100'}`}>
+                <span className="text-base text-zinc-400 flex items-center gap-1">現金殖利率 <EducationalHint glossaryId="dividend-yield" /></span>
+                <span className={`font-mono text-sm ${quote?.yield_rate >= 5 ? 'text-rose-400' : 'text-zinc-100'}`}>
                   {quote?.yield_rate ? `${quote.yield_rate.toFixed(1)}%` : '---'}
                 </span>
               </div>
@@ -361,27 +361,27 @@ export default function StockDetail() {
               {quote?.total_assets != null ? (
                 <>
                   <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">基金</p>
-                  <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
-                    <span className="text-base text-gray-400">規模 (億)</span>
-                    <span className="font-mono text-lg text-gray-100">
+                  <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
+                    <span className="text-base text-zinc-400">規模 (億)</span>
+                    <span className="font-mono text-lg text-zinc-100">
                       {(quote.total_assets / 1e8).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1.5">
-                    <span className="text-base text-gray-400">基金公司</span>
-                    <span className="font-mono text-sm text-gray-100">{formatFundFamily(quote?.fund_family)}</span>
+                    <span className="text-base text-zinc-400">基金公司</span>
+                    <span className="font-mono text-sm text-zinc-100">{formatFundFamily(quote?.fund_family)}</span>
                   </div>
                 </>
               ) : (
                 <>
                   <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">營收</p>
-                  <div className="flex justify-between items-center py-1.5 border-b border-gray-700/50">
-                    <span className="text-base text-gray-400">單月 (億)</span>
-                    <span className="font-mono text-lg text-gray-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
+                  <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
+                    <span className="text-base text-zinc-400">單月 (億)</span>
+                    <span className="font-mono text-lg text-zinc-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5">
-                    <span className="text-base text-gray-400">年增率</span>
-                    <span className={`font-mono text-sm ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-gray-100'}`}>
+                    <span className="text-base text-zinc-400">年增率</span>
+                    <span className={`font-mono text-sm ${quote?.revenue_growth_yoy > 0 ? 'text-rose-400' : quote?.revenue_growth_yoy < 0 ? 'text-emerald-400' : 'text-zinc-100'}`}>
                       {quote?.revenue_growth_yoy ? `${quote.revenue_growth_yoy > 0 ? '+' : ''}${quote.revenue_growth_yoy.toFixed(1)}%` : '---'}
                     </span>
                   </div>
@@ -390,7 +390,7 @@ export default function StockDetail() {
             </div>
           </div>
           {quote?.fundamental_updated_at && (
-            <p className="text-xs text-gray-600 mt-3 text-right">
+            <p className="text-xs text-zinc-600 mt-3 text-right">
               基本面資料更新：{new Date(quote.fundamental_updated_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
             </p>
           )}
@@ -398,12 +398,12 @@ export default function StockDetail() {
 
         {/* Chip Data Card */}
         {chipData.length > 0 && (
-          <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
-            <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">籌碼面（近 {chipData.length} 日）</p>
+          <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+            <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">籌碼面（近 {chipData.length} 日）</p>
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <table className="w-full text-xs min-w-[480px] sm:min-w-0">
                 <thead>
-                  <tr className="text-gray-600 uppercase tracking-widest text-[10px] border-b border-gray-700">
+                  <tr className="text-zinc-600 uppercase tracking-widest text-[10px] border-b border-gray-700">
                     <th className="text-left py-1.5 px-2 font-medium">日期</th>
                     <th className="text-right py-1.5 px-2 font-medium">外資</th>
                     <th className="text-right py-1.5 px-2 font-medium">投信</th>
@@ -420,25 +420,25 @@ export default function StockDetail() {
                     const trs = row.trust_net_buy
                     const dlr = row.dealer_net_buy
                     const fmt = (v: number | null) => {
-                      if (v == null) return <span className="text-gray-700">—</span>
+                      if (v == null) return <span className="text-zinc-700">—</span>
                       const lots = Math.round(v)
                       const abs = Math.abs(lots)
                       const str = abs >= 1000 ? `${(abs / 1000).toFixed(1)}千` : `${abs}`
-                      const color = lots > 0 ? 'text-rose-400' : lots < 0 ? 'text-emerald-400' : 'text-gray-600'
+                      const color = lots > 0 ? 'text-rose-400' : lots < 0 ? 'text-emerald-400' : 'text-zinc-600'
                       return <span className={`font-mono font-bold ${color}`}>{lots > 0 ? '+' : lots < 0 ? '−' : ''}{str}</span>
                     }
                     return (
-                      <tr key={i} className="border-b border-gray-700/30 hover:bg-gray-700/20 transition-colors">
+                      <tr key={i} className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors">
                         <td className="py-1.5 px-2 text-gray-500 font-mono">{row.date?.slice(5)}</td>
                         <td className="py-1.5 px-2 text-right">{fmt(fgn)}</td>
                         <td className="py-1.5 px-2 text-right">{fmt(trs)}</td>
                         <td className="py-1.5 px-2 text-right">{fmt(dlr)}</td>
-                        <td className="py-1.5 px-2 text-right font-mono text-gray-400">
-                          {row.margin_balance != null ? row.margin_balance.toLocaleString() : <span className="text-gray-700">—</span>}
+                        <td className="py-1.5 px-2 text-right font-mono text-zinc-400">
+                          {row.margin_balance != null ? row.margin_balance.toLocaleString() : <span className="text-zinc-700">—</span>}
                         </td>
                         {chipData.some(r => r.foreign_hold_pct != null) && (
-                          <td className="py-1.5 px-2 text-right font-mono text-gray-300">
-                            {row.foreign_hold_pct != null ? `${row.foreign_hold_pct.toFixed(1)}%` : <span className="text-gray-700">—</span>}
+                          <td className="py-1.5 px-2 text-right font-mono text-zinc-300">
+                            {row.foreign_hold_pct != null ? `${row.foreign_hold_pct.toFixed(1)}%` : <span className="text-zinc-700">—</span>}
                           </td>
                         )}
                       </tr>
@@ -460,7 +460,7 @@ export default function StockDetail() {
                 return <span className={`font-mono font-bold ${color}`}>{v > 0 ? '+' : v < 0 ? '−' : ''}{str}</span>
               }
               return (
-                <div className="flex gap-4 mt-3 pt-3 border-t border-gray-700/50 text-xs text-gray-500">
+                <div className="flex gap-4 mt-3 pt-3 border-t border-zinc-800/50 text-xs text-gray-500">
                   <span>近5日累計</span>
                   <span>外資 {fmtSum(fgn5)}</span>
                   <span>投信 {fmtSum(trs5)}</span>
@@ -489,7 +489,7 @@ export default function StockDetail() {
           const rsiSignal = rsi ? (() => {
             if (rsi > 70) return { label: `RSI ${rsi.toFixed(1)}`, sub: '超買區，注意回檔', color: 'text-amber-400' }
             if (rsi > 50) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏強', color: 'text-rose-400' }
-            if (rsi > 30) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏弱', color: 'text-gray-400' }
+            if (rsi > 30) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏弱', color: 'text-zinc-400' }
             return { label: `RSI ${rsi.toFixed(1)}`, sub: '超賣區，留意反彈', color: 'text-cyan-400' }
           })() : null
 
@@ -498,7 +498,7 @@ export default function StockDetail() {
             const pct = (pos * 100).toFixed(0)
             if (pos > 0.85) return { label: `布林 ${pct}%`, sub: '接近上軌，注意追高', color: 'text-amber-400' }
             if (pos > 0.5)  return { label: `布林 ${pct}%`, sub: '通道上半段，偏多', color: 'text-rose-400' }
-            if (pos > 0.15) return { label: `布林 ${pct}%`, sub: '通道下半段，偏弱', color: 'text-gray-400' }
+            if (pos > 0.15) return { label: `布林 ${pct}%`, sub: '通道下半段，偏弱', color: 'text-zinc-400' }
             return { label: `布林 ${pct}%`, sub: '接近下軌，留意支撐', color: 'text-cyan-400' }
           })() : null
 
@@ -509,12 +509,12 @@ export default function StockDetail() {
           ]
 
           return (
-            <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">技術面信號</p>
+            <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">技術面信號</p>
               <div>
                 {rows.map(({ key, name, hint, signal }) => (
-                  <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-700/40">
-                    <span className="text-base text-gray-400 flex items-center gap-1.5">
+                  <div key={key} className="flex justify-between items-center py-2.5 border-b border-zinc-800/40">
+                    <span className="text-base text-zinc-400 flex items-center gap-1.5">
                       {name}
                       {hint && <EducationalHint glossaryId={hint} />}
                     </span>
@@ -523,12 +523,12 @@ export default function StockDetail() {
                           <p className={`font-mono text-base font-semibold ${signal.color}`}>{signal.label}</p>
                           <p className="text-xs text-gray-500">{signal.sub}</p>
                         </div>
-                      : <span className="text-gray-600">---</span>
+                      : <span className="text-zinc-600">---</span>
                     }
                   </div>
                 ))}
                 <div className="flex justify-between items-center py-2.5">
-                  <span className="text-base text-gray-400 flex items-center gap-1.5">
+                  <span className="text-base text-zinc-400 flex items-center gap-1.5">
                     KD 指標
                     <EducationalHint glossaryId="kd-indicator" />
                   </span>

@@ -20,7 +20,7 @@ export default function Home() {
           <MarketSummary />
         </section>
 
-        {/* 市場情緒：PCR + ETF 申贖迷你圖 */}
+        {/* 市場情緒：ETF 申贖資金流向 */}
         <section className="mb-4">
           <MarketSentimentWidget />
         </section>
