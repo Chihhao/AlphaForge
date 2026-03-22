@@ -230,6 +230,33 @@ def get_features(stock_id: str, days: int = 60):
         db.close()
 
 
+@router.get("/etf-flows")
+def get_etf_flows(etf_id: str = "0050", days: int = 20):
+    """查詢 ETF 近期申贖資料"""
+    from app.models.etf_flow import ETFFlow
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ETFFlow)
+            .filter(ETFFlow.etf_id == etf_id)
+            .order_by(ETFFlow.date.desc())
+            .limit(days)
+            .all()
+        )
+        return [
+            {
+                "date": r.date.isoformat(),
+                "etf_id": r.etf_id,
+                "creation": r.creation,
+                "redemption": r.redemption,
+                "net_flow": r.net_flow,
+            }
+            for r in reversed(rows)
+        ]
+    finally:
+        db.close()
+
+
 @router.get("/pcr")
 def get_pcr(days: int = 20):
     """查詢近期台指選擇權 Put/Call Ratio"""
