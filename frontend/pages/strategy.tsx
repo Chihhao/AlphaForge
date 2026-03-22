@@ -604,40 +604,6 @@ const MobileCard = ({
     )
 }
 
-// ─── PCR Badge ────────────────────────────────────────────────────────────────
-const PCRBadge = () => {
-    const [pcr, setPcr] = useState<number | null>(null)
-    const [pcrDate, setPcrDate] = useState<string>('')
-
-    useEffect(() => {
-        api.get('/market/pcr?days=3')
-            .then(r => {
-                const rows: { date: string; pcr: number }[] = r.data ?? []
-                if (rows.length > 0) {
-                    const latest = rows[rows.length - 1]
-                    setPcr(latest.pcr)
-                    setPcrDate(latest.date)
-                }
-            })
-            .catch(() => {})
-    }, [])
-
-    if (pcr === null) return null
-
-    const level = pcr >= 1.5 ? { label: '恐慌', color: 'text-rose-400 border-rose-500/30 bg-rose-500/10' }
-                : pcr >= 1.0 ? { label: '偏空', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' }
-                : pcr >= 0.8 ? { label: '中性', color: 'text-zinc-400 border-zinc-600 bg-zinc-800/50' }
-                :               { label: '偏多', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' }
-
-    return (
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-mono ${level.color}`} title={`PCR ${pcr.toFixed(3)} (${pcrDate})`}>
-            <span className="text-zinc-500 font-sans">PCR</span>
-            <span className="font-bold">{pcr.toFixed(2)}</span>
-            <span className="font-sans">{level.label}</span>
-        </div>
-    )
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StrategyPage = () => {
     const [picks, setPicks] = useState<StrategyPick[]>([])
@@ -817,7 +783,6 @@ const StrategyPage = () => {
                                     <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">精選</span>
                                 </h1>
                                 <span className="text-zinc-500 text-sm font-mono self-center">{displayDate}</span>
-                                <PCRBadge />
                             </div>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
                                 量化模型每日精算 · 多策略共振選股 · 停利停損由歷史回測自動尋優 · 不構成投資建議。

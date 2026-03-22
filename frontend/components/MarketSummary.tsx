@@ -34,8 +34,6 @@ export default function MarketSummary() {
     const [error, setError] = useState(false);
     const [flashClass, setFlashClass] = useState("");
     const prevPriceRef = React.useRef<number | null>(null);
-    const [latestPcr, setLatestPcr] = useState<number | null>(null);
-
     useEffect(() => {
         const fetchSummary = async () => {
             try {
@@ -60,10 +58,6 @@ export default function MarketSummary() {
         };
 
         fetchSummary();
-        api.get('/market/pcr?days=3').then(r => {
-            const rows = r.data ?? [];
-            if (rows.length > 0) setLatestPcr(rows[rows.length - 1].pcr);
-        }).catch(() => {});
 
         // 台灣時區處理：只有在交易時間 (平日 09:00 - 15:00) 才啟動輪詢
         const now = new Date();
@@ -120,15 +114,8 @@ export default function MarketSummary() {
                         </div>
                     </div>
 
-                    {/* 漲跌家數 + PCR 小標籤 */}
+                    {/* 漲跌家數小標籤 */}
                     <div className="flex items-center gap-x-3 sm:gap-x-4">
-                        {latestPcr !== null && (
-                            <span className={`font-mono text-[10px] font-bold hidden sm:inline ${
-                                latestPcr >= 1.5 ? 'text-rose-400' : latestPcr >= 1.0 ? 'text-amber-400' : latestPcr >= 0.8 ? 'text-zinc-400' : 'text-emerald-400'
-                            }`} title="選擇權 Put/Call Ratio">
-                                PCR {latestPcr.toFixed(2)}
-                            </span>
-                        )}
                         <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-tighter">0050</span>
                         {(data.advances > 0 || data.declines > 0) ? (
                         <div className="flex items-center gap-x-3 sm:gap-x-4">

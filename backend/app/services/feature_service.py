@@ -17,7 +17,6 @@ from app.models.stock_price import StockPrice
 from app.models.stock_feature import StockFeature
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_chip_data import StockChipData
-from app.models.market_pcr import MarketPCR
 from app.models.etf_flow import ETFFlow
 from app.models.user import Stock
 from app.services.indicator_service import IndicatorService
@@ -138,11 +137,7 @@ class FeatureService:
                         'foreign_hold_pct', 'foreign_hold_chg_5d'):
                 target_df[col] = None
 
-        # 6c. 帶入當日 PCR（市場指標，全體股票共享同一值）
-        pcr_row = db.query(MarketPCR).filter(MarketPCR.date == target_date).first()
-        target_df['market_pcr'] = pcr_row.pcr if pcr_row else None
-
-        # 6d. 帶入近5日 ETF 淨申購（0050，單位：萬張）
+        # 6c. 帶入近5日 ETF 淨申購（0050，單位：萬張）
         from datetime import timedelta as _td
         etf_start = target_date - _td(days=10)
         etf_rows = (
@@ -202,7 +197,6 @@ class FeatureService:
                 sector_rs=_safe_float(row.get('sector_rs')),
                 foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                 foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
-                market_pcr=_safe_float(row.get('market_pcr')),
                 etf_net_flow_5d=_safe_float(row.get('etf_net_flow_5d')),
             ))
 
@@ -318,14 +312,6 @@ class FeatureService:
                     'foreign_hold_pct', 'foreign_hold_chg_5d'):
             backfill_df[col] = None
 
-        # PCR lookup: date → pcr
-        pcr_warmup = start_date - timedelta(days=1)
-        pcr_rows = db.query(MarketPCR).filter(
-            MarketPCR.date >= pcr_warmup,
-            MarketPCR.date <= end_date
-        ).order_by(MarketPCR.date).all()
-        pcr_by_date: dict = {r.date: r.pcr for r in pcr_rows}
-
         # ETF flow lookup: date → net_flow_5d (rolling 5-day sum ÷ 10000)
         etf_warmup = start_date - timedelta(days=10)
         etf_rows_all = (
@@ -366,9 +352,8 @@ class FeatureService:
                 for col in chip_cols:
                     day_df[col] = None
 
-            # PCR 與 ETF 申贖（市場層級指標，全體股票共享）
+            # ETF 申贖（市場層級指標，全體股票共享）
             _batch_d = batch_date if isinstance(batch_date, date) else batch_date.date()
-            day_df['market_pcr'] = pcr_by_date.get(_batch_d)
             day_df['etf_net_flow_5d'] = etf_net_by_date.get(_batch_d)
 
             records = []
@@ -413,7 +398,6 @@ class FeatureService:
                     sector_rs=_safe_float(row.get('sector_rs')),
                     foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                     foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
-                    market_pcr=_safe_float(row.get('market_pcr')),
                     etf_net_flow_5d=_safe_float(row.get('etf_net_flow_5d')),
                 ))
 

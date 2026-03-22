@@ -69,8 +69,6 @@ FACTOR_LABELS: Dict[str, str] = {
     'sector_rs':            '產業相對強度',
     'foreign_hold_pct':     '外資持股比率',
     'foreign_hold_chg_5d':  '外資持股5日變化',
-    # Phase 3A 市場指標
-    'market_pcr':         '選擇權PCR',
     # Phase 3B ETF 申贖資金流向
     'etf_net_flow_5d':    'ETF資金流入',
 }
@@ -142,11 +140,6 @@ FACTOR_COMBINATIONS: List[List[str]] = [
     ['foreign_hold_chg_5d', 'trust_buy_5d'],
     # 三因子（Phase 6）
     ['sector_rs', 'rsi14', 'vol_ratio'],
-    # 市場恐慌指標（Phase 3A）
-    ['market_pcr'],
-    ['market_pcr', 'rsi14'],
-    ['market_pcr', 'foreign_buy_5d'],
-    ['market_pcr', 'vol_ratio'],
     # ETF 申贖資金流向（Phase 3B）
     ['etf_net_flow_5d'],
     ['etf_net_flow_5d', 'foreign_buy_5d'],
@@ -155,7 +148,7 @@ FACTOR_COMBINATIONS: List[List[str]] = [
 
 _LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())
 
-# Bonferroni 校正說明更新：74 組組合
+# Bonferroni 校正：組合數自動計算
 _BONFERRONI_N = len(FACTOR_COMBINATIONS)
 
 # ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────
