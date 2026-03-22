@@ -44,13 +44,21 @@ export default function StockDetail() {
   const [loading, setLoading] = useState(false)
   const [subChart, setSubChart] = useState<'volume' | 'rsi' | 'bias'>('volume')
   const [chipData, setChipData] = useState<any[]>([])
+  const [strategyPick, setStrategyPick] = useState<any>(null)
 
-  // 籌碼數據（不依賴 interval，只在切換個股時重抓）
+  // 籌碼數據 + Strategy Miner 精選狀態（不依賴 interval，只在切換個股時重抓）
   useEffect(() => {
     if (!id) return
     api.get(`/stocks/${id}/chip-data?days=10`)
       .then(r => setChipData(r.data ?? []))
       .catch(() => setChipData([]))
+    api.get('/strategy-miner/picks/today')
+      .then(r => {
+        const picks: any[] = r.data ?? []
+        const match = picks.find(p => p.stock_id === id)
+        setStrategyPick(match ?? null)
+      })
+      .catch(() => setStrategyPick(null))
   }, [id])
 
   useEffect(() => {
@@ -203,6 +211,22 @@ export default function StockDetail() {
             </div>
           </div>
 
+          {/* Strategy Miner 今日精選 badge */}
+          {strategyPick && (
+            <div className="flex items-center gap-2 mt-2 mb-1 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-semibold">
+                <svg viewBox="0 0 24 24" width="12" height="12" className="fill-current shrink-0">
+                  <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                </svg>
+                今日精選
+              </span>
+              <span className="text-xs text-gray-500 font-mono">
+                入場 {strategyPick.entry_price?.toLocaleString()}
+                <span className="text-emerald-400 ml-2">▲停利 +{Math.round(strategyPick.take_profit_pct * 100)}%</span>
+                <span className="text-rose-400 ml-2">▼停損 -{Math.round(strategyPick.stop_loss_pct * 100)}%</span>
+              </span>
+            </div>
+          )}
           <div className="-mx-4 sm:mx-0 border-t border-gray-700 mb-0" />
           <div className="grid grid-cols-4 gap-2 pt-3">
             <div>
