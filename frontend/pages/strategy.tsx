@@ -855,57 +855,109 @@ const StrategyPage = () => {
                     </div>
                 )}
 
-                {/* ── 持倉追蹤（過去推薦 · 出場提醒）─────────────────── */}
-                {!activeLoading && activePicks.length > 0 && (() => {
+                {/* ── 今日建議賣出（出場提醒，最優先顯示）──────────── */}
+                {!activeLoading && activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足').length > 0 && (() => {
                     const alerts = activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足')
-                    const holding = activePicks.filter(p => p.status === '持有中')
-                    const STATUS_COLOR: Record<string, string> = {
-                        '建議停利': 'text-rose-400 bg-rose-500/10 border-rose-500/30',
-                        '建議停損': 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-                        '到期出場': 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-                        '持有中':   'text-zinc-400 bg-zinc-800/60 border-zinc-700/50',
+                    const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string; icon: string }> = {
+                        '建議停利': { label: '停利出場', bg: 'bg-rose-500/8', border: 'border-rose-500/40', text: 'text-rose-400', icon: '▲' },
+                        '建議停損': { label: '停損出場', bg: 'bg-emerald-500/8', border: 'border-emerald-500/40', text: 'text-emerald-400', icon: '▼' },
+                        '到期出場': { label: '到期出場', bg: 'bg-amber-500/8', border: 'border-amber-500/40', text: 'text-amber-400', icon: '⏱' },
                     }
                     return (
-                        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-4 py-3">
-                            <div className="flex items-center gap-2 mb-2.5">
-                                <svg viewBox="0 0 24 24" width={16} height={16} className={`fill-current shrink-0 ${alerts.length > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                        <div className="border border-amber-500/25 bg-amber-500/5 rounded-2xl px-4 py-3.5">
+                            <div className="flex items-center gap-2 mb-3">
+                                <svg viewBox="0 0 24 24" width={16} height={16} className="fill-amber-400 shrink-0">
                                     <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
                                 </svg>
-                                <span className="text-sm font-bold text-zinc-300">持倉追蹤</span>
-                                {alerts.length > 0 && (
-                                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 leading-none">
-                                        {alerts.length} 筆需注意
-                                    </span>
-                                )}
-                                <span className="ml-auto text-[10px] text-zinc-600">基於歷史推薦計算</span>
+                                <span className="text-sm font-bold text-amber-300">今日建議賣出</span>
+                                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 leading-none">
+                                    {alerts.length} 檔
+                                </span>
+                                <span className="ml-auto text-[10px] text-zinc-600">基於進場日推算</span>
                             </div>
-                            <div className="space-y-1.5">
-                                {[...alerts, ...holding].map((p, i) => {
-                                    const tp = Math.round(p.entry_price * (1 + p.take_profit_pct))
-                                    const sl = Math.round(p.entry_price * (1 - p.stop_loss_pct))
-                                    const colorCls = STATUS_COLOR[p.status] ?? 'text-zinc-400 bg-zinc-800/60 border-zinc-700/50'
+                            <div className="space-y-2">
+                                {alerts.map((p, i) => {
+                                    const cfg = STATUS_CONFIG[p.status] ?? STATUS_CONFIG['到期出場']
                                     return (
-                                        <div key={i} className="flex items-center gap-2 text-sm">
-                                            <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-200 hover:text-amber-300 transition-colors shrink-0 w-24 truncate">
+                                        <div key={i} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border ${cfg.bg} ${cfg.border}`}>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-200 hover:text-amber-300 transition-colors text-sm">
+                                                        {p.stock_name}
+                                                    </Link>
+                                                    <span className="text-zinc-500 font-mono text-xs">{p.stock_id}</span>
+                                                    <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 leading-none shrink-0 ${cfg.text} ${cfg.bg} ${cfg.border}`}>
+                                                        {cfg.icon} {cfg.label}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                    <span className="text-zinc-600 font-mono text-xs">
+                                                        買入 {p.entry_price.toLocaleString()}
+                                                    </span>
+                                                    <span className="text-zinc-700 text-xs">→</span>
+                                                    <span className="text-zinc-400 font-mono text-xs">
+                                                        現價 {p.current_price.toLocaleString()}
+                                                    </span>
+                                                    {p.float_pct !== null && (
+                                                        <span className={`font-mono text-xs font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                            {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
+                                                        </span>
+                                                    )}
+                                                    <span className="text-zinc-600 text-xs">持 {p.days_held} 天</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )
+                })()}
+
+                {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
+                {!activeLoading && activePicks.filter(p => p.status === '持有中').length > 0 && (() => {
+                    const [holdExpanded, setHoldExpanded] = React.useState(false)
+                    const holding = activePicks.filter(p => p.status === '持有中')
+                    return (
+                        <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
+                            <button
+                                onClick={() => setHoldExpanded(v => !v)}
+                                className="w-full flex items-center justify-between px-4 py-3.5 bg-zinc-900/40 hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <svg viewBox="0 0 24 24" width={15} height={15} className="fill-zinc-500 shrink-0">
+                                        <path d="M12 2A10 10 0 0 0 2 12A10 10 0 0 0 12 22A10 10 0 0 0 22 12A10 10 0 0 0 12 2M16.2 16.2L11 13V7H12.5V12.2L17 14.9L16.2 16.2Z" />
+                                    </svg>
+                                    <span className="text-zinc-400 font-semibold text-sm">持倉中</span>
+                                    <span className="text-zinc-600 text-xs font-mono">{holding.length} 檔觀察中</span>
+                                </div>
+                                <span className="text-zinc-600 text-xs">{holdExpanded ? '▲ 收起' : '▼ 展開'}</span>
+                            </button>
+                            {holdExpanded && (
+                                <div className="px-4 pb-3 pt-1 space-y-1.5">
+                                    {holding.map((p, i) => (
+                                        <div key={i} className="flex items-center gap-2 text-sm py-1">
+                                            <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-300 hover:text-amber-300 transition-colors shrink-0 w-20 truncate text-sm">
                                                 {p.stock_name}
                                             </Link>
-                                            <span className="text-zinc-600 font-mono text-xs shrink-0">
-                                                {p.entry_price.toLocaleString()}→
-                                                <span className="text-zinc-500">{p.current_price.toLocaleString()}</span>
+                                            <span className="text-zinc-600 font-mono text-xs">
+                                                {p.entry_price.toLocaleString()}
+                                            </span>
+                                            <span className="text-zinc-700 text-xs">→</span>
+                                            <span className="text-zinc-500 font-mono text-xs">
+                                                {p.current_price.toLocaleString()}
                                             </span>
                                             {p.float_pct !== null && (
                                                 <span className={`font-mono text-xs font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                                                     {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
                                                 </span>
                                             )}
-                                            <span className="text-zinc-600 text-xs shrink-0">{p.days_held}天</span>
-                                            <span className={`ml-auto text-[10px] font-bold border rounded-full px-2 py-0.5 leading-none shrink-0 ${colorCls}`}>
-                                                {p.status}
-                                            </span>
+                                            <span className="text-zinc-600 text-xs ml-auto">{p.days_held}天</span>
                                         </div>
-                                    )
-                                })}
-                            </div>
+                                    ))}
+                                    <p className="text-[10px] text-zinc-700 pt-1">停利 +{Math.round(holding[0]?.take_profit_pct * 100)}% / 停損 -{Math.round(holding[0]?.stop_loss_pct * 100)}% 觸發時會列入「今日建議賣出」</p>
+                                </div>
+                            )}
                         </div>
                     )
                 })()}

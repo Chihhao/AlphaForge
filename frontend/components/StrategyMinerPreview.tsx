@@ -37,6 +37,18 @@ interface PerfStats {
   trade_count_test: number
 }
 
+interface ActivePick {
+  stock_id: string
+  stock_name: string
+  entry_price: number
+  current_price: number
+  float_pct: number | null
+  days_held: number
+  status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '資料不足'
+  take_profit_pct: number
+  stop_loss_pct: number
+}
+
 function scoreToStars(score: number): number {
   if (score >= 20) return 5
   if (score >= 15) return 4
@@ -120,8 +132,17 @@ export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
   const [perf, setPerf] = useState<Record<string, PerfStats>>({})
   const [loading, setLoading] = useState(true)
+  const [exitAlerts, setExitAlerts] = useState<ActivePick[]>([])
 
   useEffect(() => {
+    // 非阻塞載入出場提醒
+    api.get<ActivePick[]>('/strategy-miner/picks/active')
+      .then(r => {
+        const alerts = (r.data || []).filter(p => p.status !== '持有中' && p.status !== '資料不足')
+        setExitAlerts(alerts)
+      })
+      .catch(() => {})
+
     Promise.all([
       api.get<TodayPick[]>('/strategy-miner/picks/today'),
       api.get<Record<string, PerfStats>>('/strategy-miner/performance'),
@@ -174,6 +195,49 @@ export default function StrategyMinerPreview() {
           </svg>
         </Link>
       </div>
+
+      {/* 今日建議賣出（出場提醒） */}
+      {exitAlerts.length > 0 && (
+        <div className="mb-3 border border-amber-500/20 bg-amber-500/5 rounded-xl px-3 py-2.5">
+          <div className="flex items-center gap-1.5 mb-2">
+            <svg viewBox="0 0 24 24" width={12} height={12} className="fill-amber-400 shrink-0">
+              <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
+            </svg>
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">今日建議賣出</span>
+            <span className="text-[10px] text-amber-500/60 font-mono">{exitAlerts.length} 檔</span>
+          </div>
+          <div className="space-y-1.5">
+            {exitAlerts.map((p, i) => {
+              const STATUS_LABEL: Record<string, string> = { '建議停利': '停利', '建議停損': '停損', '到期出場': '到期' }
+              const STATUS_COLOR: Record<string, string> = {
+                '建議停利': 'text-rose-400',
+                '建議停損': 'text-emerald-400',
+                '到期出場': 'text-amber-400',
+              }
+              return (
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Link href={`/stock/${p.stock_id}`} className="text-sm font-semibold text-zinc-200 hover:text-amber-300 transition-colors truncate">
+                      {p.stock_name}
+                    </Link>
+                    <span className="text-zinc-600 text-xs shrink-0">{p.stock_id}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {p.float_pct !== null && (
+                      <span className={`text-xs font-mono font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-bold ${STATUS_COLOR[p.status] ?? 'text-amber-400'}`}>
+                      {STATUS_LABEL[p.status] ?? p.status}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* List */}
       {loading ? (
