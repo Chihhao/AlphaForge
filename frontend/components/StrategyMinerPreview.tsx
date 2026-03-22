@@ -52,12 +52,12 @@ function StarsDisplay({ score }: { score: number }) {
 
 function SkeletonRow() {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-700/40 animate-pulse">
+    <div className="flex items-center justify-between py-2 border-b border-zinc-800/50 animate-pulse">
       <div className="flex items-center gap-2">
-        <div className="h-3 w-16 bg-gray-700 rounded" />
-        <div className="h-3 w-10 bg-gray-700 rounded" />
+        <div className="h-3 w-16 bg-zinc-800 rounded" />
+        <div className="h-3 w-10 bg-zinc-800 rounded" />
       </div>
-      <div className="h-3 w-28 bg-gray-700 rounded" />
+      <div className="h-3 w-28 bg-zinc-800 rounded" />
     </div>
   )
 }
@@ -67,23 +67,23 @@ function PickRow({ pick }: { pick: PickPreview }) {
   const slPct = Math.round(pick.stop_loss_pct * 100)
 
   return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-700/40 last:border-b-0">
+    <div className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-b-0">
       <div className="flex items-center gap-2 min-w-0">
         <Link
           href={`/stock/${pick.stock_id}`}
-          className="text-sm text-gray-200 hover:text-amber-300 transition-colors truncate"
+          className="text-sm text-zinc-200 hover:text-amber-300 transition-colors truncate"
         >
-          {pick.stock_name} <span className="text-gray-500">{pick.stock_id}</span>
+          {pick.stock_name} <span className="text-zinc-500">{pick.stock_id}</span>
         </Link>
         <StarsDisplay score={pick.weighted_score} />
       </div>
       <div className="flex items-center gap-1 text-xs font-mono whitespace-nowrap ml-2 shrink-0">
-        <span className="text-gray-400">買入</span>
-        <span className="text-gray-200">{pick.entry_price.toFixed(0)}</span>
-        <span className="text-gray-500">→</span>
-        <span className="text-emerald-400">+{tpPct}%</span>
-        <span className="text-gray-600">/</span>
-        <span className="text-rose-400">-{slPct}%</span>
+        <span className="text-zinc-400">買入</span>
+        <span className="text-zinc-200">{pick.entry_price.toFixed(0)}</span>
+        <span className="text-zinc-500">→</span>
+        <span className="text-rose-400">+{tpPct}%</span>
+        <span className="text-zinc-700">/</span>
+        <span className="text-emerald-400">-{slPct}%</span>
       </div>
     </div>
   )
@@ -124,17 +124,17 @@ export default function StrategyMinerPreview() {
   }, [])
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
       {/* Header */}
       <div className="flex justify-between items-center mb-3">
         <div>
-          <div className="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+          <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
             <svg viewBox="0 0 24 24" width={16} height={16} className="fill-current text-amber-500">
               <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
             </svg>
             今日精選
           </div>
-          <div className="text-xs text-gray-600 mt-0.5">量化模型推薦 · 停利停損由回測自動尋優</div>
+          <div className="text-xs text-zinc-600 mt-0.5">量化模型推薦 · 停利停損由回測自動尋優</div>
         </div>
         <Link
           href="/strategy"
@@ -155,7 +155,7 @@ export default function StrategyMinerPreview() {
           <SkeletonRow />
         </>
       ) : picks.length === 0 ? (
-        <div className="py-4 text-center text-xs text-gray-600">今日暫無推薦</div>
+        <div className="py-4 text-center text-xs text-zinc-600">今日暫無推薦</div>
       ) : (
         picks.map(pick => (
           <PickRow key={pick.stock_id} pick={pick} />
@@ -171,18 +171,18 @@ export default function StrategyMinerPreview() {
         const avgRet = stats.avg_return_test.toFixed(1)
         const dimLabel = DIM_LABEL[dim] ?? dim
         return (
-          <div className="mt-3 pt-3 border-t border-gray-700/40 flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] text-gray-600 uppercase tracking-widest font-semibold">回測績效</span>
-            <span className="text-[10px] font-mono text-gray-500">{dimLabel}策略</span>
+          <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
+            <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">回測績效</span>
+            <span className="text-[10px] font-mono text-zinc-500">{dimLabel}策略</span>
             <span className={`text-[10px] font-mono font-semibold ${winRate >= 55 ? 'text-emerald-400' : winRate >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
               勝率 {winRate}%
             </span>
-            <span className="text-gray-700 text-[10px]">·</span>
+            <span className="text-zinc-700 text-[10px]">·</span>
             <span className={`text-[10px] font-mono font-semibold ${stats.avg_return_test >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               均報酬 {stats.avg_return_test >= 0 ? '+' : ''}{avgRet}%
             </span>
-            <span className="text-gray-700 text-[10px]">·</span>
-            <span className="text-[10px] font-mono text-gray-600">{stats.trade_count_test} 筆交易</span>
+            <span className="text-zinc-700 text-[10px]">·</span>
+            <span className="text-[10px] font-mono text-zinc-600">{stats.trade_count_test} 筆交易</span>
           </div>
         )
       })()}
