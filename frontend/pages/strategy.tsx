@@ -162,9 +162,12 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 const countTag = pick.buy_reasons.find(r => r.includes('個策略共同'))
                 return (
                     <div className="flex flex-wrap items-center gap-1 mb-1.5 -mt-0.5">
-                        {countTag && (
-                            <span className="text-[10px] font-semibold text-zinc-500 shrink-0">{countTag.replace('近期 ', '').replace('個策略共同觸發', '策略')}</span>
-                        )}
+                        {countTag && (() => {
+                            const m = countTag.match(/(\d+)\s*個策略/)
+                            return m ? (
+                                <span className="text-[10px] font-semibold text-zinc-500 shrink-0">{m[1]} 個策略共振</span>
+                            ) : null
+                        })()}
                         {factorTags.map((r, i) => (
                             <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
                                 {r}
