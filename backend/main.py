@@ -158,6 +158,39 @@ def _maybe_catchup_sync():
             except Exception as e:
                 logger.error(f"[Startup] Alpha Miner 重訓啟動失敗: {e}")
 
+        # Strategy Miner 補跑：若 strategy_backtest_params 為空，在背景執行 run_all + run_daily
+        if not settings.ALPHA_MINER_READONLY:
+            try:
+                from app.models.strategy_backtest_param import StrategyBacktestParam
+                from app.services.strategy_miner_service import StrategyMinerService
+                db8 = SessionLocal()
+                has_params = db8.query(StrategyBacktestParam).first() is not None
+                db8.close()
+                if not has_params:
+                    logger.info("[Startup] Strategy Miner 尚無回測參數，啟動背景尋優…")
+                    def _run_sm():
+                        db_sm = SessionLocal()
+                        try:
+                            StrategyMinerService.run_all(db_sm)
+                            StrategyMinerService.run_daily(db_sm)
+                            logger.info("[Startup] Strategy Miner 背景尋優完成")
+                        except Exception as e:
+                            logger.error(f"[Startup] Strategy Miner 背景尋優失敗: {e}")
+                        finally:
+                            db_sm.close()
+                    threading.Thread(target=_run_sm, daemon=True).start()
+                else:
+                    # 有回測參數但可能需要更新今日推薦
+                    db9 = SessionLocal()
+                    try:
+                        StrategyMinerService.run_daily(db9)
+                    except Exception as e:
+                        logger.error(f"[Startup] Strategy Miner run_daily 失敗: {e}")
+                    finally:
+                        db9.close()
+            except Exception as e:
+                logger.error(f"[Startup] Strategy Miner 補跑失敗: {e}")
+
         logger.info("[Startup] 補同步流程完成。")
 
     threading.Thread(target=catchup, daemon=True).start()

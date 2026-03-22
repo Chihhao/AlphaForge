@@ -176,6 +176,23 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 第九梯次：每週日 06:00 Strategy Miner 參數重新尋優 ---
+    # 每週重算一次 18 組參數的 Sharpe 尋優（訓練集累積新資料）
+    def run_strategy_miner_optimize(db):
+        from app.services.strategy_miner_service import StrategyMinerService
+        logger.info("[Scheduler] 開始週期性 Strategy Miner 參數尋優…")
+        StrategyMinerService.run_all(db)
+        StrategyMinerService.run_daily(db)
+        logger.info("[Scheduler] Strategy Miner 參數尋優完成")
+
+    scheduler.add_job(
+        lambda: run_with_db(run_strategy_miner_optimize),
+        trigger=CronTrigger(day_of_week='sun', hour=6, minute=0),
+        id="strategy_miner_weekly_optimize",
+        name="Strategy Miner weekly parameter optimization",
+        replace_existing=True
+    )
+
     scheduler.start()
     logger.info("Scheduler started and daily sync job added.")
 
