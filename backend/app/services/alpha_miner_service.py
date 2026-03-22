@@ -921,14 +921,16 @@ class AlphaMinerService:
             price_map.setdefault(row.stock_id, []).append((row.date, row.close))
 
         def _find_price(stock_id: str, target_date) -> Optional[float]:
-            """找 target_date 當日或最接近的後一個交易日收盤價（最多往後 5 天）"""
+            """找 target_date 當日或最接近的後一個交易日收盤價（最多往後 20 天）
+            放寬至 20 天以涵蓋長假期（農曆春節約 7-10 天停市）及個股停牌情況。
+            """
             prices = price_map.get(stock_id, [])
             price_dict = {d: c for d, c in prices}
             # 先精確查
             if target_date in price_dict:
                 return float(price_dict[target_date])
-            # fallback：往後找最近交易日（最多 5 天，避免對長期停牌股取到不具代表性的遠期價格）
-            for delta in range(1, 6):
+            # fallback：往後找最近交易日（最多 20 天）
+            for delta in range(1, 21):
                 fallback_date = target_date + timedelta(days=delta)
                 if fallback_date in price_dict:
                     return float(price_dict[fallback_date])
