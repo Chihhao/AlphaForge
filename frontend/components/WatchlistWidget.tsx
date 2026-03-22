@@ -16,9 +16,20 @@ interface WatchlistRowData extends WatchlistItem {
   loading: boolean
 }
 
+interface MinerPick {
+  stock_id: string
+}
+
 export default function WatchlistWidget() {
   const { items, remove } = useWatchlist()
   const [rows, setRows] = useState<WatchlistRowData[]>([])
+  const [pickedIds, setPickedIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    api.get<MinerPick[]>('/strategy-miner/picks/today')
+      .then(r => setPickedIds(new Set((r.data ?? []).map(p => p.stock_id))))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (items.length === 0) { setRows([]); return }
@@ -66,6 +77,11 @@ export default function WatchlistWidget() {
             >
               <span className="text-zinc-200 text-sm font-medium truncate">{row.stock_name}</span>
               <span className="text-zinc-600 text-xs font-mono shrink-0">{row.stock_id}</span>
+              {pickedIds.has(row.stock_id) && (
+                <span className="shrink-0 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none">
+                  精選
+                </span>
+              )}
             </Link>
             <div className="flex items-center gap-2 ml-2 shrink-0">
               {row.loading ? (

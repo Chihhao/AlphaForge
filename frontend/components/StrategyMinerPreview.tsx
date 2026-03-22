@@ -102,7 +102,7 @@ export default function StrategyMinerPreview() {
       api.get<Record<string, PerfStats>>('/strategy-miner/performance'),
     ])
       .then(([picksRes, perfRes]) => {
-        const top3 = (picksRes.data || []).slice(0, 3).map(p => ({
+        const top3 = (picksRes.data || []).slice(0, 5).map(p => ({
           stock_id: p.stock_id,
           stock_name: p.stock_name,
           entry_price: p.entry_price,
