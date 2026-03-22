@@ -123,6 +123,15 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 16:45 抓取 ETF 申贖張數 ---
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: __import__('app.services.etf_flow_crawler', fromlist=['sync_etf_flows']).sync_etf_flows(db, days_back=3)),
+        trigger=CronTrigger(hour=16, minute=45),
+        id="sync_etf_flows_daily",
+        name="Daily ETF creation/redemption sync",
+        replace_existing=True
+    )
+
     # --- 第四梯次：17:05 計算每日特徵快照 (Alpha Miner 數據基礎) ---
     # 需在籌碼資料寫入後執行，確保籌碼欄位可以合入
     scheduler.add_job(

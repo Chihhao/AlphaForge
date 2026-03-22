@@ -18,6 +18,7 @@ from app.models.stock_feature import StockFeature
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_chip_data import StockChipData
 from app.models.market_pcr import MarketPCR
+from app.models.etf_flow import ETFFlow
 from app.models.user import Stock
 from app.services.indicator_service import IndicatorService
 
@@ -141,6 +142,18 @@ class FeatureService:
         pcr_row = db.query(MarketPCR).filter(MarketPCR.date == target_date).first()
         target_df['market_pcr'] = pcr_row.pcr if pcr_row else None
 
+        # 6d. 帶入近5日 ETF 淨申購（0050，單位：萬張）
+        from datetime import timedelta as _td
+        etf_start = target_date - _td(days=10)
+        etf_rows = (
+            db.query(ETFFlow)
+            .filter(ETFFlow.etf_id == '0050', ETFFlow.date >= etf_start, ETFFlow.date <= target_date)
+            .order_by(ETFFlow.date)
+            .all()
+        )
+        etf_net_5d = sum(r.net_flow for r in etf_rows[-5:]) / 10000 if etf_rows else None
+        target_df['etf_net_flow_5d'] = etf_net_5d
+
         # 7. 刪除當日已存在的記錄（upsert 邏輯）
         db.execute(
             delete(StockFeature).where(StockFeature.date == target_date)
@@ -190,6 +203,7 @@ class FeatureService:
                 foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                 foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
                 market_pcr=_safe_float(row.get('market_pcr')),
+                etf_net_flow_5d=_safe_float(row.get('etf_net_flow_5d')),
             ))
 
         if records:
@@ -373,6 +387,7 @@ class FeatureService:
                     foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                     foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
                     market_pcr=_safe_float(row.get('market_pcr')),
+                    etf_net_flow_5d=_safe_float(row.get('etf_net_flow_5d')),
                 ))
 
             if records:

@@ -71,6 +71,8 @@ FACTOR_LABELS: Dict[str, str] = {
     'foreign_hold_chg_5d':  '外資持股5日變化',
     # Phase 3A 市場指標
     'market_pcr':         '選擇權PCR',
+    # Phase 3B ETF 申贖資金流向
+    'etf_net_flow_5d':    'ETF資金流入',
 }
 
 # ─── 預定義因子組合（63 組，Bonferroni 校正門檻 = 0.05/63 ≈ 0.00079）─────────
@@ -145,6 +147,10 @@ FACTOR_COMBINATIONS: List[List[str]] = [
     ['market_pcr', 'rsi14'],
     ['market_pcr', 'foreign_buy_5d'],
     ['market_pcr', 'vol_ratio'],
+    # ETF 申贖資金流向（Phase 3B）
+    ['etf_net_flow_5d'],
+    ['etf_net_flow_5d', 'foreign_buy_5d'],
+    ['etf_net_flow_5d', 'rsi14'],
 ]
 
 _LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())
