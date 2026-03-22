@@ -670,6 +670,7 @@ const StrategyPage = () => {
     // 持倉追蹤（過去推薦的浮動損益）
     const [activePicks, setActivePicks] = useState<ActivePick[]>([])
     const [activeLoading, setActiveLoading] = useState(true)
+    const [holdExpanded, setHoldExpanded] = useState(false)
 
     // 近期精選歷史
     const [histExpanded, setHistExpanded] = useState(false)
@@ -916,7 +917,6 @@ const StrategyPage = () => {
 
                 {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
                 {!activeLoading && activePicks.filter(p => p.status === '持有中').length > 0 && (() => {
-                    const [holdExpanded, setHoldExpanded] = React.useState(false)
                     const holding = activePicks.filter(p => p.status === '持有中')
                     return (
                         <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
