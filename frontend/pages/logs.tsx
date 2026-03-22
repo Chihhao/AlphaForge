@@ -128,7 +128,7 @@ export default function LogsPage() {
                     className="bg-black/40 sm:border sm:border-white/10 sm:rounded-xl p-4 font-mono text-xs leading-relaxed custom-scrollbar overflow-y-auto flex-1 sm:min-h-[60vh] sm:max-h-[75vh]"
                 >
                     {events.length === 0 ? (
-                        <div className="text-zinc-600 italic px-2">Waiting for system events...</div>
+                        <div className="text-zinc-600 italic px-2">等待系統事件…</div>
                     ) : (
                         <div className="flex flex-col">
                             {(() => {

@@ -8,14 +8,33 @@ from datetime import date
 
 from app.db.database import get_db
 from app.services.strategy_miner_service import StrategyMinerService
+from app.models.strategy_backtest_param import StrategyBacktestParam
 
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
+def _load_perf_map(db: Session) -> dict:
+    """載入各維度最優回測績效，回傳 {dim: {win_rate_test, avg_return_test, trade_count_test}}"""
+    rows = (
+        db.query(StrategyBacktestParam)
+        .filter(StrategyBacktestParam.is_optimal == True)  # noqa: E712
+        .all()
+    )
+    return {
+        r.strategy_id: {
+            "win_rate_test": r.win_rate_test,
+            "avg_return_test": r.avg_return_test,
+            "trade_count_test": r.trade_count_test,
+        }
+        for r in rows
+    }
+
+
 @router.get("/picks/today")
 def get_today_picks(db: Session = Depends(get_db)):
-    """今日推薦清單（含真實停利停損參數）"""
+    """今日推薦清單（含真實停利停損參數 + 回測績效）"""
     picks = StrategyMinerService.get_today_picks(db)
+    perf = _load_perf_map(db)
     return [
         {
             "pick_date": p.pick_date.isoformat(),
@@ -28,6 +47,9 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
+            "win_rate_test": perf.get(p.time_dimension, {}).get("win_rate_test"),
+            "avg_return_test": perf.get(p.time_dimension, {}).get("avg_return_test"),
+            "trade_count_test": perf.get(p.time_dimension, {}).get("trade_count_test"),
         }
         for p in picks
     ]

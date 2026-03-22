@@ -20,6 +20,8 @@ interface StrategyMinerPick {
     stop_loss_pct: number     // decimal: 0.03 = 3%
     hold_days_max: number
     time_dimension: string
+    win_rate_test?: number | null
+    avg_return_test?: number | null
 }
 
 interface TradeRecord {
@@ -45,6 +47,8 @@ interface StrategyPick {
     weighted_score: number
     time_dimension: string
     dims?: string[]           // 出現的維度列表（多維共鳴時 length > 1）
+    win_rate_test?: number | null    // 回測勝率（來自 strategy_backtest_params）
+    avg_return_test?: number | null  // 回測平均報酬（%）
 }
 
 const toStars = (score: number) => {
@@ -152,12 +156,25 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 <span>停利 +{pick.take_profit_pct}%</span>
                 <span className="text-zinc-700">/</span>
                 <span>停損 -{pick.stop_loss_pct}%</span>
-                {winRate !== null && (
+                {/* 優先顯示 API 帶回的回測勝率（維度級），否則顯示從交易記錄計算的股票級 */}
+                {pick.win_rate_test != null ? (
+                    <>
+                        <span className="text-zinc-700">·</span>
+                        <span className={`font-mono text-xs ${pick.win_rate_test >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                            回測勝率 {(pick.win_rate_test * 100).toFixed(0)}%
+                        </span>
+                        {pick.avg_return_test != null && (
+                            <span className={`font-mono text-xs ${pick.avg_return_test >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                均{pick.avg_return_test >= 0 ? '+' : ''}{pick.avg_return_test.toFixed(1)}%
+                            </span>
+                        )}
+                    </>
+                ) : winRate !== null ? (
                     <>
                         <span className="text-zinc-700">·</span>
                         <span className={`font-mono ${parseFloat(winRate) >= 50 ? 'text-rose-400' : 'text-zinc-400'}`}>勝率 {winRate}%</span>
                     </>
-                )}
+                ) : null}
                 <span className="ml-auto text-zinc-600 text-xs">{expanded ? '▲' : '▼'}</span>
             </div>
 
@@ -706,6 +723,8 @@ const StrategyPage = () => {
                         weighted_score: p.weighted_score,
                         time_dimension: p.time_dimension,
                         dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
+                        win_rate_test: p.win_rate_test ?? null,
+                        avg_return_test: p.avg_return_test ?? null,
                     })))
                     setLoading(false)
                     return
