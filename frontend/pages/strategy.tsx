@@ -1042,11 +1042,21 @@ const StrategyPage = () => {
                                 <p className="text-zinc-600 text-sm text-center py-4">近 14 日無精選記錄</p>
                             )}
                             {!histLoading && histPicks.length > 0 && (() => {
+                                // 建立 activePicks lookup: "stock_id:pick_date" → ActivePick
+                                const activeMap = new Map(
+                                    activePicks.map(ap => [`${ap.stock_id}:${ap.pick_date}`, ap])
+                                )
                                 // 按日期分組
                                 const byDate = histPicks.reduce<Record<string, StrategyMinerPick[]>>((acc, p) => {
                                     ;(acc[p.pick_date] ??= []).push(p)
                                     return acc
                                 }, {})
+                                const STATUS_BADGE: Record<string, string> = {
+                                    '建議停利': 'text-rose-400',
+                                    '建議停損': 'text-emerald-400',
+                                    '到期出場': 'text-amber-400',
+                                    '持有中':   'text-zinc-500',
+                                }
                                 return (
                                     <div className="space-y-2 mt-1">
                                         {Object.entries(byDate)
@@ -1057,19 +1067,32 @@ const StrategyPage = () => {
                                                         {new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
                                                     </p>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {dayPicks.map(p => (
-                                                            <Link
-                                                                key={p.stock_id}
-                                                                href={`/stock/${p.stock_id}`}
-                                                                className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
-                                                            >
-                                                                <span className="text-zinc-300 font-medium">{p.stock_name}</span>
-                                                                <span className="text-zinc-600 font-mono">{p.stock_id}</span>
-                                                                <span className="text-amber-500 font-mono">
-                                                                    +{Math.round(p.take_profit_pct * 100)}%
-                                                                </span>
-                                                            </Link>
-                                                        ))}
+                                                        {dayPicks.map(p => {
+                                                            const ap = activeMap.get(`${p.stock_id}:${p.pick_date}`)
+                                                            return (
+                                                                <Link
+                                                                    key={p.stock_id}
+                                                                    href={`/stock/${p.stock_id}`}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
+                                                                >
+                                                                    <span className="text-zinc-300 font-medium">{p.stock_name}</span>
+                                                                    {ap && ap.float_pct !== null ? (
+                                                                        <span className={`font-mono font-bold ${ap.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                                            {ap.float_pct >= 0 ? '+' : ''}{ap.float_pct.toFixed(1)}%
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-amber-500/60 font-mono">
+                                                                            TP+{Math.round(p.take_profit_pct * 100)}%
+                                                                        </span>
+                                                                    )}
+                                                                    {ap && (
+                                                                        <span className={`text-[9px] font-bold ${STATUS_BADGE[ap.status] ?? 'text-zinc-600'}`}>
+                                                                            {ap.status === '持有中' ? `${ap.days_held}天` : ap.status.replace('建議', '')}
+                                                                        </span>
+                                                                    )}
+                                                                </Link>
+                                                            )
+                                                        })}
                                                     </div>
                                                 </div>
                                             ))}
