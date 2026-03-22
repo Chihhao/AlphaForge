@@ -14,6 +14,7 @@ class StrategyMinerPick(Base):
     stop_loss_pct   = Column(Float)    # from optimal params (e.g. 0.05)
     hold_days_max   = Column(Integer)
     time_dimension  = Column(String(5))
+    buy_reasons     = Column(Text, nullable=True)  # JSON array of strategy name strings
 
     __table_args__ = (
         UniqueConstraint('pick_date', 'stock_id', name='uq_strategy_miner_pick'),

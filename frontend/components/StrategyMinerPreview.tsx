@@ -13,6 +13,8 @@ interface TodayPick {
   stop_loss_pct: number
   hold_days_max: number
   time_dimension: string
+  buy_reasons?: string[]
+  stock_win_rate?: number | null
 }
 
 interface PickPreview {
@@ -24,7 +26,9 @@ interface PickPreview {
   hold_days_max: number
   weighted_score: number
   time_dimension: string
-  dims: string[]  // parsed strategy_ids
+  dims: string[]
+  buy_reasons: string[]
+  stock_win_rate: number | null
 }
 
 interface PerfStats {
@@ -63,35 +67,49 @@ function SkeletonRow() {
   )
 }
 
-function PickRow({ pick }: { pick: PickPreview }) {
+function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   const tpPct = Math.round(pick.take_profit_pct * 100)
   const slPct = Math.round(pick.stop_loss_pct * 100)
   const isMultiDim = pick.dims.length > 1
+  // 顯示最關鍵的一條買入理由（跳過"N個策略觸發"這條，優先顯示具體因子）
+  const topReason = pick.buy_reasons.find(r => !r.includes('個策略')) ?? pick.buy_reasons[0]
 
   return (
-    <div className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-b-0">
-      <div className="flex items-center gap-2 min-w-0">
-        <Link
-          href={`/stock/${pick.stock_id}`}
-          className="text-sm text-zinc-200 hover:text-amber-300 transition-colors truncate"
-        >
-          {pick.stock_name} <span className="text-zinc-500">{pick.stock_id}</span>
-        </Link>
-        <StarsDisplay score={pick.weighted_score} />
-        {isMultiDim && (
-          <span className="shrink-0 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
-            多維
-          </span>
-        )}
+    <div className="py-2 border-b border-zinc-800/50 last:border-b-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-zinc-700 font-mono text-[10px] shrink-0">{rank}</span>
+          <Link
+            href={`/stock/${pick.stock_id}`}
+            className="text-sm font-semibold text-zinc-200 hover:text-amber-300 transition-colors truncate"
+          >
+            {pick.stock_name}
+          </Link>
+          <span className="text-zinc-600 text-xs shrink-0">{pick.stock_id}</span>
+          {isMultiDim && (
+            <span className="shrink-0 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
+              多維
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 text-xs font-mono whitespace-nowrap shrink-0">
+          <span className="text-zinc-300">{pick.entry_price.toFixed(0)}</span>
+          <span className="text-zinc-600">→</span>
+          <span className="text-rose-400">+{tpPct}%</span>
+          <span className="text-zinc-700">/</span>
+          <span className="text-emerald-400">-{slPct}%</span>
+        </div>
       </div>
-      <div className="flex items-center gap-1 text-xs font-mono whitespace-nowrap ml-2 shrink-0">
-        <span className="text-zinc-400">買入</span>
-        <span className="text-zinc-200">{pick.entry_price.toFixed(0)}</span>
-        <span className="text-zinc-500">→</span>
-        <span className="text-rose-400">+{tpPct}%</span>
-        <span className="text-zinc-700">/</span>
-        <span className="text-emerald-400">-{slPct}%</span>
-      </div>
+      {topReason && (
+        <div className="ml-5 mt-0.5 flex items-center gap-2">
+          <span className="text-[10px] text-amber-400/70">{topReason}</span>
+          {pick.stock_win_rate !== null && (
+            <span className={`text-[10px] font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/70' : 'text-zinc-500'}`}>
+              歷史勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -119,6 +137,8 @@ export default function StrategyMinerPreview() {
           weighted_score: p.weighted_score,
           time_dimension: p.time_dimension,
           dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
+          buy_reasons: p.buy_reasons ?? [],
+          stock_win_rate: p.stock_win_rate ?? null,
         }))
         setPicks(top3)
         setPerf(perfRes.data || {})
@@ -165,8 +185,8 @@ export default function StrategyMinerPreview() {
       ) : picks.length === 0 ? (
         <div className="py-4 text-center text-xs text-zinc-600">今日暫無推薦</div>
       ) : (
-        picks.map(pick => (
-          <PickRow key={pick.stock_id} pick={pick} />
+        picks.map((pick, i) => (
+          <PickRow key={pick.stock_id} pick={pick} rank={i + 1} />
         ))
       )}
 

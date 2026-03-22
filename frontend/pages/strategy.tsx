@@ -20,9 +20,25 @@ interface StrategyMinerPick {
     stop_loss_pct: number     // decimal: 0.03 = 3%
     hold_days_max: number
     time_dimension: string
+    buy_reasons?: string[]    // 買入理由（策略名稱列表）
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
+}
+
+interface ActivePick {
+    pick_date: string
+    stock_id: string
+    stock_name: string
+    entry_price: number
+    current_price: number
+    take_profit_pct: number
+    stop_loss_pct: number
+    hold_days_max: number
+    days_held: number
+    float_pct: number | null
+    status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '資料不足'
+    time_dimension: string
 }
 
 interface TradeRecord {
@@ -48,6 +64,7 @@ interface StrategyPick {
     weighted_score: number
     time_dimension: string
     dims?: string[]           // 出現的維度列表（多維共鳴時 length > 1）
+    buy_reasons?: string[]    // 買入理由
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
@@ -117,6 +134,11 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                         多維
                     </span>
                 )}
+                {pick.stock_win_rate != null && (pick.stock_win_rate < 0.3 || (pick.stock_avg_return ?? 0) < -3) && (
+                    <span title="此股歷史回測績效偏弱，謹慎參考" className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap shrink-0">
+                        ⚠ 績效偏弱
+                    </span>
+                )}
                 <span className="ml-auto flex items-center gap-2">
                     <span className="text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
                     <button
@@ -133,6 +155,17 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                     </button>
                 </span>
             </div>
+
+            {/* 買入理由 tagline */}
+            {pick.buy_reasons && pick.buy_reasons.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 mb-1.5 -mt-0.5">
+                    {pick.buy_reasons.map((r, i) => (
+                        <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
+                            {r}
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {/* Row 2: entry → take profit / stop loss */}
             {pick.entry_price > 0 && (
@@ -627,6 +660,10 @@ const StrategyPage = () => {
     const [perfData, setPerfData] = useState<Record<string, any> | null>(null)
     const [perfLoading, setPerfLoading] = useState(false)
 
+    // 持倉追蹤（過去推薦的浮動損益）
+    const [activePicks, setActivePicks] = useState<ActivePick[]>([])
+    const [activeLoading, setActiveLoading] = useState(true)
+
     // 近期精選歷史
     const [histExpanded, setHistExpanded] = useState(false)
     const [histPicks, setHistPicks] = useState<StrategyMinerPick[]>([])
@@ -693,6 +730,7 @@ const StrategyPage = () => {
                         weighted_score: p.weighted_score,
                         time_dimension: p.time_dimension,
                         dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
+                        buy_reasons: p.buy_reasons ?? [],
                         stock_win_rate: p.stock_win_rate ?? null,
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
                         stock_trade_count: p.stock_trade_count ?? 0,
@@ -763,6 +801,12 @@ const StrategyPage = () => {
         }
 
         loadPicks()
+
+        // 持倉追蹤：不影響主列表的非阻塞載入
+        api.get('/strategy-miner/picks/active')
+            .then(r => setActivePicks(r.data ?? []))
+            .catch(() => {})
+            .finally(() => setActiveLoading(false))
     }, [])
 
     const displayDate = signalDate
@@ -806,6 +850,61 @@ const StrategyPage = () => {
                         載入失敗：{error}
                     </div>
                 )}
+
+                {/* ── 持倉追蹤（過去推薦 · 出場提醒）─────────────────── */}
+                {!activeLoading && activePicks.length > 0 && (() => {
+                    const alerts = activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足')
+                    const holding = activePicks.filter(p => p.status === '持有中')
+                    const STATUS_COLOR: Record<string, string> = {
+                        '建議停利': 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+                        '建議停損': 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+                        '到期出場': 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+                        '持有中':   'text-zinc-400 bg-zinc-800/60 border-zinc-700/50',
+                    }
+                    return (
+                        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-4 py-3">
+                            <div className="flex items-center gap-2 mb-2.5">
+                                <svg viewBox="0 0 24 24" width={16} height={16} className={`fill-current shrink-0 ${alerts.length > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                                    <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
+                                </svg>
+                                <span className="text-sm font-bold text-zinc-300">持倉追蹤</span>
+                                {alerts.length > 0 && (
+                                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 leading-none">
+                                        {alerts.length} 筆需注意
+                                    </span>
+                                )}
+                                <span className="ml-auto text-[10px] text-zinc-600">基於歷史推薦計算</span>
+                            </div>
+                            <div className="space-y-1.5">
+                                {[...alerts, ...holding].map((p, i) => {
+                                    const tp = Math.round(p.entry_price * (1 + p.take_profit_pct))
+                                    const sl = Math.round(p.entry_price * (1 - p.stop_loss_pct))
+                                    const colorCls = STATUS_COLOR[p.status] ?? 'text-zinc-400 bg-zinc-800/60 border-zinc-700/50'
+                                    return (
+                                        <div key={i} className="flex items-center gap-2 text-sm">
+                                            <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-200 hover:text-amber-300 transition-colors shrink-0 w-24 truncate">
+                                                {p.stock_name}
+                                            </Link>
+                                            <span className="text-zinc-600 font-mono text-xs shrink-0">
+                                                {p.entry_price.toLocaleString()}→
+                                                <span className="text-zinc-500">{p.current_price.toLocaleString()}</span>
+                                            </span>
+                                            {p.float_pct !== null && (
+                                                <span className={`font-mono text-xs font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                    {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
+                                                </span>
+                                            )}
+                                            <span className="text-zinc-600 text-xs shrink-0">{p.days_held}天</span>
+                                            <span className={`ml-auto text-[10px] font-bold border rounded-full px-2 py-0.5 leading-none shrink-0 ${colorCls}`}>
+                                                {p.status}
+                                            </span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )
+                })()}
 
                 {/* ── 今日精選 ──────────────────────────────────────────── */}
                 <div className="flex flex-col gap-2">

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import delete
 
 from app.db.database import engine
+from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from app.models.alpha_signal_history import AlphaSignalHistory
 from app.models.stock_price import StockPrice
 from app.models.strategy_backtest_param import StrategyBacktestParam
@@ -166,6 +167,39 @@ class StrategyMinerService:
         )[:10]
 
         pick_date = date.today()
+
+        # 從 AlphaMinerSnapshot 的 details_json 建立買入理由 map
+        # 找出哪些顯著策略（is_significant=True）在 recent_signals 裡有這支股票
+        reasons_map: Dict[str, List[str]] = {}
+        try:
+            snap = (
+                db.query(AlphaMinerSnapshot)
+                .order_by(AlphaMinerSnapshot.train_date.desc())
+                .first()
+            )
+            if snap:
+                result_data = json.loads(snap.result_json)
+                details_data = json.loads(snap.details_json)
+                # 建立 strategy_id → strategy_name 的映射（僅顯著策略）
+                sig_name_map: Dict[str, str] = {}
+                for s in result_data.get('strategies', []):
+                    if s.get('is_significant') and s.get('ic', 0) > 0:
+                        sig_name_map[s['strategy_id']] = s['strategy_name']
+                # 反向掃描：哪些顯著策略最近觸發了這支股票
+                stock_strategy_names: Dict[str, List[str]] = {}
+                for strat_id, name in sig_name_map.items():
+                    detail = details_data.get(strat_id, {})
+                    for sig in detail.get('recent_signals', []):
+                        sid = sig.get('stock_id')
+                        if sid:
+                            lst = stock_strategy_names.setdefault(sid, [])
+                            if name not in lst:
+                                lst.append(name)
+                # 每股最多保留 3 個策略名稱
+                reasons_map = {k: v[:3] for k, v in stock_strategy_names.items()}
+        except Exception as e:
+            logger.warning(f"[StrategyMiner] 買入理由建立失敗: {e}")
+
         # 刪除今日已有的 picks（idempotent）
         db.execute(
             delete(StrategyMinerPick).where(StrategyMinerPick.pick_date == pick_date)
@@ -186,6 +220,8 @@ class StrategyMinerService:
             else:
                 tp, sl, hd = cls._default_params(r.time_dimension)
 
+            reasons = reasons_map.get(r.stock_id, [])
+
             db.add(StrategyMinerPick(
                 pick_date=pick_date,
                 stock_id=r.stock_id,
@@ -197,6 +233,7 @@ class StrategyMinerService:
                 stop_loss_pct=sl,
                 hold_days_max=hd,
                 time_dimension=r.time_dimension,
+                buy_reasons=json.dumps(reasons, ensure_ascii=False) if reasons else None,
             ))
             count += 1
 

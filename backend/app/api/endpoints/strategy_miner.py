@@ -4,13 +4,16 @@ Strategy Miner API — 每日推薦清單 + 歷史交易記錄
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import date
+from datetime import date, timedelta
+from collections import defaultdict
 
 from app.db.database import get_db
 from app.services.strategy_miner_service import StrategyMinerService
 from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
-from sqlalchemy import func
+from app.models.strategy_miner_pick import StrategyMinerPick
+from app.models.stock_price import StockPrice
+from sqlalchemy import func, and_
 
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
@@ -24,8 +27,6 @@ def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
         .filter(StrategyMinerTrade.stock_id.in_(stock_ids))
         .all()
     )
-    # 按 stock_id 分組計算
-    from collections import defaultdict
     by_stock: dict = defaultdict(list)
     for r in rows:
         by_stock[r.stock_id].append(r.return_pct)
@@ -40,12 +41,119 @@ def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
     return result
 
 
+def _load_buy_reasons_fallback(db: Session, picks) -> dict:
+    """當 DB 中 buy_reasons 為 null 時，基於 alpha_signal_history + 維度最佳策略生成近似理由。
+
+    策略：取 alpha_signal_history 的最新 trigger_count，
+    加上 Alpha Miner snapshot 中該維度 top-3 顯著策略名稱作為近似因子。
+    """
+    import json
+    from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+    from app.models.alpha_signal_history import AlphaSignalHistory
+    from sqlalchemy import func as sa_func
+
+    # 1. 取各股最新 alpha_signal_history 資訊
+    stock_ids = [p.stock_id for p in picks if p.buy_reasons is None]
+    if not stock_ids:
+        return {}
+
+    sub = (
+        db.query(
+            AlphaSignalHistory.stock_id,
+            sa_func.max(AlphaSignalHistory.signal_date).label("max_date"),
+        )
+        .filter(AlphaSignalHistory.stock_id.in_(stock_ids))
+        .group_by(AlphaSignalHistory.stock_id)
+        .subquery()
+    )
+    hist_rows = (
+        db.query(AlphaSignalHistory)
+        .join(
+            sub,
+            (AlphaSignalHistory.stock_id == sub.c.stock_id)
+            & (AlphaSignalHistory.signal_date == sub.c.max_date),
+        )
+        .all()
+    )
+    hist_map = {r.stock_id: r for r in hist_rows}
+
+    # 2. 取 alpha_miner_snapshot 中各維度 top-3 顯著策略名稱
+    dim_top_strats: dict = {}
+    try:
+        snap = (
+            db.query(AlphaMinerSnapshot)
+            .order_by(AlphaMinerSnapshot.train_date.desc())
+            .first()
+        )
+        if snap:
+            result_data = json.loads(snap.result_json)
+            for dim in ["5d", "10d", "30d"]:
+                dim_strats = sorted(
+                    [
+                        s for s in result_data.get("strategies", [])
+                        if s.get("is_significant") and s.get("time_dimension") == dim and s.get("ic", 0) > 0
+                    ],
+                    key=lambda x: x.get("ic", 0),
+                    reverse=True,
+                )
+                dim_top_strats[dim] = [s["strategy_name"] for s in dim_strats[:3]]
+    except Exception:
+        pass
+
+    # 3. 組合每股的 buy_reasons
+    result = {}
+    for p in picks:
+        if p.buy_reasons is not None:
+            continue
+        hist = hist_map.get(p.stock_id)
+        reasons = []
+        if hist:
+            reasons.append(f"近期 {hist.trigger_count} 個策略共同觸發")
+        reasons.extend(dim_top_strats.get(p.time_dimension, []))
+        result[p.stock_id] = reasons[:3]
+
+    return result
+
+
+def _get_current_prices(db: Session, stock_ids: list[str]) -> dict:
+    """批次取得各股最新收盤價，回傳 {stock_id: close}"""
+    if not stock_ids:
+        return {}
+    sub = (
+        db.query(
+            StockPrice.stock_id,
+            func.max(StockPrice.date).label("max_date"),
+        )
+        .filter(StockPrice.stock_id.in_(stock_ids), StockPrice.close > 0)
+        .group_by(StockPrice.stock_id)
+        .subquery()
+    )
+    rows = (
+        db.query(StockPrice.stock_id, StockPrice.close)
+        .join(
+            sub,
+            and_(
+                StockPrice.stock_id == sub.c.stock_id,
+                StockPrice.date == sub.c.max_date,
+            ),
+        )
+        .all()
+    )
+    return {r.stock_id: float(r.close) for r in rows if r.close}
+
+
 @router.get("/picks/today")
 def get_today_picks(db: Session = Depends(get_db)):
-    """今日推薦清單（含真實停利停損參數 + 個股回測績效）"""
+    """今日推薦清單（含停利停損參數 + 個股回測績效 + 買入理由）"""
+    import json as _json
     picks = StrategyMinerService.get_today_picks(db)
     stock_ids = [p.stock_id for p in picks]
     stock_perf = _load_stock_perf_map(db, stock_ids)
+
+    # 優先使用 DB 儲存的 buy_reasons；若為 null（舊資料），使用 fallback 近似值
+    any_missing = any(p.buy_reasons is None for p in picks)
+    live_reasons: dict = _load_buy_reasons_fallback(db, picks) if any_missing else {}
+
     return [
         {
             "pick_date": p.pick_date.isoformat(),
@@ -58,6 +166,10 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
+            "buy_reasons": (
+                _json.loads(p.buy_reasons) if p.buy_reasons
+                else live_reasons.get(p.stock_id, [])
+            ),
             **stock_perf.get(p.stock_id, {
                 "stock_win_rate": None,
                 "stock_avg_return": None,
@@ -66,6 +178,77 @@ def get_today_picks(db: Session = Depends(get_db)):
         }
         for p in picks
     ]
+
+
+@router.get("/picks/active")
+def get_active_picks(db: Session = Depends(get_db)):
+    """過去持有中的推薦清單，計算目前浮動損益與出場提醒。
+
+    遍歷最近 30 天的 picks，根據最新收盤價判斷：
+    - 停利觸發：current >= entry * (1 + tp_pct)
+    - 停損觸發：current <= entry * (1 - sl_pct)
+    - 到期：持有天數 >= hold_days_max
+    - 持有中：其餘
+    """
+    today = date.today()
+    cutoff = today - timedelta(days=30)
+
+    # 不含今日（今日是「買入」，past 才是「持倉」）
+    rows = (
+        db.query(StrategyMinerPick)
+        .filter(
+            StrategyMinerPick.pick_date >= cutoff,
+            StrategyMinerPick.pick_date < today,
+        )
+        .order_by(StrategyMinerPick.pick_date.desc())
+        .all()
+    )
+
+    if not rows:
+        return []
+
+    stock_ids = list({r.stock_id for r in rows})
+    price_map = _get_current_prices(db, stock_ids)
+
+    result = []
+    for p in rows:
+        entry = p.entry_price or 0
+        current = price_map.get(p.stock_id, 0)
+        days_held = (today - p.pick_date).days
+
+        if entry <= 0 or current <= 0:
+            status = "資料不足"
+            float_pct = None
+        else:
+            float_pct = round((current - entry) / entry * 100, 2)
+            if current >= entry * (1 + p.take_profit_pct):
+                status = "建議停利"
+            elif current <= entry * (1 - p.stop_loss_pct):
+                status = "建議停損"
+            elif days_held >= p.hold_days_max:
+                status = "到期出場"
+            else:
+                status = "持有中"
+
+        result.append({
+            "pick_date": p.pick_date.isoformat(),
+            "stock_id": p.stock_id,
+            "stock_name": p.stock_name,
+            "entry_price": entry,
+            "current_price": current,
+            "take_profit_pct": p.take_profit_pct,
+            "stop_loss_pct": p.stop_loss_pct,
+            "hold_days_max": p.hold_days_max,
+            "days_held": days_held,
+            "float_pct": float_pct,
+            "status": status,
+            "time_dimension": p.time_dimension,
+        })
+
+    # 出場提醒排前面
+    EXIT_ORDER = {"建議停利": 0, "建議停損": 1, "到期出場": 2, "持有中": 3, "資料不足": 4}
+    result.sort(key=lambda x: EXIT_ORDER.get(x["status"], 9))
+    return result
 
 
 @router.get("/picks/history")
