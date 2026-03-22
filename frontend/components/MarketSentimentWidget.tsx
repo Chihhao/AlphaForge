@@ -87,11 +87,22 @@ export default function MarketSentimentWidget() {
               })}
             </div>
           ) : (
-            <div className="flex items-center h-8">
+            <div className="flex items-center h-8 gap-2">
               <span className={`font-mono text-2xl font-bold ${pcrColor}`}>
                 {latestPcr != null ? latestPcr.toFixed(2) : '—'}
               </span>
-              <span className="text-zinc-600 text-xs ml-2">資料累積中</span>
+              {pcrRows.length === 2 && (() => {
+                const prev = pcrRows[0].pcr
+                const curr = pcrRows[1].pcr
+                const up = curr > prev
+                const same = curr === prev
+                return (
+                  <span className={`text-sm font-bold ${up ? 'text-rose-400' : same ? 'text-zinc-500' : 'text-emerald-400'}`}>
+                    {up ? '↑' : same ? '→' : '↓'}
+                  </span>
+                )
+              })()}
+              <span className="text-zinc-600 text-xs">資料累積中</span>
             </div>
           )}
         </div>

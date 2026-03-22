@@ -23,6 +23,13 @@ interface PickPreview {
   stop_loss_pct: number
   hold_days_max: number
   weighted_score: number
+  time_dimension: string
+}
+
+interface PerfStats {
+  win_rate_test: number
+  avg_return_test: number
+  trade_count_test: number
 }
 
 function scoreToStars(score: number): number {
@@ -82,14 +89,20 @@ function PickRow({ pick }: { pick: PickPreview }) {
   )
 }
 
+const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
+
 export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
+  const [perf, setPerf] = useState<Record<string, PerfStats>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get<TodayPick[]>('/strategy-miner/picks/today')
-      .then(res => {
-        const top3 = (res.data || []).slice(0, 3).map(p => ({
+    Promise.all([
+      api.get<TodayPick[]>('/strategy-miner/picks/today'),
+      api.get<Record<string, PerfStats>>('/strategy-miner/performance'),
+    ])
+      .then(([picksRes, perfRes]) => {
+        const top3 = (picksRes.data || []).slice(0, 3).map(p => ({
           stock_id: p.stock_id,
           stock_name: p.stock_name,
           entry_price: p.entry_price,
@@ -97,8 +110,10 @@ export default function StrategyMinerPreview() {
           stop_loss_pct: p.stop_loss_pct,
           hold_days_max: p.hold_days_max,
           weighted_score: p.weighted_score,
+          time_dimension: p.time_dimension,
         }))
         setPicks(top3)
+        setPerf(perfRes.data || {})
       })
       .catch(() => {
         setPicks([])
@@ -146,6 +161,31 @@ export default function StrategyMinerPreview() {
           <PickRow key={pick.stock_id} pick={pick} />
         ))
       )}
+
+      {/* 回測績效摘要 */}
+      {!loading && picks.length > 0 && (() => {
+        const dim = picks[0].time_dimension
+        const stats = perf[dim]
+        if (!stats) return null
+        const winRate = Math.round(stats.win_rate_test * 100)
+        const avgRet = stats.avg_return_test.toFixed(1)
+        const dimLabel = DIM_LABEL[dim] ?? dim
+        return (
+          <div className="mt-3 pt-3 border-t border-gray-700/40 flex items-center gap-3 flex-wrap">
+            <span className="text-[10px] text-gray-600 uppercase tracking-widest font-semibold">回測績效</span>
+            <span className="text-[10px] font-mono text-gray-500">{dimLabel}策略</span>
+            <span className={`text-[10px] font-mono font-semibold ${winRate >= 55 ? 'text-emerald-400' : winRate >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
+              勝率 {winRate}%
+            </span>
+            <span className="text-gray-700 text-[10px]">·</span>
+            <span className={`text-[10px] font-mono font-semibold ${stats.avg_return_test >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              均報酬 {stats.avg_return_test >= 0 ? '+' : ''}{avgRet}%
+            </span>
+            <span className="text-gray-700 text-[10px]">·</span>
+            <span className="text-[10px] font-mono text-gray-600">{stats.trade_count_test} 筆交易</span>
+          </div>
+        )
+      })()}
     </div>
   )
 }
