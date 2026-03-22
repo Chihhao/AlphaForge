@@ -149,6 +149,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                             <span className="font-bold">{item.name}</span>
                                         </Link>
                                     ))}
+                                    <button
+                                        onClick={() => { setSidebarOpen(false); setGlossaryOpen(true) }}
+                                        className="w-full flex items-center gap-4 px-4 py-3 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-400 transition-all text-left"
+                                    >
+                                        <SVGPresenter path={icons.book} size={24} />
+                                        <span className="font-bold">每日詞彙</span>
+                                    </button>
                                 </nav>
                             </div>
                         </aside>
