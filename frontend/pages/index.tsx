@@ -2,6 +2,7 @@ import Head from 'next/head';
 import MarketSummary from '../components/MarketSummary';
 import StrategyScreener from '../components/StrategyScreener';
 import StrategyMinerPreview from '../components/StrategyMinerPreview';
+import MarketSentimentWidget from '../components/MarketSentimentWidget';
 
 export default function Home() {
 
@@ -15,6 +16,11 @@ export default function Home() {
         {/* 頂部：大盤溫度計 (Market Pulse) */}
         <section className="mb-4">
           <MarketSummary />
+        </section>
+
+        {/* 市場情緒：PCR + ETF 申贖迷你圖 */}
+        <section className="mb-4">
+          <MarketSentimentWidget />
         </section>
 
         {/* 今日精選：Strategy Miner 精簡預覽 */}
