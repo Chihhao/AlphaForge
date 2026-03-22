@@ -396,80 +396,68 @@ export default function StockDetail() {
           )}
         </div>
 
-        {/* Chip Data Card */}
-        {chipData.length > 0 && (
-          <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-            <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">籌碼面（近 {chipData.length} 日）</p>
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <table className="w-full text-xs min-w-[480px] sm:min-w-0">
-                <thead>
-                  <tr className="text-zinc-600 uppercase tracking-widest text-[10px] border-b border-zinc-700">
-                    <th className="text-left py-1.5 px-2 font-medium">日期</th>
-                    <th className="text-right py-1.5 px-2 font-medium">外資</th>
-                    <th className="text-right py-1.5 px-2 font-medium">投信</th>
-                    <th className="text-right py-1.5 px-2 font-medium">自營</th>
-                    <th className="text-right py-1.5 px-2 font-medium">融資餘額</th>
-                    {chipData.some(r => r.foreign_hold_pct != null) && (
-                      <th className="text-right py-1.5 px-2 font-medium">外資持股%</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...chipData].reverse().map((row, i) => {
-                    const fgn = row.foreign_net_buy
-                    const trs = row.trust_net_buy
-                    const dlr = row.dealer_net_buy
-                    const fmt = (v: number | null) => {
-                      if (v == null) return <span className="text-zinc-700">—</span>
-                      const lots = Math.round(v)
-                      const abs = Math.abs(lots)
-                      const str = abs >= 1000 ? `${(abs / 1000).toFixed(1)}千` : `${abs}`
-                      const color = lots > 0 ? 'text-rose-400' : lots < 0 ? 'text-emerald-400' : 'text-zinc-600'
-                      return <span className={`font-mono font-bold ${color}`}>{lots > 0 ? '+' : lots < 0 ? '−' : ''}{str}</span>
-                    }
+        {/* Chip Data Card — sparkline 版 */}
+        {chipData.length > 0 && (() => {
+          const last5 = chipData.slice(-5)
+          const fgn5 = last5.reduce((s: number, r: any) => s + (r.foreign_net_buy ?? 0), 0)
+          const trs5 = last5.reduce((s: number, r: any) => s + (r.trust_net_buy ?? 0), 0)
+          const dlr5 = last5.reduce((s: number, r: any) => s + (r.dealer_net_buy ?? 0), 0)
+          const latestFgnHoldPct = [...chipData].reverse().find((r: any) => r.foreign_hold_pct != null)?.foreign_hold_pct
+          const latestMargin = chipData.at(-1)?.margin_balance
+
+          const fmtLots = (v: number) => {
+            const abs = Math.abs(Math.round(v))
+            return abs >= 1000 ? `${(abs / 1000).toFixed(1)}千` : `${abs}`
+          }
+
+          const SparkBars = ({ values, label, sum }: { values: number[], label: string, sum: number }) => {
+            const maxAbs = Math.max(...values.map((v: number) => Math.abs(v)), 1)
+            return (
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500 text-[10px] font-bold w-7 shrink-0">{label}</span>
+                <div className="flex items-end gap-px h-7 flex-1">
+                  {values.map((v: number, i: number) => {
+                    const pct = Math.min(Math.abs(v) / maxAbs * 100, 100)
+                    const isBuy = v >= 0
+                    const isLatest = i === values.length - 1
                     return (
-                      <tr key={i} className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors">
-                        <td className="py-1.5 px-2 text-zinc-500 font-mono">{row.date?.slice(5)}</td>
-                        <td className="py-1.5 px-2 text-right">{fmt(fgn)}</td>
-                        <td className="py-1.5 px-2 text-right">{fmt(trs)}</td>
-                        <td className="py-1.5 px-2 text-right">{fmt(dlr)}</td>
-                        <td className="py-1.5 px-2 text-right font-mono text-zinc-400">
-                          {row.margin_balance != null ? row.margin_balance.toLocaleString() : <span className="text-zinc-700">—</span>}
-                        </td>
-                        {chipData.some(r => r.foreign_hold_pct != null) && (
-                          <td className="py-1.5 px-2 text-right font-mono text-zinc-300">
-                            {row.foreign_hold_pct != null ? `${row.foreign_hold_pct.toFixed(1)}%` : <span className="text-zinc-700">—</span>}
-                          </td>
-                        )}
-                      </tr>
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+                        <div
+                          className={`w-full rounded-[1px] ${isBuy ? 'bg-rose-500' : 'bg-emerald-600'} ${isLatest ? 'opacity-100' : 'opacity-40'}`}
+                          style={{ height: `${Math.max(pct * 0.85, 6)}%` }}
+                          title={`${chipData[i]?.date?.slice(5) ?? ''} ${v > 0 ? '+' : ''}${Math.round(v)}`}
+                        />
+                      </div>
                     )
                   })}
-                </tbody>
-              </table>
-            </div>
-            {/* 5日累計 */}
-            {chipData.length >= 5 && (() => {
-              const last5 = chipData.slice(-5)
-              const fgn5 = last5.reduce((s, r) => s + (r.foreign_net_buy ?? 0), 0)
-              const trs5 = last5.reduce((s, r) => s + (r.trust_net_buy ?? 0), 0)
-              const dlr5 = last5.reduce((s, r) => s + (r.dealer_net_buy ?? 0), 0)
-              const fmtSum = (v: number) => {
-                const abs = Math.abs(Math.round(v))
-                const str = abs >= 1000 ? `${(abs / 1000).toFixed(1)}千張` : `${abs}張`
-                const color = v > 0 ? 'text-rose-400' : v < 0 ? 'text-emerald-400' : 'text-zinc-500'
-                return <span className={`font-mono font-bold ${color}`}>{v > 0 ? '+' : v < 0 ? '−' : ''}{str}</span>
-              }
-              return (
-                <div className="flex gap-4 mt-3 pt-3 border-t border-zinc-800/50 text-xs text-zinc-500">
-                  <span>近5日累計</span>
-                  <span>外資 {fmtSum(fgn5)}</span>
-                  <span>投信 {fmtSum(trs5)}</span>
-                  <span>自營 {fmtSum(dlr5)}</span>
                 </div>
-              )
-            })()}
-          </div>
-        )}
+                <span className={`font-mono text-xs font-bold w-16 text-right shrink-0 ${sum > 0 ? 'text-rose-400' : sum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                  {sum > 0 ? '+' : sum < 0 ? '−' : ''}{fmtLots(sum)}張
+                </span>
+              </div>
+            )
+          }
+
+          return (
+            <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">籌碼面（近 {chipData.length} 日）</p>
+              <div className="space-y-2.5">
+                <SparkBars values={chipData.map((r: any) => r.foreign_net_buy ?? 0)} label="外資" sum={fgn5} />
+                <SparkBars values={chipData.map((r: any) => r.trust_net_buy ?? 0)} label="投信" sum={trs5} />
+                <SparkBars values={chipData.map((r: any) => r.dealer_net_buy ?? 0)} label="自營" sum={dlr5} />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-zinc-800/50 text-xs text-zinc-600">
+                <span>近5日累計</span>
+                {latestFgnHoldPct != null && (
+                  <span>外資持股 <span className="text-zinc-400 font-mono">{latestFgnHoldPct.toFixed(1)}%</span></span>
+                )}
+                {latestMargin != null && (
+                  <span>融資餘額 <span className="text-zinc-400 font-mono">{latestMargin.toLocaleString()}</span></span>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Technical Signal Card */}
         {(() => {
