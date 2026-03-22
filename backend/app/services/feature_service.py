@@ -318,6 +318,28 @@ class FeatureService:
                     'foreign_hold_pct', 'foreign_hold_chg_5d'):
             backfill_df[col] = None
 
+        # PCR lookup: date → pcr
+        pcr_warmup = start_date - timedelta(days=1)
+        pcr_rows = db.query(MarketPCR).filter(
+            MarketPCR.date >= pcr_warmup,
+            MarketPCR.date <= end_date
+        ).order_by(MarketPCR.date).all()
+        pcr_by_date: dict = {r.date: r.pcr for r in pcr_rows}
+
+        # ETF flow lookup: date → net_flow_5d (rolling 5-day sum ÷ 10000)
+        etf_warmup = start_date - timedelta(days=10)
+        etf_rows_all = (
+            db.query(ETFFlow)
+            .filter(ETFFlow.etf_id == '0050', ETFFlow.date >= etf_warmup, ETFFlow.date <= end_date)
+            .order_by(ETFFlow.date)
+            .all()
+        )
+        etf_net_by_date: dict = {}
+        etf_all_sorted = [(r.date, r.net_flow) for r in etf_rows_all]
+        for d in [r.date for r in etf_rows_all]:
+            window = [nf for dt, nf in etf_all_sorted if dt <= d][-5:]
+            etf_net_by_date[d] = sum(window) / 10000 if window else None
+
         # 逐日 UPSERT（先刪當日再寫入），避免整批刪除後中途失敗造成資料永久消失
         total_written = 0
         dates = sorted(backfill_df['date'].unique())
@@ -343,6 +365,11 @@ class FeatureService:
             else:
                 for col in chip_cols:
                     day_df[col] = None
+
+            # PCR 與 ETF 申贖（市場層級指標，全體股票共享）
+            _batch_d = batch_date if isinstance(batch_date, date) else batch_date.date()
+            day_df['market_pcr'] = pcr_by_date.get(_batch_d)
+            day_df['etf_net_flow_5d'] = etf_net_by_date.get(_batch_d)
 
             records = []
             for _, row in day_df.iterrows():
