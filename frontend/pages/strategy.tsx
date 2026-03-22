@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
+import Link from 'next/link'
 import api from '../lib/api'
 import {
     LineChart, Line, XAxis, YAxis, Tooltip,
@@ -97,17 +98,19 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             {/* Row 1: rank + name + id + stars */}
             <div className="flex items-baseline gap-1.5 mb-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5">#{rank}</span>
-                <span className="text-white font-bold text-xl leading-none">{pick.stock_name}</span>
+                <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
+                    {pick.stock_name}
+                </Link>
                 <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
                 <span className="ml-auto text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
             </div>
 
             {/* Row 2: entry → take profit / stop loss */}
             {pick.entry_price > 0 && (
-                <div className="flex items-baseline gap-2 mb-1.5">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1.5">
                     <span className="text-zinc-500 text-xs">買入</span>
                     <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
-                    <span className="text-zinc-600">→</span>
+                    <span className="text-zinc-600 hidden sm:inline">→</span>
                     <span className="text-zinc-500 text-xs">停利</span>
                     <span className="text-rose-400 font-mono font-bold text-lg">▲{takeProfit.toLocaleString()}</span>
                     <span className="text-zinc-700">/</span>
@@ -118,7 +121,7 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
 
             {/* Row 3: meta + expand toggle */}
             <div
-                className="flex items-center gap-2 text-sm text-zinc-500 whitespace-nowrap overflow-hidden cursor-pointer select-none"
+                className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 cursor-pointer select-none"
                 onClick={handleExpand}
             >
                 <span>持有上限 {pick.hold_days_max} 天</span>

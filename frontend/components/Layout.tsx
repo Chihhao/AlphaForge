@@ -222,11 +222,39 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             </div>
                         </div>
 
-                        <main className="flex-grow">
+                        <main className="flex-grow pb-16 sm:pb-0">
                             {children}
                         </main>
 
                         <DailyGlossary isOpen={isGlossaryOpen} onClose={() => setGlossaryOpen(false)} />
+
+                        {/* 行動端底部導覽列 */}
+                        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900 border-t border-zinc-800 flex items-stretch">
+                            {[
+                                { href: '/', icon: icons.home, label: '首頁' },
+                                { href: '/strategy', icon: icons.strategy, label: '精選' },
+                                { href: '/signals', icon: icons.signal, label: '訊號' },
+                            ].map(item => {
+                                const isActive = router.pathname === item.href
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${isActive ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                    >
+                                        <SVGPresenter path={item.icon} size={22} />
+                                        <span className="text-[10px] font-medium">{item.label}</span>
+                                    </Link>
+                                )
+                            })}
+                            <button
+                                onClick={() => setSearchOpen(true)}
+                                className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                            >
+                                <SVGPresenter path={icons.magnify} size={22} />
+                                <span className="text-[10px] font-medium">搜尋</span>
+                            </button>
+                        </nav>
 
                         <footer className="py-2.5 border-t border-zinc-900 bg-[#101827] text-zinc-400 flex flex-col sm:flex-row items-center justify-center gap-x-12 gap-y-1 px-4 transition-all">
                             <div className="flex items-center gap-2 text-zinc-400">

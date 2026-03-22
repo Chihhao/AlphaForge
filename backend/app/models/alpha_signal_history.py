@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Float, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, Float, Boolean, UniqueConstraint, Index
 from app.db.database import Base
 
 
@@ -26,4 +26,5 @@ class AlphaSignalHistory(Base):
     __table_args__ = (
         UniqueConstraint('signal_date', 'stock_id', 'time_dimension',
                          name='uq_signal_history'),
+        Index('ix_signal_history_dim_date', 'time_dimension', 'signal_date'),
     )
