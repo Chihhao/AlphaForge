@@ -121,7 +121,7 @@ export default function MarketSentimentWidget() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資 0050</span>
-                <span className={`font-mono text-xs font-bold ${etfNetSum > 0 ? 'text-emerald-400' : etfNetSum < 0 ? 'text-rose-400' : 'text-zinc-500'}`}>
+                <span className={`font-mono text-xs font-bold ${etfNetSum > 0 ? 'text-rose-400' : etfNetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
                   {etfNetSum > 0 ? '+' : ''}{etfNetSum.toFixed(0)}張
                 </span>
               </div>
@@ -132,7 +132,7 @@ export default function MarketSentimentWidget() {
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-center h-full">
                       <div
-                        className={`w-full rounded-[1px] ${isBuy ? 'bg-emerald-600' : 'bg-rose-500'} ${i === etfRows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
+                        className={`w-full rounded-[1px] ${isBuy ? 'bg-rose-500' : 'bg-emerald-600'} ${i === etfRows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
                         style={{ height: `${Math.max(pct * 0.8, 4)}%` }}
                         title={`${r.date.slice(5)} ${r.net_flow > 0 ? '+' : ''}${r.net_flow?.toFixed(0)}張`}
                       />
@@ -146,7 +146,7 @@ export default function MarketSentimentWidget() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資 00878</span>
-                <span className={`font-mono text-xs font-bold ${etf878NetSum > 0 ? 'text-emerald-400' : etf878NetSum < 0 ? 'text-rose-400' : 'text-zinc-500'}`}>
+                <span className={`font-mono text-xs font-bold ${etf878NetSum > 0 ? 'text-rose-400' : etf878NetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
                   {etf878NetSum > 0 ? '+' : ''}{etf878NetSum.toFixed(0)}張
                 </span>
               </div>
@@ -158,7 +158,7 @@ export default function MarketSentimentWidget() {
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-center h-full">
                       <div
-                        className={`w-full rounded-[1px] ${isBuy ? 'bg-emerald-600' : 'bg-rose-500'} ${i === etf878Rows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
+                        className={`w-full rounded-[1px] ${isBuy ? 'bg-rose-500' : 'bg-emerald-600'} ${i === etf878Rows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
                         style={{ height: `${Math.max(pct * 0.8, 4)}%` }}
                         title={`${r.date.slice(5)} ${r.net_flow > 0 ? '+' : ''}${r.net_flow?.toFixed(0)}張`}
                       />
@@ -175,7 +175,7 @@ export default function MarketSentimentWidget() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資 006208</span>
-                  <span className={`font-mono text-xs font-bold ${etf6208NetSum > 0 ? 'text-emerald-400' : etf6208NetSum < 0 ? 'text-rose-400' : 'text-zinc-500'}`}>
+                  <span className={`font-mono text-xs font-bold ${etf6208NetSum > 0 ? 'text-rose-400' : etf6208NetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
                     {etf6208NetSum > 0 ? '+' : ''}{etf6208NetSum.toFixed(0)}張
                   </span>
                 </div>
@@ -186,7 +186,7 @@ export default function MarketSentimentWidget() {
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center justify-center h-full">
                         <div
-                          className={`w-full rounded-[1px] ${isBuy ? 'bg-emerald-600' : 'bg-rose-500'} ${i === etf6208Rows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
+                          className={`w-full rounded-[1px] ${isBuy ? 'bg-rose-500' : 'bg-emerald-600'} ${i === etf6208Rows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
                           style={{ height: `${Math.max(pct * 0.8, 4)}%` }}
                           title={`${r.date.slice(5)} ${r.net_flow > 0 ? '+' : ''}${r.net_flow?.toFixed(0)}張`}
                         />
