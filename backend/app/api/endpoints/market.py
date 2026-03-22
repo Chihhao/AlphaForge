@@ -280,3 +280,36 @@ def get_pcr(days: int = 20):
         ]
     finally:
         db.close()
+
+
+@router.get("/data-status")
+def get_data_status():
+    """各資料源最後更新時間（用於系統健康監控）"""
+    from sqlalchemy import func
+    from app.models.stock_price import StockPrice
+    from app.models.stock_fundamental import StockFundamental
+    from app.models.stock_chip_data import StockChipData
+    from app.models.stock_feature import StockFeature
+    from app.models.alpha_signal_history import AlphaSignalHistory
+    from app.models.strategy_miner_pick import StrategyMinerPick
+    from app.models.market_pcr import MarketPCR
+    from app.models.etf_flow import ETFFlow
+
+    db = SessionLocal()
+    try:
+        def latest(model, col):
+            val = db.query(func.max(col)).scalar()
+            return val.isoformat() if val else None
+
+        return {
+            "stock_prices":       latest(StockPrice,          StockPrice.date),
+            "fundamentals":       latest(StockFundamental,    StockFundamental.updated_at),
+            "chip_data":          latest(StockChipData,       StockChipData.date),
+            "stock_features":     latest(StockFeature,        StockFeature.date),
+            "alpha_signals":      latest(AlphaSignalHistory,  AlphaSignalHistory.signal_date),
+            "strategy_picks":     latest(StrategyMinerPick,   StrategyMinerPick.pick_date),
+            "pcr":                latest(MarketPCR,           MarketPCR.date),
+            "etf_flows":          latest(ETFFlow,             ETFFlow.date),
+        }
+    finally:
+        db.close()
