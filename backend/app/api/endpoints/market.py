@@ -257,30 +257,6 @@ def get_etf_flows(etf_id: str = "0050", days: int = 20):
         db.close()
 
 
-@router.get("/pcr")
-def get_pcr(days: int = 20):
-    """查詢近期台指選擇權 Put/Call Ratio"""
-    from app.models.market_pcr import MarketPCR
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(MarketPCR)
-            .order_by(MarketPCR.date.desc())
-            .limit(days)
-            .all()
-        )
-        return [
-            {
-                "date": r.date.isoformat(),
-                "put_oi": r.put_oi,
-                "call_oi": r.call_oi,
-                "pcr": r.pcr,
-            }
-            for r in reversed(rows)
-        ]
-    finally:
-        db.close()
-
 
 @router.get("/data-status")
 def get_data_status():
@@ -292,7 +268,6 @@ def get_data_status():
     from app.models.stock_feature import StockFeature
     from app.models.alpha_signal_history import AlphaSignalHistory
     from app.models.strategy_miner_pick import StrategyMinerPick
-    from app.models.market_pcr import MarketPCR
     from app.models.etf_flow import ETFFlow
 
     db = SessionLocal()
@@ -308,7 +283,6 @@ def get_data_status():
             "stock_features":     latest(StockFeature,        StockFeature.date),
             "alpha_signals":      latest(AlphaSignalHistory,  AlphaSignalHistory.signal_date),
             "strategy_picks":     latest(StrategyMinerPick,   StrategyMinerPick.pick_date),
-            "pcr":                latest(MarketPCR,           MarketPCR.date),
             "etf_flows":          latest(ETFFlow,             ETFFlow.date),
         }
     finally:

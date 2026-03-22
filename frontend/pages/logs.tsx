@@ -17,14 +17,13 @@ interface DataStatus {
     stock_features: string | null
     alpha_signals: string | null
     strategy_picks: string | null
-    pcr: string | null
     etf_flows: string | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
     stock_prices: '行情', fundamentals: '基本面', chip_data: '籌碼',
     stock_features: '特徵', alpha_signals: '訊號', strategy_picks: '精選',
-    pcr: 'PCR', etf_flows: 'ETF申贖',
+    etf_flows: 'ETF申贖',
 }
 
 function DataStatusBar({ status }: { status: DataStatus }) {
