@@ -21,7 +21,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-ETF_TARGETS = ["0050"]  # 可擴充至 00878, 006208
+ETF_TARGETS = ["0050", "00878", "006208"]  # 元大台灣50, 國泰永續高股息, 富邦台50
 
 _TWSE_ETF_URL = "https://www.twse.com.tw/fund/TWT38U"
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AlphaForge/1.0)"}
