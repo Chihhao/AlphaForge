@@ -62,11 +62,12 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     const [trades, setTrades] = useState<TradeRecord[]>([])
     const [tradesLoading, setTradesLoading] = useState(false)
 
+    // take_profit_pct / stop_loss_pct 從 API 取得的是 decimal（e.g. 0.12 = 12%）
     const takeProfit = pick.entry_price > 0
-        ? Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100))
+        ? Math.round(pick.entry_price * (1 + pick.take_profit_pct))
         : 0
     const stopLoss = pick.entry_price > 0
-        ? Math.round(pick.entry_price * (1 - pick.stop_loss_pct / 100))
+        ? Math.round(pick.entry_price * (1 - pick.stop_loss_pct))
         : 0
 
     const handleExpand = () => {
@@ -126,9 +127,9 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             >
                 <span>持有上限 {pick.hold_days_max} 天</span>
                 <span className="text-zinc-700">·</span>
-                <span>停利 +{pick.take_profit_pct}%</span>
+                <span>停利 +{(pick.take_profit_pct * 100).toFixed(0)}%</span>
                 <span className="text-zinc-700">/</span>
-                <span>停損 -{pick.stop_loss_pct}%</span>
+                <span>停損 -{(pick.stop_loss_pct * 100).toFixed(0)}%</span>
                 {winRate !== null && (
                     <>
                         <span className="text-zinc-700">·</span>
