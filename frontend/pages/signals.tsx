@@ -350,8 +350,9 @@ export default function SignalsPage() {
                         <div className="space-y-2.5">
                             {signals.map(s => {
                                 const isExpanded = expandedId === s.stock_id
-                                const isTop = s.trigger_count >= 20
-                                const isMid = s.trigger_count >= 10 && s.trigger_count < 20
+                                const ratio = maxPossibleTrigger > 0 ? s.trigger_count / maxPossibleTrigger : 0
+                                const isTop = ratio >= 0.7
+                                const isMid = ratio >= 0.4 && ratio < 0.7
 
                                 return (
                                     <div

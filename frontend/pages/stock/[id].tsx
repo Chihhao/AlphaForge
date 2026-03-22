@@ -238,8 +238,8 @@ export default function StockDetail() {
               </span>
               <span className="text-xs text-gray-500 font-mono">
                 入場 {strategyPick.entry_price?.toLocaleString()}
-                <span className="text-emerald-400 ml-2">▲停利 +{Math.round(strategyPick.take_profit_pct * 100)}%</span>
-                <span className="text-rose-400 ml-2">▼停損 -{Math.round(strategyPick.stop_loss_pct * 100)}%</span>
+                <span className="text-rose-400 ml-2">▲停利 +{Math.round(strategyPick.take_profit_pct * 100)}%</span>
+                <span className="text-emerald-400 ml-2">▼停損 -{Math.round(strategyPick.stop_loss_pct * 100)}%</span>
               </span>
             </div>
           )}
