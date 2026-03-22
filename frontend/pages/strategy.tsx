@@ -840,13 +840,30 @@ const StrategyPage = () => {
                             <span className="text-zinc-600 text-xs font-mono self-center">{displayDate}</span>
                         </div>
                         <p className="text-zinc-500 text-sm leading-relaxed">
-                            量化模型篩選的今日推薦買入標的 · 附停利/停損目標 · 不構成投資建議
+                            量化模型篩選 · 每日收盤後自動更新 · 不構成投資建議
                         </p>
                         {usingFallback && (
                             <p className="text-amber-600 text-xs mt-1">
                                 ⚠ 回測參數尚未產生，停利/停損使用預設值
                             </p>
                         )}
+                        {/* 操作流程提示 */}
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-600">
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-amber-500 font-bold">1</span>
+                                <span>明日開盤後以參考價附近買入</span>
+                            </span>
+                            <span className="text-zinc-800">·</span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-amber-500 font-bold">2</span>
+                                <span>達停利目標時賣出，跌破停損立即出場</span>
+                            </span>
+                            <span className="text-zinc-800">·</span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-amber-500 font-bold">3</span>
+                                <span>超過持有天數上限時出場</span>
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -955,7 +972,7 @@ const StrategyPage = () => {
                                             <span className="text-zinc-600 text-xs ml-auto">{p.days_held}天</span>
                                         </div>
                                     ))}
-                                    <p className="text-[10px] text-zinc-700 pt-1">停利 +{Math.round(holding[0]?.take_profit_pct * 100)}% / 停損 -{Math.round(holding[0]?.stop_loss_pct * 100)}% 觸發時會列入「今日建議賣出」</p>
+                                    <p className="text-[10px] text-zinc-700 pt-1">各持倉達停利/停損目標時，會自動列入上方「今日建議賣出」</p>
                                 </div>
                             )}
                         </div>
