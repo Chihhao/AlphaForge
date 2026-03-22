@@ -102,24 +102,34 @@ class StrategyMinerService:
             )
             optimal[dim] = opt
 
-        # 查最新收盤價
+        # 查最新收盤價（每檔股票各取自己最後一個有成交的收盤價）
         stock_ids = list({r.stock_id for r in rows})
-        latest_price_date = (
-            db.query(StockPrice.date)
-            .order_by(StockPrice.date.desc())
-            .first()
-        )
-        price_map: Dict[str, float] = {}
-        if latest_price_date:
-            price_rows = (
-                db.query(StockPrice.stock_id, StockPrice.close)
-                .filter(
-                    StockPrice.stock_id.in_(stock_ids),
-                    StockPrice.date == latest_price_date.date,
-                )
-                .all()
+        from sqlalchemy import func as sa_func, and_
+        # 子查詢：每股最新有收盤的日期
+        sub = (
+            db.query(
+                StockPrice.stock_id,
+                sa_func.max(StockPrice.date).label("max_date"),
             )
-            price_map = {r.stock_id: float(r.close) for r in price_rows if r.close}
+            .filter(
+                StockPrice.stock_id.in_(stock_ids),
+                StockPrice.close > 0,
+            )
+            .group_by(StockPrice.stock_id)
+            .subquery()
+        )
+        price_rows = (
+            db.query(StockPrice.stock_id, StockPrice.close)
+            .join(
+                sub,
+                and_(
+                    StockPrice.stock_id == sub.c.stock_id,
+                    StockPrice.date == sub.c.max_date,
+                ),
+            )
+            .all()
+        )
+        price_map: Dict[str, float] = {r.stock_id: float(r.close) for r in price_rows if r.close}
 
         # 去重（同股票保留 trigger_count 最高者）
         dedup: Dict[str, AlphaSignalHistory] = {}
