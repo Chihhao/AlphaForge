@@ -9,32 +9,43 @@ from datetime import date
 from app.db.database import get_db
 from app.services.strategy_miner_service import StrategyMinerService
 from app.models.strategy_backtest_param import StrategyBacktestParam
+from app.models.strategy_miner_trade import StrategyMinerTrade
+from sqlalchemy import func
 
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
-def _load_perf_map(db: Session) -> dict:
-    """載入各維度最優回測績效，回傳 {dim: {win_rate_test, avg_return_test, trade_count_test}}"""
+def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
+    """載入指定股票的逐筆回測績效，回傳 {stock_id: {win_rate, avg_return, trade_count}}"""
+    if not stock_ids:
+        return {}
     rows = (
-        db.query(StrategyBacktestParam)
-        .filter(StrategyBacktestParam.is_optimal == True)  # noqa: E712
+        db.query(StrategyMinerTrade)
+        .filter(StrategyMinerTrade.stock_id.in_(stock_ids))
         .all()
     )
-    return {
-        r.strategy_id: {
-            "win_rate_test": r.win_rate_test,
-            "avg_return_test": r.avg_return_test,
-            "trade_count_test": r.trade_count_test,
+    # 按 stock_id 分組計算
+    from collections import defaultdict
+    by_stock: dict = defaultdict(list)
+    for r in rows:
+        by_stock[r.stock_id].append(r.return_pct)
+    result = {}
+    for sid, rets in by_stock.items():
+        wins = sum(1 for x in rets if x > 0)
+        result[sid] = {
+            "stock_win_rate": round(wins / len(rets), 4),
+            "stock_avg_return": round(sum(rets) / len(rets), 4),
+            "stock_trade_count": len(rets),
         }
-        for r in rows
-    }
+    return result
 
 
 @router.get("/picks/today")
 def get_today_picks(db: Session = Depends(get_db)):
-    """今日推薦清單（含真實停利停損參數 + 回測績效）"""
+    """今日推薦清單（含真實停利停損參數 + 個股回測績效）"""
     picks = StrategyMinerService.get_today_picks(db)
-    perf = _load_perf_map(db)
+    stock_ids = [p.stock_id for p in picks]
+    stock_perf = _load_stock_perf_map(db, stock_ids)
     return [
         {
             "pick_date": p.pick_date.isoformat(),
@@ -47,9 +58,11 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
-            "win_rate_test": perf.get(p.time_dimension, {}).get("win_rate_test"),
-            "avg_return_test": perf.get(p.time_dimension, {}).get("avg_return_test"),
-            "trade_count_test": perf.get(p.time_dimension, {}).get("trade_count_test"),
+            **stock_perf.get(p.stock_id, {
+                "stock_win_rate": None,
+                "stock_avg_return": None,
+                "stock_trade_count": 0,
+            }),
         }
         for p in picks
     ]

@@ -20,8 +20,9 @@ interface StrategyMinerPick {
     stop_loss_pct: number     // decimal: 0.03 = 3%
     hold_days_max: number
     time_dimension: string
-    win_rate_test?: number | null
-    avg_return_test?: number | null
+    stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
+    stock_avg_return?: number | null  // 個股回測平均報酬（%）
+    stock_trade_count?: number        // 個股交易筆數
 }
 
 interface TradeRecord {
@@ -47,8 +48,9 @@ interface StrategyPick {
     weighted_score: number
     time_dimension: string
     dims?: string[]           // 出現的維度列表（多維共鳴時 length > 1）
-    win_rate_test?: number | null    // 回測勝率（來自 strategy_backtest_params）
-    avg_return_test?: number | null  // 回測平均報酬（%）
+    stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
+    stock_avg_return?: number | null  // 個股回測平均報酬（%）
+    stock_trade_count?: number        // 個股交易筆數
 }
 
 const toStars = (score: number) => {
@@ -156,17 +158,20 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 <span>停利 +{pick.take_profit_pct}%</span>
                 <span className="text-zinc-700">/</span>
                 <span>停損 -{pick.stop_loss_pct}%</span>
-                {/* 優先顯示 API 帶回的回測勝率（維度級），否則顯示從交易記錄計算的股票級 */}
-                {pick.win_rate_test != null ? (
+                {/* 個股回測績效（來自 strategy_miner_trades，比維度級更精準） */}
+                {pick.stock_win_rate != null ? (
                     <>
                         <span className="text-zinc-700">·</span>
-                        <span className={`font-mono text-xs ${pick.win_rate_test >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
-                            回測勝率 {(pick.win_rate_test * 100).toFixed(0)}%
+                        <span className={`font-mono text-xs ${pick.stock_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                            勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
                         </span>
-                        {pick.avg_return_test != null && (
-                            <span className={`font-mono text-xs ${pick.avg_return_test >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                均{pick.avg_return_test >= 0 ? '+' : ''}{pick.avg_return_test.toFixed(1)}%
+                        {pick.stock_avg_return != null && (
+                            <span className={`font-mono text-xs ${pick.stock_avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                均{pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
                             </span>
+                        )}
+                        {(pick.stock_trade_count ?? 0) > 0 && (
+                            <span className="font-mono text-xs text-zinc-600">{pick.stock_trade_count}筆</span>
                         )}
                     </>
                 ) : winRate !== null ? (
@@ -688,8 +693,9 @@ const StrategyPage = () => {
                         weighted_score: p.weighted_score,
                         time_dimension: p.time_dimension,
                         dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
-                        win_rate_test: p.win_rate_test ?? null,
-                        avg_return_test: p.avg_return_test ?? null,
+                        stock_win_rate: p.stock_win_rate ?? null,
+                        stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
+                        stock_trade_count: p.stock_trade_count ?? 0,
                     })))
                     setLoading(false)
                     return
