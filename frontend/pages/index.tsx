@@ -15,14 +15,14 @@ export default function Home() {
       </Head>
       <div className="max-w-[1600px] mx-auto px-4 pt-4 pb-12 w-full min-h-screen">
 
+        {/* 今日操作建議：Strategy Miner 精簡預覽（最優先顯示） */}
+        <section className="mb-4">
+          <StrategyMinerPreview />
+        </section>
+
         {/* 頂部：大盤溫度計 (Market Pulse) */}
         <section className="mb-4">
           <MarketSummary />
-        </section>
-
-        {/* 市場情緒：ETF 申贖資金流向 */}
-        <section className="mb-4">
-          <MarketSentimentWidget />
         </section>
 
         {/* 觀察清單（localStorage，有內容才顯示）*/}
@@ -30,9 +30,9 @@ export default function Home() {
           <WatchlistWidget />
         </section>
 
-        {/* 今日精選：Strategy Miner 精簡預覽 */}
+        {/* 市場情緒：ETF 申贖資金流向 */}
         <section className="mb-4">
-          <StrategyMinerPreview />
+          <MarketSentimentWidget />
         </section>
 
         {/* 強弱排行榜 */}
