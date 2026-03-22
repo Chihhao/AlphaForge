@@ -64,22 +64,31 @@ export default function MarketSentimentWidget() {
               {latestPcr != null ? latestPcr.toFixed(2) : '—'} · {pcrLabel}
             </span>
           </div>
-          <div className="flex items-end gap-px h-8">
-            {pcrRows.map((r, i) => {
-              const h = Math.min(Math.max((r.pcr / 2) * 100, 8), 100)
-              const isHigh = r.pcr >= 1.5
-              const isMid = r.pcr >= 1.0
-              const color = isHigh ? 'bg-rose-500' : isMid ? 'bg-amber-500' : r.pcr >= 0.8 ? 'bg-zinc-500' : 'bg-emerald-500'
-              return (
-                <div
-                  key={i}
-                  className={`flex-1 rounded-[1px] ${color} ${i === pcrRows.length - 1 ? 'opacity-100' : 'opacity-50'}`}
-                  style={{ height: `${h}%` }}
-                  title={`${r.date.slice(5)} PCR: ${r.pcr.toFixed(2)}`}
-                />
-              )
-            })}
-          </div>
+          {pcrRows.length >= 3 ? (
+            <div className="flex items-end gap-px h-8">
+              {pcrRows.map((r, i) => {
+                const h = Math.min(Math.max((r.pcr / 2) * 100, 8), 100)
+                const isHigh = r.pcr >= 1.5
+                const isMid = r.pcr >= 1.0
+                const color = isHigh ? 'bg-rose-500' : isMid ? 'bg-amber-500' : r.pcr >= 0.8 ? 'bg-zinc-500' : 'bg-emerald-500'
+                return (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-[1px] ${color} ${i === pcrRows.length - 1 ? 'opacity-100' : 'opacity-50'}`}
+                    style={{ height: `${h}%` }}
+                    title={`${r.date.slice(5)} PCR: ${r.pcr.toFixed(2)}`}
+                  />
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center h-8">
+              <span className={`font-mono text-2xl font-bold ${pcrColor}`}>
+                {latestPcr != null ? latestPcr.toFixed(2) : '—'}
+              </span>
+              <span className="text-zinc-600 text-xs ml-2">資料累積中</span>
+            </div>
+          )}
         </div>
       )}
 
