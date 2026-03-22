@@ -36,11 +36,11 @@ const KDIndicator: React.FC<KDIndicatorProps> = ({ stockId }) => {
   }, [stockId])
 
   if (loading) {
-    return <span className="font-semibold text-gray-500 animate-pulse">載入中...</span>
+    return <span className="font-semibold text-zinc-500 animate-pulse">載入中...</span>
   }
 
   if (error || !kdStatus) {
-    return <span className="font-semibold text-gray-500">{error || '---'}</span>
+    return <span className="font-semibold text-zinc-500">{error || '---'}</span>
   }
 
   const { k, d, status, signal } = kdStatus

@@ -324,7 +324,7 @@ export default function StockDetail() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0">
             {/* 價值評估 */}
             <div>
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-blue-500 pl-1.5 mb-2">估值</p>
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-blue-500 pl-1.5 mb-2">估值</p>
               <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
                 <span className="text-base text-zinc-400 flex items-center gap-1">本益比 <EducationalHint glossaryId="pe-ratio" /></span>
                 <span className="font-mono text-lg text-zinc-100">{quote?.pe_ratio ? quote.pe_ratio.toFixed(1) : '---'}</span>
@@ -339,7 +339,7 @@ export default function StockDetail() {
 
             {/* 獲利與配息 */}
             <div>
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-rose-500 pl-1.5 mb-2">獲利</p>
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-rose-500 pl-1.5 mb-2">獲利</p>
               {quote?.total_assets == null && (
                 <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
                   <span className="text-base text-zinc-400 flex items-center gap-1">權益報酬率 <EducationalHint glossaryId="roe-indicator" /></span>
@@ -360,7 +360,7 @@ export default function StockDetail() {
             <div className="col-span-2 md:col-span-1 mt-3 md:mt-0">
               {quote?.total_assets != null ? (
                 <>
-                  <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">基金</p>
+                  <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">基金</p>
                   <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
                     <span className="text-base text-zinc-400">規模 (億)</span>
                     <span className="font-mono text-lg text-zinc-100">
@@ -374,7 +374,7 @@ export default function StockDetail() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">營收</p>
+                  <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-1.5 mb-2">營收</p>
                   <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/50">
                     <span className="text-base text-zinc-400">單月 (億)</span>
                     <span className="font-mono text-lg text-zinc-100">{quote?.last_revenue ? quote.last_revenue.toLocaleString() : '---'}</span>
@@ -403,7 +403,7 @@ export default function StockDetail() {
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <table className="w-full text-xs min-w-[480px] sm:min-w-0">
                 <thead>
-                  <tr className="text-zinc-600 uppercase tracking-widest text-[10px] border-b border-gray-700">
+                  <tr className="text-zinc-600 uppercase tracking-widest text-[10px] border-b border-zinc-700">
                     <th className="text-left py-1.5 px-2 font-medium">日期</th>
                     <th className="text-right py-1.5 px-2 font-medium">外資</th>
                     <th className="text-right py-1.5 px-2 font-medium">投信</th>
@@ -429,7 +429,7 @@ export default function StockDetail() {
                     }
                     return (
                       <tr key={i} className="border-b border-zinc-800/30 hover:bg-zinc-800/30 transition-colors">
-                        <td className="py-1.5 px-2 text-gray-500 font-mono">{row.date?.slice(5)}</td>
+                        <td className="py-1.5 px-2 text-zinc-500 font-mono">{row.date?.slice(5)}</td>
                         <td className="py-1.5 px-2 text-right">{fmt(fgn)}</td>
                         <td className="py-1.5 px-2 text-right">{fmt(trs)}</td>
                         <td className="py-1.5 px-2 text-right">{fmt(dlr)}</td>
@@ -456,11 +456,11 @@ export default function StockDetail() {
               const fmtSum = (v: number) => {
                 const abs = Math.abs(Math.round(v))
                 const str = abs >= 1000 ? `${(abs / 1000).toFixed(1)}千張` : `${abs}張`
-                const color = v > 0 ? 'text-rose-400' : v < 0 ? 'text-emerald-400' : 'text-gray-500'
+                const color = v > 0 ? 'text-rose-400' : v < 0 ? 'text-emerald-400' : 'text-zinc-500'
                 return <span className={`font-mono font-bold ${color}`}>{v > 0 ? '+' : v < 0 ? '−' : ''}{str}</span>
               }
               return (
-                <div className="flex gap-4 mt-3 pt-3 border-t border-zinc-800/50 text-xs text-gray-500">
+                <div className="flex gap-4 mt-3 pt-3 border-t border-zinc-800/50 text-xs text-zinc-500">
                   <span>近5日累計</span>
                   <span>外資 {fmtSum(fgn5)}</span>
                   <span>投信 {fmtSum(trs5)}</span>
@@ -521,7 +521,7 @@ export default function StockDetail() {
                     {signal
                       ? <div className="text-right">
                           <p className={`font-mono text-base font-semibold ${signal.color}`}>{signal.label}</p>
-                          <p className="text-xs text-gray-500">{signal.sub}</p>
+                          <p className="text-xs text-zinc-500">{signal.sub}</p>
                         </div>
                       : <span className="text-zinc-600">---</span>
                     }
