@@ -6,123 +6,149 @@ import {
     ResponsiveContainer, CartesianGrid, ReferenceLine
 } from 'recharts'
 
-// ─── Strategy Miner Mock Data ─────────────────────────────────────────────────
+// ─── History Signal (from alpha_signal_history table) ─────────────────────────
+interface ApiSignalItem {
+    signal_date: string; stock_id: string; stock_name: string
+    time_dimension: string; trigger_count: number
+    weighted_win_rate: number; weighted_odds_ratio: number
+    actual_return: number | null; is_resolved: boolean
+}
+
+const THRESHOLDS: Record<string, { lo: number; hi: number }> = {
+    '5d':  { lo: 3, hi: 5 },
+    '10d': { lo: 3, hi: 5 },
+    '30d': { lo: 5, hi: 10 },
+}
+
+// StrategyPick: 用於 PickCard 的組合資料（歷史訊號 + 現價）
 interface StrategyPick {
     stock_id: string; stock_name: string
     entry_price: number; take_profit_pct: number; stop_loss_pct: number
-    hold_days_max: number; weighted_score: number; strategy_count: number
-    win_rate: number; avg_return: number; trade_count: number
+    hold_days_max: number; strategy_count: number
+    win_rate: number; trade_count: number
+    time_dimension: string
 }
 
-const MOCK_PICKS: StrategyPick[] = [
-    { stock_id: '2330', stock_name: '台積電',   entry_price: 895,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 4.21, strategy_count: 6, win_rate: 64, avg_return: 3.2, trade_count: 22 },
-    { stock_id: '2454', stock_name: '聯發科',   entry_price: 1230, take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 3.87, strategy_count: 5, win_rate: 61, avg_return: 2.8, trade_count: 19 },
-    { stock_id: '6505', stock_name: '台塑化',   entry_price: 88,   take_profit_pct: 5,  stop_loss_pct: 3, hold_days_max: 10, weighted_score: 3.54, strategy_count: 5, win_rate: 58, avg_return: 2.1, trade_count: 31 },
-    { stock_id: '2317', stock_name: '鴻海',     entry_price: 182,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 20, weighted_score: 3.31, strategy_count: 4, win_rate: 60, avg_return: 3.5, trade_count: 17 },
-    { stock_id: '2308', stock_name: '台達電',   entry_price: 365,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 3.10, strategy_count: 4, win_rate: 57, avg_return: 2.6, trade_count: 21 },
-    { stock_id: '3008', stock_name: '大立光',   entry_price: 2100, take_profit_pct: 12, stop_loss_pct: 8, hold_days_max: 20, weighted_score: 2.98, strategy_count: 4, win_rate: 55, avg_return: 4.1, trade_count: 13 },
-    { stock_id: '2382', stock_name: '廣達',     entry_price: 245,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 2.74, strategy_count: 4, win_rate: 62, avg_return: 2.9, trade_count: 18 },
-    { stock_id: '2379', stock_name: '瑞昱',     entry_price: 590,  take_profit_pct: 8,  stop_loss_pct: 5, hold_days_max: 10, weighted_score: 2.61, strategy_count: 4, win_rate: 59, avg_return: 2.3, trade_count: 24 },
-    { stock_id: '4938', stock_name: '和碩',     entry_price: 77,   take_profit_pct: 5,  stop_loss_pct: 3, hold_days_max: 10, weighted_score: 2.43, strategy_count: 4, win_rate: 56, avg_return: 1.8, trade_count: 28 },
-    { stock_id: '2303', stock_name: '聯電',     entry_price: 48,   take_profit_pct: 5,  stop_loss_pct: 3, hold_days_max: 10, weighted_score: 2.20, strategy_count: 4, win_rate: 54, avg_return: 1.5, trade_count: 33 },
-]
+interface SignalHistory {
+    signal_date: string; actual_return: number | null; is_resolved: boolean
+}
 
-// ─── Today Pick Card ──────────────────────────────────────────────────────────
-const toStars = (score: number) => {
-    const n = score >= 4.0 ? 5 : score >= 3.5 ? 4 : score >= 3.0 ? 3 : score >= 2.5 ? 2 : 1
+const toStars = (triggerCount: number) => {
+    const n = triggerCount >= 9 ? 5 : triggerCount >= 7 ? 4 : triggerCount >= 5 ? 3 : triggerCount >= 3 ? 2 : 1
     return '★'.repeat(n)
 }
 
-// 根據勝率與報酬產生 mock 歷史交易（確定性隨機，同股票每次一樣）
-function genMockTrades(pick: StrategyPick, count = 8) {
-    const trades = []
-    let seed = pick.stock_id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-    const rand = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff }
-
-    let d = new Date('2026-03-20')
-    for (let i = 0; i < count; i++) {
-        d = new Date(d)
-        d.setDate(d.getDate() - Math.floor(rand() * 12 + 5))
-        const isWin = rand() * 100 < pick.win_rate
-        const pct = isWin
-            ? +(pick.avg_return * (0.7 + rand() * 0.8)).toFixed(1)
-            : -(pick.stop_loss_pct * (0.5 + rand() * 0.8)).toFixed(1)
-        const entryPrice = Math.round(pick.entry_price * (0.93 + rand() * 0.14))
-        trades.push({
-            date: d.toISOString().slice(0, 10),
-            entry: entryPrice,
-            result: isWin ? '停利' : '停損',
-            pct,
-            win: isWin,
-        })
-    }
-    return trades
-}
+const DIM_DAYS: Record<string, number> = { '5d': 5, '10d': 10, '30d': 30 }
 
 const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     const [expanded, setExpanded] = useState(false)
-    const takeProfit = Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100))
-    const stopLoss   = Math.round(pick.entry_price * (1 - pick.stop_loss_pct  / 100))
-    const trades     = expanded ? genMockTrades(pick) : []
+    const [history, setHistory] = useState<SignalHistory[]>([])
+    const [histLoading, setHistLoading] = useState(false)
+
+    const takeProfit = pick.entry_price > 0 ? Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100)) : 0
+    const stopLoss   = pick.entry_price > 0 ? Math.round(pick.entry_price * (1 - pick.stop_loss_pct  / 100)) : 0
+
+    const handleExpand = () => {
+        const next = !expanded
+        setExpanded(next)
+        if (next && history.length === 0) {
+            setHistLoading(true)
+            api.get(`/alpha-miner/signals/history?days=180&dimension=${pick.time_dimension}`)
+                .then(r => {
+                    const all: (SignalHistory & { stock_id: string })[] = r.data ?? []
+                    const mine = all
+                        .filter(x => x.stock_id === pick.stock_id)
+                        .sort((a, b) => b.signal_date.localeCompare(a.signal_date))
+                        .slice(0, 8)
+                    setHistory(mine)
+                    setHistLoading(false)
+                })
+                .catch(() => setHistLoading(false))
+        }
+    }
 
     return (
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
-            {/* Row 1: rank + name + id + score */}
+            {/* Row 1: rank + name + id + stars */}
             <div className="flex items-baseline gap-1.5 mb-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5">#{rank}</span>
                 <span className="text-white font-bold text-xl leading-none">{pick.stock_name}</span>
                 <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
-                <span className="ml-auto text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
+                <span className="ml-auto text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.strategy_count)}</span>
             </div>
 
-            {/* Row 2: prices */}
-            <div className="flex items-baseline gap-2 mb-1.5">
-                <span className="text-zinc-500 text-xs">買入</span>
-                <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
-                <span className="text-zinc-600">→</span>
-                <span className="text-zinc-500 text-xs">停利</span>
-                <span className="text-rose-400 font-mono font-bold text-lg">▲{takeProfit.toLocaleString()}</span>
-                <span className="text-zinc-700">/</span>
-                <span className="text-zinc-500 text-xs">停損</span>
-                <span className="text-emerald-400 font-mono font-bold text-lg">▼{stopLoss.toLocaleString()}</span>
-            </div>
+            {/* Row 2: entry price → take profit / stop loss */}
+            {pick.entry_price > 0 && (
+                <div className="flex items-baseline gap-2 mb-1.5">
+                    <span className="text-zinc-500 text-xs">買入</span>
+                    <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
+                    <span className="text-zinc-600">→</span>
+                    <span className="text-zinc-500 text-xs">停利</span>
+                    <span className="text-rose-400 font-mono font-bold text-lg">▲{takeProfit.toLocaleString()}</span>
+                    <span className="text-zinc-700">/</span>
+                    <span className="text-zinc-500 text-xs">停損</span>
+                    <span className="text-emerald-400 font-mono font-bold text-lg">▼{stopLoss.toLocaleString()}</span>
+                </div>
+            )}
 
             {/* Row 3: meta + expand toggle */}
             <div
                 className="flex items-center gap-2 text-sm text-zinc-500 whitespace-nowrap overflow-hidden cursor-pointer select-none"
-                onClick={() => setExpanded(v => !v)}
+                onClick={handleExpand}
             >
                 <span>{pick.strategy_count} 策略</span>
                 <span className="text-zinc-700">·</span>
-                <span>{pick.hold_days_max}天</span>
+                <span>持有{pick.hold_days_max}天</span>
                 <span className="text-zinc-700">·</span>
-                <span className={pick.win_rate >= 60 ? 'text-rose-400' : ''}>勝率{pick.win_rate}%</span>
-                <span className="text-zinc-700">·</span>
-                <span className="text-rose-400">均+{pick.avg_return}%</span>
-                <span className="text-zinc-700">·</span>
-                <span>{pick.trade_count}筆</span>
+                <span>漲&gt;{pick.take_profit_pct}%機率</span>
+                <span className={`font-mono ${pick.win_rate >= 30 ? 'text-rose-400' : 'text-zinc-400'}`}>{pick.win_rate.toFixed(1)}%</span>
                 <span className="ml-auto text-zinc-600 text-xs">{expanded ? '▲' : '▼'}</span>
             </div>
 
-            {/* Expanded: 歷史交易紀錄 */}
+            {/* Expanded: 真實歷史訊號 */}
             {expanded && (
                 <div className="mt-3 border-t border-zinc-800 pt-3">
-                    <div className="grid grid-cols-4 text-xs text-zinc-600 uppercase tracking-widest mb-1.5 px-1">
-                        <span>日期</span>
-                        <span className="text-right">買入</span>
-                        <span className="text-right">結果</span>
-                        <span className="text-right">報酬</span>
-                    </div>
-                    {trades.map((t, i) => (
-                        <div key={i} className="grid grid-cols-4 text-xs py-1.5 px-1 border-t border-zinc-800/50">
-                            <span className="text-zinc-500 font-mono">{t.date.slice(5)}</span>
-                            <span className="text-right text-zinc-400 font-mono">{t.entry.toLocaleString()}</span>
-                            <span className={`text-right font-medium ${t.win ? 'text-rose-400' : 'text-emerald-400'}`}>{t.result}</span>
-                            <span className={`text-right font-mono font-bold ${t.win ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                {t.pct > 0 ? '+' : ''}{t.pct}%
-                            </span>
-                        </div>
-                    ))}
+                    {/* 說明：勝率的定義 */}
+                    <p className="text-zinc-600 text-xs mb-2.5 leading-relaxed">
+                        「漲&gt;{pick.take_profit_pct}%機率」= 此訊號歷史上持有{pick.hold_days_max}天後漲幅超過{pick.take_profit_pct}%的比率（樣本外測試集）
+                    </p>
+
+                    {histLoading && <p className="text-zinc-600 text-xs">載入中…</p>}
+
+                    {!histLoading && history.length === 0 && (
+                        <p className="text-zinc-600 text-xs">此股票近 180 天無歷史訊號紀錄</p>
+                    )}
+                    {!histLoading && history.length > 0 && (
+                        <p className="text-zinc-700 text-xs mb-2">
+                            ※ 早期歷史訊號為模型回算結果，非當日即時訊號
+                        </p>
+                    )}
+
+                    {!histLoading && history.length > 0 && (
+                        <>
+                            <div className="grid grid-cols-3 text-xs text-zinc-600 uppercase tracking-widest mb-1.5 px-1">
+                                <span>訊號日期</span>
+                                <span className="text-right">狀態</span>
+                                <span className="text-right">實際報酬</span>
+                            </div>
+                            {history.map((h, i) => {
+                                const ret = h.actual_return
+                                const retPct = ret !== null ? (ret * 100).toFixed(1) : null
+                                const isWin = ret !== null && ret * 100 >= pick.take_profit_pct
+                                return (
+                                    <div key={i} className="grid grid-cols-3 text-xs py-1.5 px-1 border-t border-zinc-800/50">
+                                        <span className="text-zinc-500 font-mono">{h.signal_date.slice(5)}</span>
+                                        <span className={`text-right font-medium ${!h.is_resolved ? 'text-zinc-600' : isWin ? 'text-rose-400' : 'text-zinc-400'}`}>
+                                            {!h.is_resolved ? '持有中' : isWin ? '達標' : '未達標'}
+                                        </span>
+                                        <span className={`text-right font-mono font-bold ${ret === null ? 'text-zinc-700' : ret >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                            {retPct !== null ? `${ret! >= 0 ? '+' : ''}${retPct}%` : '—'}
+                                        </span>
+                                    </div>
+                                )
+                            })}
+                        </>
+                    )}
                 </div>
             )}
         </div>
@@ -509,32 +535,84 @@ const MobileCard = ({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StrategyPage = () => {
-    const [result, setResult] = useState<AlphaMinerResult | null>(null)
+    const [picks, setPicks] = useState<StrategyPick[]>([])
+    const [signalDate, setSignalDate] = useState<string>('')
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [selectedId, setSelectedId] = useState<string | null>(null)
-    const [dim, setDim] = useState<DimKey>('10d')
 
     useEffect(() => {
-        let timer: ReturnType<typeof setTimeout>
-        const fetch = () => {
-            api.get('/alpha-miner/strategies')
-                .then(r => {
-                    setResult(r.data)
+        const loadSignals = async () => {
+            try {
+                // 並行呼叫 3 個維度的 history API（取最近 2 天確保拿到最新訊號日）
+                const [r5, r10, r30] = await Promise.all([
+                    api.get('/alpha-miner/signals/history?days=2&dimension=5d'),
+                    api.get('/alpha-miner/signals/history?days=2&dimension=10d'),
+                    api.get('/alpha-miner/signals/history?days=2&dimension=30d'),
+                ])
+
+                const all: ApiSignalItem[] = [
+                    ...(r5.data ?? []),
+                    ...(r10.data ?? []),
+                    ...(r30.data ?? []),
+                ]
+
+                if (all.length === 0) {
                     setLoading(false)
-                    if (r.data.is_training) {
-                        timer = setTimeout(fetch, 15000)
+                    return
+                }
+
+                // 取最新 signal_date
+                const maxDate = all.reduce((m, s) => s.signal_date > m ? s.signal_date : m, '')
+                const latest = all.filter(s => s.signal_date === maxDate)
+                setSignalDate(maxDate)
+
+                // 按 stock_id 去重：保留 trigger_count 最高者（不同維度同一股票）
+                const map = new Map<string, ApiSignalItem>()
+                for (const s of latest) {
+                    const existing = map.get(s.stock_id)
+                    if (!existing || s.trigger_count > existing.trigger_count) map.set(s.stock_id, s)
+                }
+                const signals = Array.from(map.values()).sort((a, b) => b.trigger_count - a.trigger_count)
+
+                // 批次查現價
+                const priceResults = await Promise.allSettled(
+                    signals.map(s => api.get(`/stocks/${s.stock_id}/quote`))
+                )
+
+                const combined: StrategyPick[] = signals.map((s, i) => {
+                    const priceRes = priceResults[i]
+                    const price: number = priceRes.status === 'fulfilled'
+                        ? (priceRes.value.data?.current_price ?? 0)
+                        : 0
+                    const { lo, hi } = THRESHOLDS[s.time_dimension] ?? { lo: 3, hi: 5 }
+                    const days = DIM_DAYS[s.time_dimension] ?? 10
+                    return {
+                        stock_id:        s.stock_id,
+                        stock_name:      s.stock_name,
+                        entry_price:     price,
+                        take_profit_pct: hi,
+                        stop_loss_pct:   lo,
+                        hold_days_max:   days,
+                        strategy_count:  s.trigger_count,
+                        win_rate:        s.weighted_win_rate * 100,
+                        trade_count:     Math.round(s.trigger_count * 3.5),
+                        time_dimension:  s.time_dimension,
                     }
                 })
-                .catch(e => { setError(e.message); setLoading(false) })
+
+                setPicks(combined)
+                setLoading(false)
+            } catch (e: any) {
+                setError(e.message)
+                setLoading(false)
+            }
         }
-        fetch()
-        return () => clearTimeout(timer)
+        loadSignals()
     }, [])
 
-    const strategies = (result?.strategies ?? []).filter(s => s.time_dimension === dim)
-    const tlo = dim === '30d' ? 5 : 3
-    const thi = dim === '30d' ? 10 : 5
+    const displayDate = signalDate
+        ? new Date(signalDate).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })
+        : new Date().toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })
 
     return (
         <>
@@ -555,12 +633,10 @@ const StrategyPage = () => {
                                     每日{' '}
                                     <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">精選</span>
                                 </h1>
-                                <span className="text-zinc-500 text-sm font-mono">
-                                    {new Date().toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
-                                </span>
+                                <span className="text-zinc-500 text-sm font-mono self-center">{displayDate}</span>
                             </div>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
-                                量化模型每日精算 · 買入區間 · 停利停損一次到位 · 勝率為歷史統計參考，不構成投資建議。
+                                量化模型每日精算 · 多策略共振選股 · 勝率為歷史統計參考，不構成投資建議。
                             </p>
                         </div>
                     </div>
@@ -572,13 +648,26 @@ const StrategyPage = () => {
                     </div>
                 )}
 
-                {/* ── 今日推薦 ──────────────────────────────────────────── */}
-                <div>
-                    <div className="flex flex-col gap-2">
-                        {MOCK_PICKS.map((pick, i) => (
-                            <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
-                        ))}
-                    </div>
+                {/* ── 今日精選 ──────────────────────────────────────────── */}
+                <div className="flex flex-col gap-2">
+                    {loading && (
+                        [1, 2, 3].map(i => (
+                            <div key={i} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3 animate-pulse">
+                                <div className="h-6 bg-zinc-800 rounded w-1/3 mb-2" />
+                                <div className="h-4 bg-zinc-800 rounded w-2/3 mb-2" />
+                                <div className="h-4 bg-zinc-800 rounded w-1/2" />
+                            </div>
+                        ))
+                    )}
+                    {!loading && picks.length === 0 && !error && (
+                        <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
+                            <p className="text-zinc-500 text-sm">今日暫無訊號</p>
+                            <p className="text-zinc-600 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
+                        </div>
+                    )}
+                    {picks.map((pick, i) => (
+                        <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
+                    ))}
                 </div>
 
             </div>

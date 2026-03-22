@@ -219,6 +219,8 @@ class AlphaMinerService:
                 return row[0]
         except Exception:
             pass
+        # 查詢失敗也寫入快取（避免下次重複查 DB）
+        cls._stock_names[stock_id] = stock_id
         return stock_id
 
     TEST_MONTHS = 6   # 測試集保留最後幾個月
@@ -805,8 +807,21 @@ class AlphaMinerService:
         """將今日 get_today_signals 結果持久化到 alpha_signal_history。
 
         同一 (signal_date, stock_id, time_dimension) 組合已存在時跳過（冪等）。
+        若訓練尚未完成，每 2 分鐘重試，最多等待 60 分鐘。
         回傳實際寫入筆數。
         """
+        import time as _time
+        max_wait_minutes = 60
+        for attempt in range(max_wait_minutes // 2):
+            result = cls.get_strategies(db)
+            if not result.is_training:
+                break
+            logger.info(f"[SignalHistory] {dimension} 訓練尚未完成，等待 2 分鐘後重試（第 {attempt + 1} 次）...")
+            _time.sleep(120)
+        else:
+            logger.error(f"[SignalHistory] {dimension} 等待訓練逾時（{max_wait_minutes} 分鐘），放棄本日儲存")
+            return 0
+
         today = date.today()
         signals = cls.get_today_signals(db, dimension=dimension)
         if not signals:
@@ -893,11 +908,17 @@ class AlphaMinerService:
             price_map.setdefault(row.stock_id, []).append((row.date, row.close))
 
         def _find_price(stock_id: str, target_date) -> Optional[float]:
-            """找 target_date 當日或最接近的後一個交易日收盤價"""
+            """找 target_date 當日或最接近的後一個交易日收盤價（最多往後 5 天）"""
             prices = price_map.get(stock_id, [])
-            for d, c in prices:
-                if d >= target_date:
-                    return float(c)
+            price_dict = {d: c for d, c in prices}
+            # 先精確查
+            if target_date in price_dict:
+                return float(price_dict[target_date])
+            # fallback：往後找最近交易日（最多 5 天，避免對長期停牌股取到不具代表性的遠期價格）
+            for delta in range(1, 6):
+                fallback_date = target_date + timedelta(days=delta)
+                if fallback_date in price_dict:
+                    return float(price_dict[fallback_date])
             return None
 
         resolved_count = 0

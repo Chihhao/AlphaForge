@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def main(days: int = 35) -> None:
+def main(days: int = 35, start_date: Optional[str] = None) -> None:
     from app.db.database import SessionLocal, engine, Base
     from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
     from app.models.alpha_signal_history import AlphaSignalHistory
@@ -42,7 +42,7 @@ def main(days: int = 35) -> None:
 
     db = SessionLocal()
     try:
-        _backfill(db, engine, days)
+        _backfill(db, engine, days, start_date)
         logger.info("[Backfill] 開始回填實際報酬...")
         resolved = AlphaMinerService.update_signal_returns(db)
         logger.info(f"[Backfill] 結算完成：{resolved} 筆")
@@ -50,7 +50,7 @@ def main(days: int = 35) -> None:
         db.close()
 
 
-def _backfill(db, engine, days: int) -> None:
+def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
     from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
     from app.models.alpha_signal_history import AlphaSignalHistory
 
@@ -81,8 +81,11 @@ def _backfill(db, engine, days: int) -> None:
     for dim, strats in sig_by_dim.items():
         logger.info(f"  {dim}：{len(strats)} 個有效顯著策略")
 
-    # ── 3. 載入過去 days 天的 stock_features ────────────────────────────────
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    # ── 3. 載入過去 days 天（或指定 start_date 之後）的 stock_features ────────
+    if start_date:
+        cutoff = start_date
+    else:
+        cutoff = (date.today() - timedelta(days=days)).isoformat()
     all_factors = set()
     for strats in sig_by_dim.values():
         for det in strats:
@@ -239,6 +242,7 @@ def _backfill(db, engine, days: int) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--days", type=int, default=35, help="回填天數（預設 35）")
+    parser.add_argument("--days", type=int, default=35, help="回填天數（預設 35），--start-date 優先")
+    parser.add_argument("--start-date", type=str, default=None, help="回填起始日期（YYYY-MM-DD），優先於 --days")
     args = parser.parse_args()
-    main(days=args.days)
+    main(days=args.days, start_date=args.start_date)

@@ -298,20 +298,14 @@ class FeatureService:
                     'foreign_hold_pct', 'foreign_hold_chg_5d'):
             backfill_df[col] = None
 
-        # 刪除已存在的記錄
-        db.execute(
-            delete(StockFeature).where(
-                StockFeature.date >= start_date,
-                StockFeature.date <= end_date
-            )
-        )
-        db.flush()
-
-        # 批量寫入（按月分批 commit 避免過大事務）
+        # 逐日 UPSERT（先刪當日再寫入），避免整批刪除後中途失敗造成資料永久消失
         total_written = 0
         dates = sorted(backfill_df['date'].unique())
 
         for batch_date in dates:
+            # 刪除當日已存在的記錄（UPSERT 模式：同一 transaction 內先刪再寫）
+            db.execute(delete(StockFeature).where(StockFeature.date == batch_date))
+
             day_df = backfill_df[backfill_df['date'] == batch_date].copy()
 
             # 合併當日籌碼特徵（若存在）
