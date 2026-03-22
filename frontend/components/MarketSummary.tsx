@@ -130,6 +130,7 @@ export default function MarketSummary() {
                             </span>
                         )}
                         <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-tighter">0050</span>
+                        {(data.advances > 0 || data.declines > 0) ? (
                         <div className="flex items-center gap-x-3 sm:gap-x-4">
                             <div className="flex items-baseline gap-1">
                                 <span className="text-zinc-400 font-bold text-sm sm:text-base">平</span>
@@ -144,6 +145,9 @@ export default function MarketSummary() {
                                 <span className="text-emerald-400 font-black font-mono text-lg sm:text-xl">{data.declines}</span>
                             </div>
                         </div>
+                        ) : (
+                        <span className="text-zinc-600 text-xs font-mono tracking-widest uppercase hidden sm:inline">非交易日</span>
+                        )}
                     </div>
                 </div>
             </div>
