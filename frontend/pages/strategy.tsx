@@ -156,16 +156,23 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 </span>
             </div>
 
-            {/* 買入理由 tagline */}
-            {pick.buy_reasons && pick.buy_reasons.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1 mb-1.5 -mt-0.5">
-                    {pick.buy_reasons.map((r, i) => (
-                        <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
-                            {r}
-                        </span>
-                    ))}
-                </div>
-            )}
+            {/* 買入理由 tagline（策略名稱，跳過純計數文字） */}
+            {pick.buy_reasons && pick.buy_reasons.length > 0 && (() => {
+                const factorTags = pick.buy_reasons.filter(r => !r.includes('個策略共同'))
+                const countTag = pick.buy_reasons.find(r => r.includes('個策略共同'))
+                return (
+                    <div className="flex flex-wrap items-center gap-1 mb-1.5 -mt-0.5">
+                        {countTag && (
+                            <span className="text-[10px] font-semibold text-zinc-500 shrink-0">{countTag.replace('近期 ', '').replace('個策略共同觸發', '策略')}</span>
+                        )}
+                        {factorTags.map((r, i) => (
+                            <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
+                                {r}
+                            </span>
+                        ))}
+                    </div>
+                )
+            })()}
 
             {/* Row 2: entry → take profit / stop loss */}
             {pick.entry_price > 0 && (
@@ -819,29 +826,26 @@ const StrategyPage = () => {
             <div className="min-h-[calc(100vh-64px)] flex flex-col gap-4 sm:gap-6 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
 
                 {/* ── Header ───────────────────────────────────────────── */}
-                <div className="relative overflow-hidden bg-zinc-900/40 border border-zinc-800/60 rounded-2xl sm:rounded-3xl p-4 sm:p-8">
+                <div className="relative overflow-hidden bg-zinc-900/40 border border-zinc-800/60 rounded-2xl sm:rounded-3xl px-4 py-4 sm:px-8 sm:py-6">
                     <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-amber-500/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
-                    <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight flex items-center gap-2">
-                                    <svg viewBox="0 0 24 24" width="28" height="28" className="fill-amber-400 shrink-0 self-center">
-                                        <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
-                                    </svg>
-                                    每日{' '}
-                                    <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">精選</span>
-                                </h1>
-                                <span className="text-zinc-500 text-sm font-mono self-center">{displayDate}</span>
-                            </div>
-                            <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
-                                量化模型每日精算 · 多策略共振選股 · 停利停損由歷史回測自動尋優 · 不構成投資建議。
-                            </p>
-                            {usingFallback && (
-                                <p className="text-amber-600 text-xs mt-1">
-                                    ⚠ 回測參數尚未產生，停利/停損使用預設值（需執行 Strategy Miner 尋優）
-                                </p>
-                            )}
+                    <div className="relative">
+                        <div className="flex items-center gap-3 mb-1">
+                            <svg viewBox="0 0 24 24" width="22" height="22" className="fill-amber-400 shrink-0">
+                                <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                            </svg>
+                            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                                明日操作建議
+                            </h1>
+                            <span className="text-zinc-600 text-xs font-mono self-center">{displayDate}</span>
                         </div>
+                        <p className="text-zinc-500 text-sm leading-relaxed">
+                            量化模型篩選的今日推薦買入標的 · 附停利/停損目標 · 不構成投資建議
+                        </p>
+                        {usingFallback && (
+                            <p className="text-amber-600 text-xs mt-1">
+                                ⚠ 回測參數尚未產生，停利/停損使用預設值
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -906,7 +910,16 @@ const StrategyPage = () => {
                     )
                 })()}
 
-                {/* ── 今日精選 ──────────────────────────────────────────── */}
+                {/* ── 明日建議買入 ──────────────────────────────────────── */}
+                <div className="flex items-center gap-2 px-1">
+                    <svg viewBox="0 0 24 24" width={14} height={14} className="fill-rose-400 shrink-0">
+                        <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                    </svg>
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">明日建議買入</span>
+                    {!loading && picks.length > 0 && (
+                        <span className="text-[10px] font-mono text-zinc-600">{picks.length} 檔</span>
+                    )}
+                </div>
                 <div className="flex flex-col gap-2">
                     {loading && (
                         [1, 2, 3].map(i => (
