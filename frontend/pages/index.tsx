@@ -1,6 +1,7 @@
 import Head from 'next/head';
 import MarketSummary from '../components/MarketSummary';
 import StrategyScreener from '../components/StrategyScreener';
+import StrategyMinerPreview from '../components/StrategyMinerPreview';
 
 export default function Home() {
 
@@ -14,6 +15,11 @@ export default function Home() {
         {/* 頂部：大盤溫度計 (Market Pulse) */}
         <section className="mb-4">
           <MarketSummary />
+        </section>
+
+        {/* 今日精選：Strategy Miner 精簡預覽 */}
+        <section className="mb-4">
+          <StrategyMinerPreview />
         </section>
 
         {/* 單欄佈局：全寬度的選股雷達 */}
