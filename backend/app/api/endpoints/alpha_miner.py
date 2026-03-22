@@ -59,6 +59,42 @@ def get_signals_history(
     return AlphaMinerService.get_signal_history(db, days=days, dimension=dimension)
 
 
+@router.get("/signals/stock/{stock_id}", response_model=List[SignalHistoryItem])
+def get_stock_signals(
+    stock_id: str,
+    days: int = 180,
+    db: Session = Depends(get_db),
+):
+    """回傳指定股票的訊號歷史（跨所有維度），最近 days 天，依日期倒序"""
+    from app.models.alpha_signal_history import AlphaSignalHistory
+    from datetime import datetime, timedelta
+    cutoff = (datetime.today() - timedelta(days=days)).date()
+    rows = (
+        db.query(AlphaSignalHistory)
+        .filter(
+            AlphaSignalHistory.stock_id == stock_id,
+            AlphaSignalHistory.signal_date >= cutoff,
+        )
+        .order_by(AlphaSignalHistory.signal_date.desc())
+        .limit(30)
+        .all()
+    )
+    return [
+        {
+            "signal_date": r.signal_date.isoformat(),
+            "stock_id": r.stock_id,
+            "stock_name": r.stock_name,
+            "time_dimension": r.time_dimension,
+            "trigger_count": r.trigger_count,
+            "weighted_win_rate": r.weighted_win_rate,
+            "weighted_odds_ratio": r.weighted_odds_ratio,
+            "actual_return": r.actual_return,
+            "is_resolved": r.is_resolved,
+        }
+        for r in rows
+    ]
+
+
 @router.post("/train")
 def retrain(db: Session = Depends(get_db)):
     """手動觸發重新訓練（子程序執行，立即回傳）。

@@ -46,6 +46,7 @@ export default function StockDetail() {
   const [subChart, setSubChart] = useState<'volume' | 'rsi' | 'bias'>('volume')
   const [chipData, setChipData] = useState<any[]>([])
   const [strategyPick, setStrategyPick] = useState<any>(null)
+  const [alphaSignals, setAlphaSignals] = useState<any[]>([])
   const { toggle, has } = useWatchlist()
 
   // 籌碼數據 + Strategy Miner 精選狀態（不依賴 interval，只在切換個股時重抓）
@@ -61,6 +62,9 @@ export default function StockDetail() {
         setStrategyPick(match ?? null)
       })
       .catch(() => setStrategyPick(null))
+    api.get(`/alpha-miner/signals/stock/${id}?days=180`)
+      .then(r => setAlphaSignals(r.data ?? []))
+      .catch(() => setAlphaSignals([]))
   }, [id])
 
   useEffect(() => {
@@ -526,6 +530,49 @@ export default function StockDetail() {
             </div>
           )
         })()}
+        {/* Alpha Miner 歷史訊號 */}
+        {alphaSignals.length > 0 && (() => {
+          const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
+          return (
+            <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">Alpha Miner 歷史訊號（近 180 日）</p>
+              <div className="space-y-1.5">
+                {alphaSignals.map((sig: any, i: number) => {
+                  const isResolved = sig.is_resolved
+                  const ret = sig.actual_return
+                  const retColor = ret == null ? 'text-zinc-500' : ret >= 0 ? 'text-rose-400' : 'text-emerald-400'
+                  const retStr = ret == null
+                    ? (isResolved ? '—' : '持有中')
+                    : `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}%`
+                  const icon = ret == null
+                    ? (isResolved ? '—' : '⏳')
+                    : ret >= 0 ? '✅' : '❌'
+                  return (
+                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-zinc-800/30 last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-zinc-500 font-mono text-xs shrink-0">{sig.signal_date.slice(5)}</span>
+                        <span className="text-zinc-600 text-[10px] bg-zinc-800/60 px-1.5 py-0.5 rounded font-mono shrink-0">
+                          {DIM_LABEL[sig.time_dimension] ?? sig.time_dimension}
+                        </span>
+                        <span className="text-zinc-500 text-xs">
+                          {sig.trigger_count} 策略 · 勝率{' '}
+                          <span className={sig.weighted_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}>
+                            {(sig.weighted_win_rate * 100).toFixed(0)}%
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className={`font-mono text-sm font-bold ${retColor}`}>{retStr}</span>
+                        <span className="text-xs">{icon}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* AI Analysis Card */}
         {id && <StockAIAnalysis stockId={id as string} stockName={displayName} />}
 
