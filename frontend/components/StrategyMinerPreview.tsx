@@ -87,7 +87,7 @@ export default function StrategyMinerPreview() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get<TodayPick[]>('/api/strategy-miner/picks/today')
+    api.get<TodayPick[]>('/strategy-miner/picks/today')
       .then(res => {
         const top3 = (res.data || []).slice(0, 3).map(p => ({
           stock_id: p.stock_id,
