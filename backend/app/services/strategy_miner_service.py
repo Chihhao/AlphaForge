@@ -430,6 +430,12 @@ class StrategyMinerService:
         results: List[List[dict]] = [[] for _ in params_list]
         max_hold = max(p['hold_days'] for p in params_list)
 
+        # 預先建立 O(1) 日期 → 索引查找表，避免 list.index() 的 O(n) 搜尋
+        date_idx: Dict[str, Dict] = {
+            sid: {d: i for i, d in enumerate(dates)}
+            for sid, dates in sorted_dates_dict.items()
+        }
+
         for _, row in signals_df.iterrows():
             signal_date = row['signal_date']
             stock_id = str(row['stock_id'])
@@ -444,10 +450,9 @@ class StrategyMinerService:
             if not entry_price or entry_price <= 0:
                 continue
 
-            # 找 signal_date 在 dates 中的位置
-            try:
-                sig_idx = dates.index(signal_date)
-            except ValueError:
+            # 找 signal_date 在 dates 中的位置（O(1) 查找）
+            sig_idx = date_idx.get(stock_id, {}).get(signal_date)
+            if sig_idx is None:
                 continue
 
             # 取後續 max_hold+5 個交易日的收盤
