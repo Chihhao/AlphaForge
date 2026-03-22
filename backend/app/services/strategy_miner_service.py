@@ -131,17 +131,37 @@ class StrategyMinerService:
         )
         price_map: Dict[str, float] = {r.stock_id: float(r.close) for r in price_rows if r.close}
 
-        # 去重（同股票保留 trigger_count 最高者）
-        dedup: Dict[str, AlphaSignalHistory] = {}
+        # 分維度去重，同股票同維度保留 trigger_count 最高者
+        by_dim: Dict[str, Dict[str, AlphaSignalHistory]] = {}
         for r in rows:
-            existing = dedup.get(r.stock_id)
+            dim_map = by_dim.setdefault(r.time_dimension, {})
+            existing = dim_map.get(r.stock_id)
             if existing is None or r.trigger_count > existing.trigger_count:
-                dedup[r.stock_id] = r
+                dim_map[r.stock_id] = r
 
-        # 計算加權分數，排序，取前 10
-        scored = sorted(
-            dedup.values(),
-            key=lambda r: r.trigger_count * (r.weighted_odds_ratio or 1.0),
+        # 合併：收集每檔股票出現的所有維度（多維共鳴加分 10%/維度）
+        combined: Dict[str, dict] = {}
+        for dim, dim_map in by_dim.items():
+            for stock_id, r in dim_map.items():
+                base_score = r.trigger_count * (r.weighted_odds_ratio or 1.0)
+                if stock_id not in combined:
+                    combined[stock_id] = {
+                        'primary': r,           # 主要維度（得分最高者）
+                        'dims': [dim],
+                        'score': base_score,
+                    }
+                else:
+                    combined[stock_id]['dims'].append(dim)
+                    if base_score > combined[stock_id]['score']:
+                        combined[stock_id]['primary'] = r
+                        combined[stock_id]['score'] = base_score
+                    # 多維共鳴加分：每額外維度 +10%
+                    combined[stock_id]['score'] *= 1.10
+
+        # 計算最終分數，排序，取前 10
+        sorted_combined = sorted(
+            combined.values(),
+            key=lambda x: x['score'],
             reverse=True,
         )[:10]
 
@@ -152,7 +172,9 @@ class StrategyMinerService:
         )
 
         count = 0
-        for r in scored:
+        for item in sorted_combined:
+            r = item['primary']
+            dims = sorted(set(item['dims']))
             opt_params = optimal.get(r.time_dimension)
             entry_price = price_map.get(r.stock_id, 0.0)
 
@@ -164,13 +186,12 @@ class StrategyMinerService:
             else:
                 tp, sl, hd = cls._default_params(r.time_dimension)
 
-            score = r.trigger_count * (r.weighted_odds_ratio or 1.0)
             db.add(StrategyMinerPick(
                 pick_date=pick_date,
                 stock_id=r.stock_id,
                 stock_name=r.stock_name,
-                strategy_ids=json.dumps([r.time_dimension]),
-                weighted_score=round(score, 4),
+                strategy_ids=json.dumps(dims),
+                weighted_score=round(item['score'], 4),
                 entry_price=entry_price,
                 take_profit_pct=tp,
                 stop_loss_pct=sl,

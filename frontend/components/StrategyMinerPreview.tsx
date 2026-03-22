@@ -24,6 +24,7 @@ interface PickPreview {
   hold_days_max: number
   weighted_score: number
   time_dimension: string
+  dims: string[]  // parsed strategy_ids
 }
 
 interface PerfStats {
@@ -65,6 +66,7 @@ function SkeletonRow() {
 function PickRow({ pick }: { pick: PickPreview }) {
   const tpPct = Math.round(pick.take_profit_pct * 100)
   const slPct = Math.round(pick.stop_loss_pct * 100)
+  const isMultiDim = pick.dims.length > 1
 
   return (
     <div className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-b-0">
@@ -76,6 +78,11 @@ function PickRow({ pick }: { pick: PickPreview }) {
           {pick.stock_name} <span className="text-zinc-500">{pick.stock_id}</span>
         </Link>
         <StarsDisplay score={pick.weighted_score} />
+        {isMultiDim && (
+          <span className="shrink-0 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
+            多維
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1 text-xs font-mono whitespace-nowrap ml-2 shrink-0">
         <span className="text-zinc-400">買入</span>
@@ -111,6 +118,7 @@ export default function StrategyMinerPreview() {
           hold_days_max: p.hold_days_max,
           weighted_score: p.weighted_score,
           time_dimension: p.time_dimension,
+          dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
         }))
         setPicks(top3)
         setPerf(perfRes.data || {})
