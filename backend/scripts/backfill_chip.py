@@ -51,7 +51,6 @@ def main():
     logger.info(f"  範圍: {start_d} ~ {end_d}")
     logger.info("=" * 55)
 
-    db = SessionLocal()
     total_inserted = 0
     skipped = 0
 
@@ -63,9 +62,14 @@ def main():
                 current += timedelta(days=1)
                 continue
 
-            result = sync_daily_chip_data(db, current)
-            inserted = result.get("inserted", 0)
-            status   = result.get("status", "")
+            # 每天重新建立 DB session，避免長時間 idle 造成 NAS Postgres 斷線
+            db = SessionLocal()
+            try:
+                result = sync_daily_chip_data(db, current)
+                inserted = result.get("inserted", 0)
+                status   = result.get("status", "")
+            finally:
+                db.close()
 
             if status == "no_data":
                 skipped += 1
@@ -82,8 +86,6 @@ def main():
     except Exception as e:
         logger.error(f"回補失敗: {e}", exc_info=True)
         sys.exit(1)
-    finally:
-        db.close()
 
     logger.info("=" * 55)
     logger.info(f"  回補完成！總計寫入 {total_inserted:,} 筆，跳過 {skipped} 天")
