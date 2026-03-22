@@ -5,12 +5,22 @@ TAIFEX 選擇權 PCR 批量回補腳本
     cd backend
     ./.venv/bin/python scripts/backfill_pcr.py [--days 30] [--start-date YYYY-MM-DD]
 
+⚠️  重要限制：
+    TAIFEX callsAndPutsDate 端點「不支援歷史查詢」。
+    無論傳入何種日期，API 永遠只回傳當日（最近交易日）的資料。
+    因此此腳本只能寫入今日的 PCR，無法回補過去資料。
+
+    歷史 PCR 資料必須透過排程器逐日累積（每日 16:40 自動執行）。
+    如果你試圖回補多個日期，所有日期將被插入相同的今日 PCR 值（錯誤）。
+
+    ➡ 建議：只執行一次寫入今日資料，之後讓排程器自動累積。
+
 說明:
     從 TAIFEX 抓取台指選擇權 Put/Call Ratio，逐日寫入 market_pcr 表。
     每次請求間隔 2 秒（友善爬蟲）。
 
 注意:
-    - TAIFEX 只提供近期資料，約最近 1~2 年，更早的日期可能回傳空白。
+    - TAIFEX 不支援歷史查詢，只能取當日資料。
     - 週末自動跳過，已存在的日期自動跳過（冪等）。
 """
 from __future__ import annotations
