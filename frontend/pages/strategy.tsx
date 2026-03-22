@@ -44,6 +44,7 @@ interface StrategyPick {
     hold_days_max: number
     weighted_score: number
     time_dimension: string
+    dims?: string[]           // 出現的維度列表（多維共鳴時 length > 1）
 }
 
 const toStars = (score: number) => {
@@ -105,6 +106,11 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                     {pick.stock_name}
                 </Link>
                 <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
+                {pick.dims && pick.dims.length > 1 && (
+                    <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap shrink-0">
+                        多維
+                    </span>
+                )}
                 <span className="ml-auto flex items-center gap-2">
                     <span className="text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
                     <button
@@ -699,6 +705,7 @@ const StrategyPage = () => {
                         hold_days_max: p.hold_days_max,
                         weighted_score: p.weighted_score,
                         time_dimension: p.time_dimension,
+                        dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
                     })))
                     setLoading(false)
                     return
