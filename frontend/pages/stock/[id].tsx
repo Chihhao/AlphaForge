@@ -43,6 +43,15 @@ export default function StockDetail() {
   const [indicators, setIndicators] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [subChart, setSubChart] = useState<'volume' | 'rsi' | 'bias'>('volume')
+  const [chipData, setChipData] = useState<any[]>([])
+
+  // 籌碼數據（不依賴 interval，只在切換個股時重抓）
+  useEffect(() => {
+    if (!id) return
+    api.get(`/stocks/${id}/chip-data?days=10`)
+      .then(r => setChipData(r.data ?? []))
+      .catch(() => setChipData([]))
+  }, [id])
 
   useEffect(() => {
     if (!id) return
@@ -346,6 +355,81 @@ export default function StockDetail() {
             </p>
           )}
         </div>
+
+        {/* Chip Data Card */}
+        {chipData.length > 0 && (
+          <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+            <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">籌碼面（近 {chipData.length} 日）</p>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full text-xs min-w-[480px] sm:min-w-0">
+                <thead>
+                  <tr className="text-gray-600 uppercase tracking-widest text-[10px] border-b border-gray-700">
+                    <th className="text-left py-1.5 px-2 font-medium">日期</th>
+                    <th className="text-right py-1.5 px-2 font-medium">外資</th>
+                    <th className="text-right py-1.5 px-2 font-medium">投信</th>
+                    <th className="text-right py-1.5 px-2 font-medium">自營</th>
+                    <th className="text-right py-1.5 px-2 font-medium">融資餘額</th>
+                    {chipData.some(r => r.foreign_hold_pct != null) && (
+                      <th className="text-right py-1.5 px-2 font-medium">外資持股%</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...chipData].reverse().map((row, i) => {
+                    const fgn = row.foreign_net_buy
+                    const trs = row.trust_net_buy
+                    const dlr = row.dealer_net_buy
+                    const fmt = (v: number | null) => {
+                      if (v == null) return <span className="text-gray-700">—</span>
+                      const lots = Math.round(v)
+                      const abs = Math.abs(lots)
+                      const str = abs >= 1000 ? `${(abs / 1000).toFixed(1)}千` : `${abs}`
+                      const color = lots > 0 ? 'text-rose-400' : lots < 0 ? 'text-emerald-400' : 'text-gray-600'
+                      return <span className={`font-mono font-bold ${color}`}>{lots > 0 ? '+' : lots < 0 ? '−' : ''}{str}</span>
+                    }
+                    return (
+                      <tr key={i} className="border-b border-gray-700/30 hover:bg-gray-700/20 transition-colors">
+                        <td className="py-1.5 px-2 text-gray-500 font-mono">{row.date?.slice(5)}</td>
+                        <td className="py-1.5 px-2 text-right">{fmt(fgn)}</td>
+                        <td className="py-1.5 px-2 text-right">{fmt(trs)}</td>
+                        <td className="py-1.5 px-2 text-right">{fmt(dlr)}</td>
+                        <td className="py-1.5 px-2 text-right font-mono text-gray-400">
+                          {row.margin_balance != null ? row.margin_balance.toLocaleString() : <span className="text-gray-700">—</span>}
+                        </td>
+                        {chipData.some(r => r.foreign_hold_pct != null) && (
+                          <td className="py-1.5 px-2 text-right font-mono text-gray-300">
+                            {row.foreign_hold_pct != null ? `${row.foreign_hold_pct.toFixed(1)}%` : <span className="text-gray-700">—</span>}
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* 5日累計 */}
+            {chipData.length >= 5 && (() => {
+              const last5 = chipData.slice(-5)
+              const fgn5 = last5.reduce((s, r) => s + (r.foreign_net_buy ?? 0), 0)
+              const trs5 = last5.reduce((s, r) => s + (r.trust_net_buy ?? 0), 0)
+              const dlr5 = last5.reduce((s, r) => s + (r.dealer_net_buy ?? 0), 0)
+              const fmtSum = (v: number) => {
+                const abs = Math.abs(Math.round(v))
+                const str = abs >= 1000 ? `${(abs / 1000).toFixed(1)}千張` : `${abs}張`
+                const color = v > 0 ? 'text-rose-400' : v < 0 ? 'text-emerald-400' : 'text-gray-500'
+                return <span className={`font-mono font-bold ${color}`}>{v > 0 ? '+' : v < 0 ? '−' : ''}{str}</span>
+              }
+              return (
+                <div className="flex gap-4 mt-3 pt-3 border-t border-gray-700/50 text-xs text-gray-500">
+                  <span>近5日累計</span>
+                  <span>外資 {fmtSum(fgn5)}</span>
+                  <span>投信 {fmtSum(trs5)}</span>
+                  <span>自營 {fmtSum(dlr5)}</span>
+                </div>
+              )
+            })()}
+          </div>
+        )}
 
         {/* Technical Signal Card */}
         {(() => {

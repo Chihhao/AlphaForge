@@ -258,3 +258,33 @@ def get_ai_analysis(
 
 # 導入 pandas
 import pandas as pd
+
+
+@router.get("/{stock_id}/chip-data")
+def get_chip_data(stock_id: str, days: int = 20, db: Session = Depends(get_db)):
+    """
+    取得個股近期籌碼數據（三大法人買賣超 + 融資融券 + 外資持股比率）
+
+    - **stock_id**: 股票代號
+    - **days**: 近幾個交易日（預設 20）
+    """
+    from app.models.stock_chip_data import StockChipData
+    rows = (
+        db.query(StockChipData)
+        .filter(StockChipData.stock_id == stock_id)
+        .order_by(StockChipData.date.desc())
+        .limit(days)
+        .all()
+    )
+    return [
+        {
+            "date": r.date.isoformat(),
+            "foreign_net_buy": r.foreign_net_buy,
+            "trust_net_buy": r.trust_net_buy,
+            "dealer_net_buy": r.dealer_net_buy,
+            "margin_balance": r.margin_balance,
+            "short_balance": r.short_balance,
+            "foreign_hold_pct": r.foreign_hold_pct,
+        }
+        for r in reversed(rows)
+    ]
