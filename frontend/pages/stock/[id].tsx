@@ -47,6 +47,7 @@ export default function StockDetail() {
   const [chipData, setChipData] = useState<any[]>([])
   const [strategyPick, setStrategyPick] = useState<any>(null)
   const [alphaSignals, setAlphaSignals] = useState<any[]>([])
+  const [funTrends, setFunTrends] = useState<any>(null)
   const { toggle, has } = useWatchlist()
 
   // 籌碼數據 + Strategy Miner 精選狀態（不依賴 interval，只在切換個股時重抓）
@@ -65,6 +66,9 @@ export default function StockDetail() {
     api.get(`/alpha-miner/signals/stock/${id}?days=180`)
       .then(r => setAlphaSignals(r.data ?? []))
       .catch(() => setAlphaSignals([]))
+    api.get(`/stocks/${id}/fundamental/trends`)
+      .then(r => setFunTrends(r.data))
+      .catch(() => setFunTrends(null))
   }, [id])
 
   useEffect(() => {
@@ -399,6 +403,82 @@ export default function StockDetail() {
             </p>
           )}
         </div>
+
+        {/* Financial Trends Card */}
+        {funTrends && (funTrends.revenue_trends?.length > 0 || funTrends.eps_trends?.length > 0) && (() => {
+          const rev: any[] = funTrends.revenue_trends ?? []
+          const eps: any[] = funTrends.eps_trends ?? []
+          const maxRev = Math.max(...rev.map((r: any) => r.revenue ?? 0), 1)
+          const maxEpsAbs = Math.max(...eps.map((e: any) => Math.abs(e.eps ?? 0)), 0.01)
+          return (
+            <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">財務趨勢</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 月營收 */}
+                {rev.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
+                    <div className="flex items-end gap-px h-16">
+                      {rev.map((r: any, i: number) => {
+                        const h = Math.min((r.revenue / maxRev) * 100, 100)
+                        const yoyPositive = (r.yoy ?? 0) >= 0
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full" title={`${r.label} ${r.revenue?.toFixed(1)}億 YoY:${r.yoy?.toFixed(1) ?? '—'}%`}>
+                            <div
+                              className={`w-full rounded-t-[1px] ${yoyPositive ? 'bg-rose-500' : 'bg-emerald-600'} ${i === rev.length - 1 ? 'opacity-100' : 'opacity-50'}`}
+                              style={{ height: `${Math.max(h, 4)}%` }}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex justify-between mt-1 text-[9px] text-zinc-700 font-mono">
+                      <span>{rev[0]?.label?.slice(-3)}</span>
+                      <span>{rev[rev.length - 1]?.label?.slice(-3)}</span>
+                    </div>
+                    {rev[rev.length - 1]?.yoy != null && (
+                      <p className={`text-xs font-mono font-bold mt-1 ${rev[rev.length - 1].yoy >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        最新 {rev[rev.length - 1].revenue?.toFixed(1)}億
+                        <span className="ml-2 text-zinc-500 font-normal">YoY </span>
+                        {rev[rev.length - 1].yoy >= 0 ? '+' : ''}{rev[rev.length - 1].yoy?.toFixed(1)}%
+                      </p>
+                    )}
+                  </div>
+                )}
+                {/* 季 EPS */}
+                {eps.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
+                    <div className="flex items-end gap-px h-16">
+                      {eps.map((e: any, i: number) => {
+                        const v = e.eps ?? 0
+                        const h = Math.min((Math.abs(v) / maxEpsAbs) * 100, 100)
+                        const isPos = v >= 0
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full" title={`${e.label} EPS:${v}`}>
+                            <div
+                              className={`w-full rounded-t-[1px] ${isPos ? 'bg-rose-500' : 'bg-emerald-600'} ${i === eps.length - 1 ? 'opacity-100' : 'opacity-50'}`}
+                              style={{ height: `${Math.max(h, 4)}%` }}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex justify-between mt-1 text-[9px] text-zinc-700 font-mono">
+                      <span>{eps[0]?.label}</span>
+                      <span>{eps[eps.length - 1]?.label}</span>
+                    </div>
+                    {eps[eps.length - 1]?.eps != null && (
+                      <p className={`text-xs font-mono font-bold mt-1 ${(eps[eps.length - 1].eps ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        最新 {eps[eps.length - 1].eps?.toFixed(2)} 元
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Chip Data Card — sparkline 版 */}
         {chipData.length > 0 && (() => {
