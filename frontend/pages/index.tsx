@@ -3,6 +3,7 @@ import MarketSummary from '../components/MarketSummary';
 import StrategyScreener from '../components/StrategyScreener';
 import StrategyMinerPreview from '../components/StrategyMinerPreview';
 import MarketSentimentWidget from '../components/MarketSentimentWidget';
+import MarketRanking from '../components/MarketRanking';
 
 export default function Home() {
 
@@ -26,6 +27,11 @@ export default function Home() {
         {/* 今日精選：Strategy Miner 精簡預覽 */}
         <section className="mb-4">
           <StrategyMinerPreview />
+        </section>
+
+        {/* 強弱排行榜 */}
+        <section className="mb-4">
+          <MarketRanking />
         </section>
 
         {/* 單欄佈局：全寬度的選股雷達 */}
