@@ -27,4 +27,5 @@ class AlphaSignalHistory(Base):
         UniqueConstraint('signal_date', 'stock_id', 'time_dimension',
                          name='uq_signal_history'),
         Index('ix_signal_history_dim_date', 'time_dimension', 'signal_date'),
+        Index('ix_signal_history_sid_dim_date', 'stock_id', 'time_dimension', 'signal_date'),
     )

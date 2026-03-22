@@ -344,7 +344,7 @@ class FeatureService:
         total_written = 0
         dates = sorted(backfill_df['date'].unique())
 
-        for batch_date in dates:
+        for i, batch_date in enumerate(dates):
             # 刪除當日已存在的記錄（UPSERT 模式：同一 transaction 內先刪再寫）
             db.execute(delete(StockFeature).where(StockFeature.date == batch_date))
 
@@ -422,7 +422,7 @@ class FeatureService:
                 total_written += len(records)
 
             # 每 10 天 commit 一次
-            if dates.index(batch_date) % 10 == 9:
+            if i % 10 == 9:
                 db.commit()
                 logger.info(f"[FeatureService] 回補進度: {batch_date} | 累計 {total_written} 筆")
 
