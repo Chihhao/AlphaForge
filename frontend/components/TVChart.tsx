@@ -54,7 +54,7 @@ function calculateMA(data: KLineData[], period: number) {
 
 export default function TVChart({ data, interval = '1d', subChart = 'volume', colors = {} }: TVChartProps) {
     const {
-        backgroundColor = '#1f2937',
+        backgroundColor = '#18181b',
         textColor = '#f3f4f6',
         upColor = '#f43f5e',
         downColor = '#34d399',
@@ -425,24 +425,24 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
     }, [isMounted, backgroundColor, textColor, upColor, downColor, interval, data, subChart]);
 
     if (!isMounted) {
-        return <div className="w-full h-[400px] bg-[#1f2937] animate-pulse rounded flex items-center justify-center text-gray-500">載入圖表中...</div>;
+        return <div className="w-full h-[400px] bg-zinc-900 animate-pulse rounded flex items-center justify-center text-zinc-500">載入圖表中...</div>;
     }
 
     return (
         <div className="w-full flex flex-col">
             {/* MA Legend (置於圖形外框上方，寬度對應) */}
-            <div className="w-full flex flex-row items-center gap-4 mb-1 px-4 py-1.5 bg-gray-800/50 rounded-t border-b border-gray-700/50 text-[11px] md:text-[12px] font-mono whitespace-nowrap overflow-x-auto no-scrollbar">
+            <div className="w-full flex flex-row items-center gap-4 mb-1 px-4 py-1.5 bg-zinc-800/50 rounded-t border-b border-zinc-700/50 text-[11px] md:text-[12px] font-mono whitespace-nowrap overflow-x-auto no-scrollbar">
                 <div className="flex items-center gap-1.5 min-w-fit">
                     <span className="w-2 h-2 rounded-full bg-[#94a3b8]"></span>
-                    <span className="text-[#94a3b8]">MA5: <span className="text-gray-100">{legendValues.ma5 ? legendValues.ma5.toFixed(1) : '--'}</span></span>
+                    <span className="text-[#94a3b8]">MA5: <span className="text-zinc-100">{legendValues.ma5 ? legendValues.ma5.toFixed(1) : '--'}</span></span>
                 </div>
                 <div className="flex items-center gap-1.5 min-w-fit">
                     <span className="w-2 h-2 rounded-full bg-[#ca8a04]"></span>
-                    <span className="text-[#ca8a04]">MA10: <span className="text-gray-100">{legendValues.ma10 ? legendValues.ma10.toFixed(1) : '--'}</span></span>
+                    <span className="text-[#ca8a04]">MA10: <span className="text-zinc-100">{legendValues.ma10 ? legendValues.ma10.toFixed(1) : '--'}</span></span>
                 </div>
                 <div className="flex items-center gap-1.5 min-w-fit">
                     <span className="w-2 h-2 rounded-full bg-[#0891b2]"></span>
-                    <span className="text-[#0891b2]">MA20: <span className="text-gray-100">{legendValues.ma20 ? legendValues.ma20.toFixed(1) : '--'}</span></span>
+                    <span className="text-[#0891b2]">MA20: <span className="text-zinc-100">{legendValues.ma20 ? legendValues.ma20.toFixed(1) : '--'}</span></span>
                 </div>
             </div>
 
@@ -451,7 +451,7 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                 <div className="absolute top-4 left-4 z-10 flex flex-row gap-2">
                     <button
                         onClick={() => handleZoom(-10)}
-                        className="w-8 h-8 bg-gray-700/80 hover:bg-gray-600 text-white rounded shadow-lg flex items-center justify-center transition-colors border border-gray-600 pointer-events-auto"
+                        className="w-8 h-8 bg-zinc-700/80 hover:bg-zinc-600 text-white rounded shadow-lg flex items-center justify-center transition-colors border border-zinc-600 pointer-events-auto"
                         title="放大 (減少筆數)"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -460,7 +460,7 @@ export default function TVChart({ data, interval = '1d', subChart = 'volume', co
                     </button>
                     <button
                         onClick={() => handleZoom(10)}
-                        className="w-8 h-8 bg-gray-700/80 hover:bg-gray-600 text-white rounded shadow-lg flex items-center justify-center transition-colors border border-gray-600 pointer-events-auto"
+                        className="w-8 h-8 bg-zinc-700/80 hover:bg-zinc-600 text-white rounded shadow-lg flex items-center justify-center transition-colors border border-zinc-600 pointer-events-auto"
                         title="縮小 (增加筆數)"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

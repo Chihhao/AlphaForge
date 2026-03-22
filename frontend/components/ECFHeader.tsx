@@ -20,7 +20,7 @@ const ECFHeader: React.FC = () => {
 
                 {/* Notice Text (Compact) */}
                 <p className="text-[10px] md:text-xs text-zinc-500 font-medium tracking-wide">
-                    <span className="text-red-500 mr-1 animate-pulse">●</span>
+                    <span className="text-rose-500 mr-1 animate-pulse">●</span>
                     證交所 / 櫃買中心資料約於每日 <span className="text-zinc-300 font-bold font-mono">18:00</span> 更新，當日資料請於盤後查詢
                 </p>
             </div>

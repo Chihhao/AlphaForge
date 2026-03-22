@@ -39,16 +39,16 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
   }
 
   return (
-    <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
+    <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl shadow-lg border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-bold text-gray-500 uppercase tracking-widest border-l-2 border-violet-500 pl-1.5">
+        <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-violet-500 pl-1.5">
           AI 智慧解讀
         </p>
         {result && (
           <button
             onClick={() => fetchAnalysis(true)}
             disabled={loading}
-            className="text-xs text-gray-500 hover:text-violet-400 transition-colors disabled:opacity-40"
+            className="text-xs text-zinc-500 hover:text-violet-400 transition-colors disabled:opacity-40"
           >
             重新分析
           </button>
@@ -68,12 +68,12 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
       {/* 載入中 skeleton */}
       {loading && (
         <div className="space-y-2 animate-pulse">
-          <div className="h-3 bg-gray-700 rounded w-full" />
-          <div className="h-3 bg-gray-700 rounded w-5/6" />
-          <div className="h-3 bg-gray-700 rounded w-4/6 mt-3" />
-          <div className="h-3 bg-gray-700 rounded w-full" />
-          <div className="h-3 bg-gray-700 rounded w-3/4 mt-3" />
-          <div className="h-3 bg-gray-700 rounded w-5/6" />
+          <div className="h-3 bg-zinc-700 rounded w-full" />
+          <div className="h-3 bg-zinc-700 rounded w-5/6" />
+          <div className="h-3 bg-zinc-700 rounded w-4/6 mt-3" />
+          <div className="h-3 bg-zinc-700 rounded w-full" />
+          <div className="h-3 bg-zinc-700 rounded w-3/4 mt-3" />
+          <div className="h-3 bg-zinc-700 rounded w-5/6" />
         </div>
       )}
 
@@ -83,7 +83,7 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
           ❌ {error}
           <button
             onClick={() => fetchAnalysis(false)}
-            className="ml-3 text-gray-400 hover:text-gray-200 underline text-xs"
+            className="ml-3 text-zinc-400 hover:text-zinc-200 underline text-xs"
           >
             重試
           </button>
@@ -95,7 +95,7 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
         // 解析分數：**分數：XX／100**
         const scoreMatch = result.analysis.match(/\*\*分數[：:]\s*(\d+)[／/]100\*\*/)
         const score = scoreMatch ? parseInt(scoreMatch[1]) : null
-        const scoreColor = score === null ? 'text-gray-400'
+        const scoreColor = score === null ? 'text-zinc-400'
           : score >= 70 ? 'text-rose-400'
           : score >= 40 ? 'text-amber-400'
           : 'text-emerald-400'
@@ -108,7 +108,7 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
         <div>
           {/* 分數視覺化 */}
           {score !== null && (
-            <div className="mb-4 p-3 bg-gray-900/60 rounded-lg border border-gray-700">
+            <div className="mb-4 p-3 bg-zinc-900/40 rounded-lg border border-zinc-700/60">
               <div className="flex items-center gap-3">
                 {/* 左：大號分數 */}
                 <span className={`text-3xl font-bold font-mono leading-none shrink-0 ${scoreColor}`}>{score}</span>
@@ -118,13 +118,13 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <span className="text-[10px] text-emerald-500 shrink-0">看跌</span>
                     <div className="flex flex-1 h-1.5">
-                      <div className="flex-1 bg-gray-700 rounded-l-full overflow-hidden flex justify-end">
+                      <div className="flex-1 bg-zinc-700 rounded-l-full overflow-hidden flex justify-end">
                         {!isBullish && (
                           <div className="h-full bg-emerald-500" style={{ width: `${barWidth}%` }} />
                         )}
                       </div>
-                      <div className="w-px bg-gray-500 shrink-0" />
-                      <div className="flex-1 bg-gray-700 rounded-r-full overflow-hidden">
+                      <div className="w-px bg-zinc-500 shrink-0" />
+                      <div className="flex-1 bg-zinc-700 rounded-r-full overflow-hidden">
                         {isBullish && (
                           <div className="h-full bg-rose-500" style={{ width: `${barWidth}%` }} />
                         )}
@@ -133,9 +133,9 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
                     <span className="text-[10px] text-rose-400 shrink-0">看漲</span>
                   </div>
                   {/* 股名左、日期右 */}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center justify-between text-xs text-zinc-500">
                     <div className="flex items-center gap-1.5">
-                      {stockName && <><span className="text-gray-300">{stockName}</span><span className="text-gray-400">{stockId}</span></>}
+                      {stockName && <><span className="text-zinc-300">{stockName}</span><span className="text-zinc-400">{stockId}</span></>}
                     </div>
                     <span>{result.date}</span>
                   </div>
@@ -146,32 +146,32 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
           <ReactMarkdown
             components={{
               h3: ({ children }) => (
-                <h3 className="text-gray-100 font-semibold text-sm mt-4 mb-1.5 first:mt-0">{children}</h3>
+                <h3 className="text-zinc-100 font-semibold text-sm mt-4 mb-1.5 first:mt-0">{children}</h3>
               ),
               p: ({ children }) => (
-                <p className="text-sm text-gray-300 leading-relaxed mb-2">{children}</p>
+                <p className="text-sm text-zinc-300 leading-relaxed mb-2">{children}</p>
               ),
               strong: ({ children }) => (
                 <strong className="text-amber-400 font-semibold">{children}</strong>
               ),
               ul: ({ children }) => (
-                <ul className="list-disc list-inside space-y-1 mb-2 text-sm text-gray-300">{children}</ul>
+                <ul className="list-disc list-inside space-y-1 mb-2 text-sm text-zinc-300">{children}</ul>
               ),
               li: ({ children }) => (
                 <li className="leading-relaxed">{children}</li>
               ),
-              hr: () => <hr className="border-gray-700 my-3" />,
+              hr: () => <hr className="border-zinc-700 my-3" />,
               code: ({ children }) => (
-                <code className="text-xs text-gray-400 bg-gray-900 px-1 rounded">{children}</code>
+                <code className="text-xs text-zinc-400 bg-zinc-900 px-1 rounded">{children}</code>
               ),
               pre: ({ children }) => (
-                <pre className="text-xs text-gray-400 bg-gray-900 p-2 rounded overflow-x-auto mb-2">{children}</pre>
+                <pre className="text-xs text-zinc-400 bg-zinc-900 p-2 rounded overflow-x-auto mb-2">{children}</pre>
               ),
             }}
           >
             {result.analysis}
           </ReactMarkdown>
-          <div className="mt-4 flex items-center justify-between text-xs text-gray-600">
+          <div className="mt-4 flex items-center justify-between text-xs text-zinc-600">
             <span>
               {result.from_cache
                 ? `資料來自今日快取・${result.cached_at}`
