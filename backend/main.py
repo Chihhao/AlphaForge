@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.database import Base, engine
 from app.api.endpoints import users, stocks, trading, indicators, glossary, market
 from app.api.endpoints import alpha_miner
+from app.api.endpoints import strategy_miner
 from app.models.stock_price import StockPrice
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_revenue import StockMonthlyRevenue
@@ -17,6 +18,9 @@ from app.models.stock_chip_data import StockChipData
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from app.models.alpha_signal_history import AlphaSignalHistory
 from app.models.stock_ai_analysis import StockAIAnalysis
+from app.models.strategy_backtest_param import StrategyBacktestParam
+from app.models.strategy_miner_trade import StrategyMinerTrade
+from app.models.strategy_miner_pick import StrategyMinerPick
 from app.core.scheduler import start_scheduler, stop_scheduler
 
 
@@ -180,6 +184,7 @@ app.include_router(indicators.router)
 app.include_router(glossary.router)
 app.include_router(market.router)
 app.include_router(alpha_miner.router)
+app.include_router(strategy_miner.router)
 
 
 @app.get("/")

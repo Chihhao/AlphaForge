@@ -163,6 +163,19 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 第八梯次：18:00 Strategy Miner 每日推薦生成 ---
+    def run_strategy_miner(db):
+        from app.services.strategy_miner_service import StrategyMinerService
+        StrategyMinerService.run_daily(db)
+
+    scheduler.add_job(
+        lambda: run_with_db(run_strategy_miner),
+        trigger=CronTrigger(hour=18, minute=0),
+        id="strategy_miner_daily",
+        name="Strategy Miner daily picks generation",
+        replace_existing=True
+    )
+
     scheduler.start()
     logger.info("Scheduler started and daily sync job added.")
 
