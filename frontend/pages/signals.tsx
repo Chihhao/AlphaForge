@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import api from '../lib/api'
+import { useWatchlist } from '../lib/useWatchlist'
 
 interface TodaySignal {
     stock_id: string
@@ -206,6 +207,7 @@ export default function SignalsPage() {
     const [error, setError] = useState<string | null>(null)
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [dim, setDim] = useState<DimKey>('10d')
+    const { toggle, has } = useWatchlist()
     const [dimStats, setDimStats] = useState<Record<DimKey, { posIc: number; totalSig: number }>>({
         '5d': { posIc: 0, totalSig: 0 },
         '10d': { posIc: 0, totalSig: 0 },
@@ -459,16 +461,34 @@ export default function SignalsPage() {
                                         {/* Expanded action */}
                                         {isExpanded && (
                                             <div
-                                                className="px-4 pb-4 pt-3 border-t border-zinc-700/50 flex justify-between items-center"
+                                                className="px-4 pb-4 pt-3 border-t border-zinc-700/50 flex justify-between items-center gap-2"
                                                 onClick={e => e.stopPropagation()}
                                             >
                                                 <span className="text-zinc-600 text-xs">共 {s.strategies.length} 個策略觸發</span>
-                                                <Link
-                                                    href={`/stock/${s.stock_id}`}
-                                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded-lg transition-colors font-medium"
-                                                >
-                                                    查看個股 →
-                                                </Link>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => toggle(s.stock_id, s.stock_name)}
+                                                        title={has(s.stock_id) ? '從觀察清單移除' : '加入觀察清單'}
+                                                        className={`p-1.5 rounded-lg border transition-colors ${
+                                                            has(s.stock_id)
+                                                                ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+                                                                : 'text-zinc-600 border-zinc-700 hover:text-amber-400 hover:border-amber-500/30'
+                                                        }`}
+                                                    >
+                                                        <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+                                                            <path d={has(s.stock_id)
+                                                                ? "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
+                                                                : "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z"
+                                                            } />
+                                                        </svg>
+                                                    </button>
+                                                    <Link
+                                                        href={`/stock/${s.stock_id}`}
+                                                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded-lg transition-colors font-medium"
+                                                    >
+                                                        查看個股 →
+                                                    </Link>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
