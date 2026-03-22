@@ -570,6 +570,32 @@ const StrategyPage = () => {
     const [error, setError] = useState<string | null>(null)
     const [usingFallback, setUsingFallback] = useState(false)
 
+    const [alphaExpanded, setAlphaExpanded] = useState(false)
+    const [alphaData, setAlphaData] = useState<AlphaMinerResult | null>(null)
+    const [alphaLoading, setAlphaLoading] = useState(false)
+    const [activeDim, setActiveDim] = useState<DimKey>('5d')
+    const [selectedStratId, setSelectedStratId] = useState<string | null>(null)
+
+    const handleAlphaExpand = () => {
+        const next = !alphaExpanded
+        setAlphaExpanded(next)
+        if (next && !alphaData && !alphaLoading) {
+            setAlphaLoading(true)
+            api.get(`/alpha-miner/strategies?dimension=${activeDim}`)
+                .then(r => { setAlphaData(r.data); setAlphaLoading(false) })
+                .catch(() => setAlphaLoading(false))
+        }
+    }
+
+    const handleDimChange = (dim: DimKey) => {
+        setActiveDim(dim)
+        setSelectedStratId(null)
+        setAlphaLoading(true)
+        api.get(`/alpha-miner/strategies?dimension=${dim}`)
+            .then(r => { setAlphaData(r.data); setAlphaLoading(false) })
+            .catch(() => setAlphaLoading(false))
+    }
+
     useEffect(() => {
         const loadPicks = async () => {
             try {
@@ -719,6 +745,95 @@ const StrategyPage = () => {
                     {picks.map((pick, i) => (
                         <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
                     ))}
+                </div>
+
+                {/* ── Alpha Miner 策略庫（折疊）──────────────────────── */}
+                <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
+                    <button
+                        onClick={handleAlphaExpand}
+                        className="w-full flex items-center justify-between px-4 py-4 bg-zinc-900/40 hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <svg viewBox="0 0 24 24" width="18" height="18" className="fill-zinc-500 shrink-0">
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z" />
+                            </svg>
+                            <span className="text-zinc-400 font-semibold text-sm">Alpha Miner 策略庫</span>
+                            {alphaData && (
+                                <span className="text-zinc-600 text-xs font-mono">
+                                    {alphaData.strategies?.length ?? 0} 個顯著策略
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-zinc-600 text-xs">{alphaExpanded ? '▲ 收起' : '▼ 展開'}</span>
+                    </button>
+
+                    {alphaExpanded && (
+                        <div className="px-3 pb-3 pt-1 space-y-3">
+                            {/* Dim tabs */}
+                            <div className="flex gap-2 pt-1">
+                                {(Object.keys(DIM_CONFIG) as DimKey[]).map(dim => (
+                                    <button
+                                        key={dim}
+                                        onClick={() => handleDimChange(dim)}
+                                        className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                                            activeDim === dim
+                                                ? 'bg-zinc-700 text-zinc-100'
+                                                : 'text-zinc-500 hover:text-zinc-300'
+                                        }`}
+                                    >
+                                        {DIM_CONFIG[dim].shortLabel}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {alphaLoading && (
+                                <div className="space-y-2">
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} className="h-20 bg-zinc-800/40 rounded-xl animate-pulse" />
+                                    ))}
+                                </div>
+                            )}
+
+                            {!alphaLoading && alphaData && (() => {
+                                const strategies = alphaData.strategies ?? []
+                                const tloMap: Record<DimKey, number> = { '5d': 3, '10d': 3, '30d': 5 }
+                                const thiMap: Record<DimKey, number> = { '5d': 5, '10d': 5, '30d': 10 }
+                                const tlo = tloMap[activeDim]
+                                const thi = thiMap[activeDim]
+                                return (
+                                    <>
+                                        {strategies.length === 0 ? (
+                                            <p className="text-zinc-600 text-sm text-center py-4">此維度暫無顯著策略</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {strategies.map((s, idx) => (
+                                                    <MobileCard
+                                                        key={s.strategy_id}
+                                                        s={s}
+                                                        idx={idx}
+                                                        tlo={tlo}
+                                                        thi={thi}
+                                                        dimLabel={DIM_CONFIG[activeDim].shortLabel}
+                                                        isSelected={selectedStratId === s.strategy_id}
+                                                        onToggle={() => setSelectedStratId(
+                                                            selectedStratId === s.strategy_id ? null : s.strategy_id
+                                                        )}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                        {alphaData.last_trained && (
+                                            <p className="text-zinc-700 text-xs text-right pt-1">
+                                                模型訓練：{new Date(alphaData.last_trained).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                                ・測試期：{alphaData.test_period}
+                                                ・共測試 {alphaData.total_combinations_tested} 組合
+                                            </p>
+                                        )}
+                                    </>
+                                )
+                            })()}
+                        </div>
+                    )}
                 </div>
 
             </div>
