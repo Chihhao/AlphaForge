@@ -228,3 +228,28 @@ def get_features(stock_id: str, days: int = 60):
         } for f in features]
     finally:
         db.close()
+
+
+@router.get("/pcr")
+def get_pcr(days: int = 20):
+    """查詢近期台指選擇權 Put/Call Ratio"""
+    from app.models.market_pcr import MarketPCR
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(MarketPCR)
+            .order_by(MarketPCR.date.desc())
+            .limit(days)
+            .all()
+        )
+        return [
+            {
+                "date": r.date.isoformat(),
+                "put_oi": r.put_oi,
+                "call_oi": r.call_oi,
+                "pcr": r.pcr,
+            }
+            for r in reversed(rows)
+        ]
+    finally:
+        db.close()

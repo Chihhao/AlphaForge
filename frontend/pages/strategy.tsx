@@ -564,6 +564,40 @@ const MobileCard = ({
     )
 }
 
+// ─── PCR Badge ────────────────────────────────────────────────────────────────
+const PCRBadge = () => {
+    const [pcr, setPcr] = useState<number | null>(null)
+    const [pcrDate, setPcrDate] = useState<string>('')
+
+    useEffect(() => {
+        api.get('/market/pcr?days=3')
+            .then(r => {
+                const rows: { date: string; pcr: number }[] = r.data ?? []
+                if (rows.length > 0) {
+                    const latest = rows[rows.length - 1]
+                    setPcr(latest.pcr)
+                    setPcrDate(latest.date)
+                }
+            })
+            .catch(() => {})
+    }, [])
+
+    if (pcr === null) return null
+
+    const level = pcr >= 1.5 ? { label: '恐慌', color: 'text-rose-400 border-rose-500/30 bg-rose-500/10' }
+                : pcr >= 1.0 ? { label: '偏空', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' }
+                : pcr >= 0.8 ? { label: '中性', color: 'text-zinc-400 border-zinc-600 bg-zinc-800/50' }
+                :               { label: '偏多', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' }
+
+    return (
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-mono ${level.color}`} title={`PCR ${pcr.toFixed(3)} (${pcrDate})`}>
+            <span className="text-zinc-500 font-sans">PCR</span>
+            <span className="font-bold">{pcr.toFixed(2)}</span>
+            <span className="font-sans">{level.label}</span>
+        </div>
+    )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StrategyPage = () => {
     const [picks, setPicks] = useState<StrategyPick[]>([])
@@ -715,7 +749,7 @@ const StrategyPage = () => {
                     <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-amber-500/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
                     <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight flex items-center gap-2">
                                     <svg viewBox="0 0 24 24" width="28" height="28" className="fill-amber-400 shrink-0 self-center">
                                         <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
@@ -724,6 +758,7 @@ const StrategyPage = () => {
                                     <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">精選</span>
                                 </h1>
                                 <span className="text-zinc-500 text-sm font-mono self-center">{displayDate}</span>
+                                <PCRBadge />
                             </div>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
                                 量化模型每日精算 · 多策略共振選股 · 停利停損由歷史回測自動尋優 · 不構成投資建議。
