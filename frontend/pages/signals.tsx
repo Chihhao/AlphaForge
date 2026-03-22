@@ -274,6 +274,15 @@ export default function SignalsPage() {
                                     : loading ? '載入中…' : 'Alpha Miner 多因子訊號聚合'}
                             </p>
                         </div>
+                        <Link
+                            href="/strategy"
+                            className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-rose-500/10 border border-rose-500/25 rounded-xl text-rose-400 hover:bg-rose-500/20 transition-colors text-sm font-semibold whitespace-nowrap"
+                        >
+                            <svg viewBox="0 0 24 24" width={16} height={16} className="fill-current">
+                                <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                            </svg>
+                            明日操作建議
+                        </Link>
 
                     </div>
                 </div>
