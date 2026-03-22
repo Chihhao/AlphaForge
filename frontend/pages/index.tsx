@@ -4,6 +4,7 @@ import StrategyScreener from '../components/StrategyScreener';
 import StrategyMinerPreview from '../components/StrategyMinerPreview';
 import MarketSentimentWidget from '../components/MarketSentimentWidget';
 import MarketRanking from '../components/MarketRanking';
+import WatchlistWidget from '../components/WatchlistWidget';
 
 export default function Home() {
 
@@ -22,6 +23,11 @@ export default function Home() {
         {/* 市場情緒：PCR + ETF 申贖迷你圖 */}
         <section className="mb-4">
           <MarketSentimentWidget />
+        </section>
+
+        {/* 觀察清單（localStorage，有內容才顯示）*/}
+        <section className="mb-4">
+          <WatchlistWidget />
         </section>
 
         {/* 今日精選：Strategy Miner 精簡預覽 */}

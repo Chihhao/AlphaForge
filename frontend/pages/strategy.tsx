@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import api from '../lib/api'
+import { useWatchlist } from '../lib/useWatchlist'
 import {
     LineChart, Line, XAxis, YAxis, Tooltip,
     ResponsiveContainer, CartesianGrid, ReferenceLine
@@ -61,6 +62,8 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     const [expanded, setExpanded] = useState(false)
     const [trades, setTrades] = useState<TradeRecord[]>([])
     const [tradesLoading, setTradesLoading] = useState(false)
+    const { toggle, has } = useWatchlist()
+    const watched = has(pick.stock_id)
 
     const takeProfit = pick.entry_price > 0
         ? Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100))
@@ -95,14 +98,28 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
 
     return (
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
-            {/* Row 1: rank + name + id + stars */}
+            {/* Row 1: rank + name + id + stars + watchlist */}
             <div className="flex items-baseline gap-1.5 mb-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5">#{rank}</span>
                 <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
                     {pick.stock_name}
                 </Link>
                 <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
-                <span className="ml-auto text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
+                <span className="ml-auto flex items-center gap-2">
+                    <span className="text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
+                    <button
+                        onClick={e => { e.stopPropagation(); toggle(pick.stock_id, pick.stock_name) }}
+                        title={watched ? '從觀察清單移除' : '加入觀察清單'}
+                        className={`p-0.5 transition-colors ${watched ? 'text-amber-400' : 'text-zinc-600 hover:text-amber-400'}`}
+                    >
+                        <svg viewBox="0 0 24 24" width={16} height={16} className="fill-current">
+                            <path d={watched
+                                ? "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
+                                : "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z"
+                            } />
+                        </svg>
+                    </button>
+                </span>
             </div>
 
             {/* Row 2: entry → take profit / stop loss */}

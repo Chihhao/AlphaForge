@@ -6,6 +6,7 @@ import api from '../../lib/api'
 import KDIndicator from '../../components/KDIndicator'
 import EducationalHint from '../../components/EducationalHint'
 import { formatPrice } from '../../lib/formatters'
+import { useWatchlist } from '../../lib/useWatchlist'
 
 const TVChart = dynamic(() => import('../../components/TVChart'), { ssr: false })
 const StockAIAnalysis = dynamic(() => import('../../components/StockAIAnalysis'), { ssr: false })
@@ -45,6 +46,7 @@ export default function StockDetail() {
   const [subChart, setSubChart] = useState<'volume' | 'rsi' | 'bias'>('volume')
   const [chipData, setChipData] = useState<any[]>([])
   const [strategyPick, setStrategyPick] = useState<any>(null)
+  const { toggle, has } = useWatchlist()
 
   // 籌碼數據 + Strategy Miner 精選狀態（不依賴 interval，只在切換個股時重抓）
   useEffect(() => {
@@ -198,10 +200,24 @@ export default function StockDetail() {
         <div className="bg-gray-800 rounded-none sm:rounded-lg shadow-lg border-b border-x-0 sm:border border-gray-700 p-4 sm:p-6 mb-0 sm:mb-6">
           <div className="flex justify-between items-center mb-3">
             <div>
-              <h1 className="text-2xl sm:text-4xl font-bold text-gray-100 leading-tight">
-                {displayName}
-                <span className="text-gray-500 text-base font-normal ml-2">{id}</span>
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-4xl font-bold text-gray-100 leading-tight">
+                  {displayName}
+                  <span className="text-gray-500 text-base font-normal ml-2">{id}</span>
+                </h1>
+                <button
+                  onClick={() => toggle(id as string, displayName)}
+                  title={has(id as string) ? '從觀察清單移除' : '加入觀察清單'}
+                  className={`shrink-0 p-1.5 rounded-full transition-colors ${has(id as string) ? 'text-amber-400 hover:text-amber-300' : 'text-gray-600 hover:text-amber-400'}`}
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" className="fill-current">
+                    <path d={has(id as string)
+                      ? "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
+                      : "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z"
+                    } />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="text-right">
               <p className="text-2xl sm:text-4xl font-bold text-gray-100 tabular-nums">{formatPrice(displayPrice)}</p>
