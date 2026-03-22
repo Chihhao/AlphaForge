@@ -87,23 +87,23 @@ export default function MarketSentimentWidget() {
         <div className="w-px bg-zinc-800 self-stretch" />
       )}
 
-      {/* ETF 申贖區塊 */}
+      {/* 外資買賣 0050 區塊 */}
       {etfRows.length > 0 && (
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">0050 申贖</span>
-            <span className={`font-mono text-xs font-bold ${etfNetSum > 0 ? 'text-rose-400' : etfNetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
+            <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資買賣 0050</span>
+            <span className={`font-mono text-xs font-bold ${etfNetSum > 0 ? 'text-emerald-400' : etfNetSum < 0 ? 'text-rose-400' : 'text-zinc-500'}`}>
               近5日 {etfNetSum > 0 ? '+' : ''}{etfNetSum.toFixed(0)}張
             </span>
           </div>
           <div className="flex items-center gap-px h-8">
             {etfRows.map((r, i) => {
               const pct = etfMaxAbs > 0 ? Math.min(Math.abs(r.net_flow ?? 0) / etfMaxAbs * 100, 100) : 0
-              const isInflow = (r.net_flow ?? 0) >= 0
+              const isBuy = (r.net_flow ?? 0) >= 0
               return (
                 <div key={i} className="flex-1 flex flex-col items-center justify-center h-full">
                   <div
-                    className={`w-full rounded-[1px] ${isInflow ? 'bg-rose-500' : 'bg-emerald-600'} ${i === etfRows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
+                    className={`w-full rounded-[1px] ${isBuy ? 'bg-emerald-600' : 'bg-rose-500'} ${i === etfRows.length - 1 ? 'opacity-100' : 'opacity-40'}`}
                     style={{ height: `${Math.max(pct * 0.8, 4)}%` }}
                     title={`${r.date.slice(5)} ${r.net_flow > 0 ? '+' : ''}${r.net_flow?.toFixed(0)}張`}
                   />

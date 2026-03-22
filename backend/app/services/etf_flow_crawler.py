@@ -1,12 +1,13 @@
 """
-ETF 申贖張數爬蟲
+ETF 外資買賣超爬蟲
 
-資料來源：TWSE ETF 申購買回清單
-  https://www.twse.com.tw/fund/TWT38U?response=json&date=YYYYMMDD&stockNo=0050
+資料來源：TWSE 外資及陸資買賣超彙總表
+  https://www.twse.com.tw/fund/TWT38U?response=json&date=YYYYMMDD
 
-ETF 淨申購 = 申購張數 - 贖回張數
-  正值 = 機構買超 ETF = 資金淨流入
-  負值 = 機構賣超 ETF = 資金淨流出
+注意：TWT38U 回傳的是「外資及陸資買賣超彙總表」，非 ETF 申購/買回受益單位數。
+  net_flow = 外資淨買超股數 / 1000（轉換為張）
+  正值 = 外資買超 0050 = 看多市場訊號
+  負值 = 外資賣超 0050 = 看空市場訊號
 
 追蹤標的：0050（元大台灣50，最具代表性的大盤 ETF）
 """
@@ -50,15 +51,17 @@ def fetch_etf_flow(etf_id: str, target_date: date) -> Optional[dict]:
 
 
 def _parse_etf_flow(data: dict, etf_id: str, target_date: date) -> Optional[dict]:
-    """解析 TWSE ETF 申贖 JSON。
+    """解析 TWSE 外資買賣超 JSON，取出特定 ETF 的外資淨買賣。
 
-    TWSE JSON 格式：
+    TWT38U 回傳格式（外資及陸資買賣超彙總表）：
     {
       "stat": "OK",
       "data": [
-        ["日期", "申購受益單位數", "買回受益單位數", ...]
+        [" ", "0050  ", "元大台灣50", "買進股數", "賣出股數", "買賣超股數", ...]
       ]
     }
+    欄位：[空白, 證券代號, 證券名稱, 買進股數, 賣出股數, 買賣超股數, ...]（三組，各代表外資/陸資/合計）
+    使用最後一組（合計，col[9-11]）；若只有一組則取 col[3-5]。
     """
     try:
         if data.get("stat") != "OK":
@@ -68,24 +71,27 @@ def _parse_etf_flow(data: dict, etf_id: str, target_date: date) -> Optional[dict
         if not rows:
             return None
 
-        # 找目標日期的資料（日期格式為民國年 e.g. "114/03/22"）
-        target_roc = f"{target_date.year - 1911}/{target_date.month:02d}/{target_date.day:02d}"
-
+        # 尋找目標 ETF 的列（col[1] 含 etf_id）
         for row in rows:
-            if not row or row[0] != target_roc:
+            if len(row) < 6:
+                continue
+            code = str(row[1]).strip()
+            if code != etf_id:
                 continue
 
-            # 欄位：日期, 申購受益單位數, 買回受益單位數, ...
-            # 受益單位數 / 1000 ≈ 張數（ETF 一單位 = 1000 股，1 張 = 1000 股）
-            creation_units  = int(str(row[1]).replace(",", "")) if len(row) > 1 else 0
-            redemption_units = int(str(row[2]).replace(",", "")) if len(row) > 2 else 0
+            # 欄位順序：[空, 代號, 名稱, 買進, 賣出, 買賣超, 買進, 賣出, 買賣超, 買進, 賣出, 買賣超]
+            # 取最後一欄「買賣超股數」作為合計淨買賣
+            col_idx = 11 if len(row) >= 12 else 5
+            net_shares = int(str(row[col_idx]).replace(",", ""))
+            buy_shares  = int(str(row[col_idx - 2]).replace(",", ""))
+            sell_shares = int(str(row[col_idx - 1]).replace(",", ""))
 
-            # 轉換為張（1 張 = 1000 受益單位）
-            creation   = creation_units   // 1000
-            redemption = redemption_units // 1000
-            net_flow   = creation - redemption
+            # 轉換為張（1 張 = 1000 股）
+            creation   = buy_shares  // 1000
+            redemption = sell_shares // 1000
+            net_flow   = net_shares  // 1000
 
-            logger.info(f"[ETFFlow] {etf_id} {target_date}: 申購={creation:,} 贖回={redemption:,} 淨流入={net_flow:,} 張")
+            logger.info(f"[ETFFlow] {etf_id} {target_date}: 外資買={creation:,} 賣={redemption:,} 淨={net_flow:,} 張")
             return {
                 "date": target_date,
                 "etf_id": etf_id,
@@ -94,7 +100,7 @@ def _parse_etf_flow(data: dict, etf_id: str, target_date: date) -> Optional[dict
                 "net_flow": net_flow,
             }
 
-        logger.info(f"[ETFFlow] {etf_id} {target_date}: 無資料（非交易日或尚未公布）")
+        logger.info(f"[ETFFlow] {etf_id} {target_date}: 找不到 {etf_id} 資料")
         return None
 
     except Exception as e:
