@@ -421,7 +421,7 @@ const DetailPanel = ({ strategyId, onClose }: { strategyId: string; onClose: () 
                                     </div>
                                     <div className="flex justify-between items-baseline">
                                         <span className="text-zinc-400 text-xs">策略 勝率</span>
-                                        <span className={`text-base font-bold font-mono ${col.winStrat > col.winMkt ? 'text-emerald-400' : 'text-rose-400'}`}>{toPct(col.winStrat)}</span>
+                                        <span className={`text-base font-bold font-mono ${col.winStrat > col.winMkt ? 'text-rose-400' : 'text-emerald-400'}`}>{toPct(col.winStrat)}</span>
                                     </div>
                                     <div className="flex justify-between items-baseline">
                                         <span className="text-zinc-500 text-xs">市場 勝率</span>
@@ -430,7 +430,7 @@ const DetailPanel = ({ strategyId, onClose }: { strategyId: string; onClose: () 
                                     <div className="flex justify-between items-baseline">
                                         <span className="text-zinc-400 text-xs">策略 踩雷</span>
                                         {col.lossStrat > 0 || i === 0
-                                            ? <span className={`text-base font-bold font-mono ${col.lossStrat < col.lossMkt ? 'text-emerald-400' : 'text-rose-400'}`}>{toPct(col.lossStrat)}</span>
+                                            ? <span className={`text-base font-bold font-mono ${col.lossStrat < col.lossMkt ? 'text-rose-400' : 'text-emerald-400'}`}>{toPct(col.lossStrat)}</span>
                                             : <span className="text-zinc-700 text-base font-bold font-mono">—</span>
                                         }
                                     </div>
@@ -559,13 +559,13 @@ const MobileCard = ({
                         </div>
                         <div className="flex justify-between items-baseline">
                             <span className="text-zinc-400 text-xs">&gt;{tlo}% 勝率</span>
-                            <span className={`text-base font-bold font-mono ${winLo > s.market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`text-base font-bold font-mono ${winLo > s.market_win_rate ? 'text-rose-400' : 'text-emerald-400'}`}>
                                 {toPct(winLo)}
                             </span>
                         </div>
                         <div className="flex justify-between items-baseline">
                             <span className="text-zinc-400 text-xs">&lt;-{tlo}% 踩雷</span>
-                            <span className={`text-base font-bold font-mono ${loss < s.market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`text-base font-bold font-mono ${loss < s.market_loss_rate ? 'text-rose-400' : 'text-emerald-400'}`}>
                                 {toPct(loss)}
                             </span>
                         </div>
@@ -580,13 +580,13 @@ const MobileCard = ({
                         </div>
                         <div className="flex justify-between items-baseline">
                             <span className="text-zinc-400 text-xs">&gt;{thi}% 勝率</span>
-                            <span className={`text-base font-bold font-mono ${winHi > s.market_win_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`text-base font-bold font-mono ${winHi > s.market_win_rate_hi ? 'text-rose-400' : 'text-emerald-400'}`}>
                                 {toPct(winHi)}
                             </span>
                         </div>
                         <div className="flex justify-between items-baseline">
                             <span className="text-zinc-400 text-xs">&lt;-{thi}% 踩雷</span>
-                            <span className={`text-base font-bold font-mono ${s.loss_rate_outsample_hi < s.market_loss_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`text-base font-bold font-mono ${s.loss_rate_outsample_hi < s.market_loss_rate_hi ? 'text-rose-400' : 'text-emerald-400'}`}>
                                 {toPct(s.loss_rate_outsample_hi)}
                             </span>
                         </div>

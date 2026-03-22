@@ -400,13 +400,13 @@ export default function SignalsPage() {
                                                     </div>
                                                     <div className="flex justify-between items-baseline">
                                                         <span className="text-zinc-400 text-xs">&gt;{tlo}% 勝率</span>
-                                                        <span className={`text-base font-bold font-mono ${s.weighted_win_rate > s.weighted_market_win_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        <span className={`text-base font-bold font-mono ${s.weighted_win_rate > s.weighted_market_win_rate ? 'text-rose-400' : 'text-emerald-400'}`}>
                                                             {toPct(s.weighted_win_rate)}
                                                         </span>
                                                     </div>
                                                     <div className="flex justify-between items-baseline">
                                                         <span className="text-zinc-400 text-xs">&lt;-{tlo}% 踩雷</span>
-                                                        <span className={`text-base font-bold font-mono ${s.weighted_loss_rate < s.weighted_market_loss_rate ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        <span className={`text-base font-bold font-mono ${s.weighted_loss_rate < s.weighted_market_loss_rate ? 'text-rose-400' : 'text-emerald-400'}`}>
                                                             {toPct(s.weighted_loss_rate)}
                                                         </span>
                                                     </div>
@@ -422,13 +422,13 @@ export default function SignalsPage() {
                                                     </div>
                                                     <div className="flex justify-between items-baseline">
                                                         <span className="text-zinc-400 text-xs">&gt;{thi}% 勝率</span>
-                                                        <span className={`text-base font-bold font-mono ${s.weighted_win_rate_hi > s.weighted_market_win_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        <span className={`text-base font-bold font-mono ${s.weighted_win_rate_hi > s.weighted_market_win_rate_hi ? 'text-rose-400' : 'text-emerald-400'}`}>
                                                             {toPct(s.weighted_win_rate_hi)}
                                                         </span>
                                                     </div>
                                                     <div className="flex justify-between items-baseline">
                                                         <span className="text-zinc-400 text-xs">&lt;-{thi}% 踩雷</span>
-                                                        <span className={`text-base font-bold font-mono ${s.weighted_loss_rate_hi < s.weighted_market_loss_rate_hi ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        <span className={`text-base font-bold font-mono ${s.weighted_loss_rate_hi < s.weighted_market_loss_rate_hi ? 'text-rose-400' : 'text-emerald-400'}`}>
                                                             {toPct(s.weighted_loss_rate_hi)}
                                                         </span>
                                                     </div>
