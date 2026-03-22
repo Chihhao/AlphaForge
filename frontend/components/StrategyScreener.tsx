@@ -58,7 +58,6 @@ export default function StrategyScreener() {
             const isTradingHour = timeValue >= 900 && timeValue <= 1430;
 
             if (isTradingDay && isTradingHour) {
-                console.log('[StrategyScreener] 盤中自動刷新報價...');
                 fetchScreener(false); // 背景刷新，不顯示 loading 動畫
             }
         }, 60000);
@@ -73,7 +72,7 @@ export default function StrategyScreener() {
                 <div className="w-full flex justify-center items-center py-16 min-h-[300px] border border-white/5 rounded-2xl bg-zinc-900/40">
                     <div className="flex flex-col items-center gap-4">
                         <div className="animate-spin h-8 w-8 text-cyan-400 rounded-full border-b-2 border-cyan-400"></div>
-                        <span className="text-zinc-500 font-mono text-sm animate-pulse">根據新參數重新掃描中...</span>
+                        <span className="text-zinc-500 font-mono text-sm animate-pulse">選股雷達掃描中...</span>
                     </div>
                 </div>
             ) : (
