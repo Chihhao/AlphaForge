@@ -15,6 +15,7 @@ from app.models.stock_eps import StockQuarterlyEPS
 from app.models.system_event import SystemEvent
 from app.models.stock_feature import StockFeature
 from app.models.stock_chip_data import StockChipData
+from app.models.market_pcr import MarketPCR
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from app.models.alpha_signal_history import AlphaSignalHistory
 from app.models.stock_ai_analysis import StockAIAnalysis

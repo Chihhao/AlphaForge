@@ -69,6 +69,8 @@ FACTOR_LABELS: Dict[str, str] = {
     'sector_rs':            '產業相對強度',
     'foreign_hold_pct':     '外資持股比率',
     'foreign_hold_chg_5d':  '外資持股5日變化',
+    # Phase 3A 市場指標
+    'market_pcr':         '選擇權PCR',
 }
 
 # ─── 預定義因子組合（63 組，Bonferroni 校正門檻 = 0.05/63 ≈ 0.00079）─────────
@@ -138,6 +140,11 @@ FACTOR_COMBINATIONS: List[List[str]] = [
     ['foreign_hold_chg_5d', 'trust_buy_5d'],
     # 三因子（Phase 6）
     ['sector_rs', 'rsi14', 'vol_ratio'],
+    # 市場恐慌指標（Phase 3A）
+    ['market_pcr'],
+    ['market_pcr', 'rsi14'],
+    ['market_pcr', 'foreign_buy_5d'],
+    ['market_pcr', 'vol_ratio'],
 ]
 
 _LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())

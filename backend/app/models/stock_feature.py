@@ -77,6 +77,9 @@ class StockFeature(Base):
     foreign_hold_pct    = Column(Float, nullable=True)  # 全體外資持股比率（%，僅上市）
     foreign_hold_chg_5d = Column(Float, nullable=True)  # 外資持股比率5日變化（百分點）
 
+    # --- 市場指標（Phase 3A）---
+    market_pcr = Column(Float, nullable=True)  # 台指選擇權 Put/Call Ratio
+
     # 複合唯一索引：每支股票每天只有一筆
     __table_args__ = (
         Index('ix_sf_sid_date', 'stock_id', 'date', unique=True),

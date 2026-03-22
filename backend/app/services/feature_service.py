@@ -17,6 +17,7 @@ from app.models.stock_price import StockPrice
 from app.models.stock_feature import StockFeature
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_chip_data import StockChipData
+from app.models.market_pcr import MarketPCR
 from app.models.user import Stock
 from app.services.indicator_service import IndicatorService
 
@@ -136,6 +137,10 @@ class FeatureService:
                         'foreign_hold_pct', 'foreign_hold_chg_5d'):
                 target_df[col] = None
 
+        # 6c. 帶入當日 PCR（市場指標，全體股票共享同一值）
+        pcr_row = db.query(MarketPCR).filter(MarketPCR.date == target_date).first()
+        target_df['market_pcr'] = pcr_row.pcr if pcr_row else None
+
         # 7. 刪除當日已存在的記錄（upsert 邏輯）
         db.execute(
             delete(StockFeature).where(StockFeature.date == target_date)
@@ -184,6 +189,7 @@ class FeatureService:
                 sector_rs=_safe_float(row.get('sector_rs')),
                 foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                 foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
+                market_pcr=_safe_float(row.get('market_pcr')),
             ))
 
         if records:
@@ -366,6 +372,7 @@ class FeatureService:
                     sector_rs=_safe_float(row.get('sector_rs')),
                     foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                     foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
+                    market_pcr=_safe_float(row.get('market_pcr')),
                 ))
 
             if records:
