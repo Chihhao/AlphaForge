@@ -46,7 +46,7 @@ function StarsDisplay({ score }: { score: number }) {
   return (
     <span className="text-amber-400 text-xs tracking-tight select-none">
       {'★'.repeat(stars)}
-      <span className="text-gray-600">{'★'.repeat(5 - stars)}</span>
+      <span className="text-zinc-700">{'★'.repeat(5 - stars)}</span>
     </span>
   )
 }
@@ -182,11 +182,11 @@ export default function StrategyMinerPreview() {
           <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
             <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">回測績效</span>
             <span className="text-[10px] font-mono text-zinc-500">{dimLabel}策略</span>
-            <span className={`text-[10px] font-mono font-semibold ${winRate >= 55 ? 'text-emerald-400' : winRate >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
+            <span className={`text-[10px] font-mono font-semibold ${winRate >= 55 ? 'text-rose-400' : winRate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
               勝率 {winRate}%
             </span>
             <span className="text-zinc-700 text-[10px]">·</span>
-            <span className={`text-[10px] font-mono font-semibold ${stats.avg_return_test >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`text-[10px] font-mono font-semibold ${stats.avg_return_test >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
               均報酬 {stats.avg_return_test >= 0 ? '+' : ''}{avgRet}%
             </span>
             <span className="text-zinc-700 text-[10px]">·</span>
