@@ -10,8 +10,46 @@ interface SystemEvent {
     timestamp: string;
 }
 
+interface DataStatus {
+    stock_prices: string | null
+    fundamentals: string | null
+    chip_data: string | null
+    stock_features: string | null
+    alpha_signals: string | null
+    strategy_picks: string | null
+    pcr: string | null
+    etf_flows: string | null
+}
+
+const STATUS_LABELS: Record<string, string> = {
+    stock_prices: '行情', fundamentals: '基本面', chip_data: '籌碼',
+    stock_features: '特徵', alpha_signals: '訊號', strategy_picks: '精選',
+    pcr: 'PCR', etf_flows: 'ETF申贖',
+}
+
+function DataStatusBar({ status }: { status: DataStatus }) {
+    const today = new Date().toISOString().slice(0, 10)
+    return (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-2 pt-1">
+            {(Object.keys(STATUS_LABELS) as (keyof DataStatus)[]).map(key => {
+                const val = status[key]
+                const isToday = val === today
+                const dateStr = val ? val.slice(5) : '—'  // MM-DD
+                return (
+                    <span key={key} className="flex items-center gap-1 text-[10px] font-mono">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isToday ? 'bg-emerald-400' : val ? 'bg-amber-400' : 'bg-zinc-700'}`} />
+                        <span className="text-zinc-500">{STATUS_LABELS[key]}</span>
+                        <span className={isToday ? 'text-emerald-400' : 'text-amber-500'}>{dateStr}</span>
+                    </span>
+                )
+            })}
+        </div>
+    )
+}
+
 export default function LogsPage() {
     const [events, setEvents] = useState<SystemEvent[]>([]);
+    const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isAtBottomRef = useRef(true);
 
@@ -32,6 +70,7 @@ export default function LogsPage() {
 
     useEffect(() => {
         fetchEvents();
+        api.get('/market/data-status').then(r => setDataStatus(r.data)).catch(() => {});
         const interval = setInterval(fetchEvents, 5000);
         return () => clearInterval(interval);
     }, []);
@@ -82,6 +121,7 @@ export default function LogsPage() {
                 <title>系統日誌 - AlphaForge</title>
             </Head>
             <div className="flex flex-col sm:max-w-4xl sm:mx-auto sm:px-4 sm:pt-6 sm:pb-12" style={{ height: 'calc(100dvh - 64px - 40px)' }}>
+                {dataStatus && <DataStatusBar status={dataStatus} />}
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
