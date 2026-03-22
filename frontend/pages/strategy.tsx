@@ -326,7 +326,7 @@ const CurveTooltip = ({ active, payload, label }: any) => {
     return (
         <div className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs shadow-xl">
             <p className="text-zinc-400 mb-1">{label}</p>
-            <p className={val >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+            <p className={val >= 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
                 累積損益：{pct(val)}
             </p>
         </div>

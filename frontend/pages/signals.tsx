@@ -175,14 +175,14 @@ function SignalHistorySection({ history, dim }: { history: SignalHistoryItem[]; 
                                     </td>
                                     <td className="py-2 pr-4 text-right">
                                         {hitRate !== null
-                                            ? <span className={hitRate >= 0.5 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                                            ? <span className={hitRate >= 0.5 ? 'text-rose-400 font-semibold' : 'text-zinc-400 font-semibold'}>
                                                 {(hitRate * 100).toFixed(0)}%
                                               </span>
                                             : <span className="text-zinc-600 text-[10px]">待觀察</span>}
                                     </td>
                                     <td className="py-2 text-right">
                                         {avgReturn !== null
-                                            ? <span className={avgReturn >= 0 ? 'text-emerald-400 font-mono' : 'text-rose-400 font-mono'}>
+                                            ? <span className={avgReturn >= 0 ? 'text-rose-400 font-mono' : 'text-emerald-400 font-mono'}>
                                                 {avgReturn >= 0 ? '+' : ''}{(avgReturn * 100).toFixed(1)}%
                                               </span>
                                             : <span className="text-zinc-600 text-[10px]">待觀察</span>}
