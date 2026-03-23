@@ -42,7 +42,7 @@ export default function MarketSentimentWidget() {
           {etfRows.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資 0050</span>
+                <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold">外資 0050</span>
                 <span className={`font-mono text-xs font-bold ${etfNetSum > 0 ? 'text-rose-400' : etfNetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
                   {etfNetSum > 0 ? '+' : ''}{etfNetSum.toFixed(0)}張
                 </span>
@@ -67,7 +67,7 @@ export default function MarketSentimentWidget() {
           {etf878Rows.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資 00878</span>
+                <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold">外資 00878</span>
                 <span className={`font-mono text-xs font-bold ${etf878NetSum > 0 ? 'text-rose-400' : etf878NetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
                   {etf878NetSum > 0 ? '+' : ''}{etf878NetSum.toFixed(0)}張
                 </span>
@@ -96,7 +96,7 @@ export default function MarketSentimentWidget() {
             return (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">外資 006208</span>
+                  <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold">外資 006208</span>
                   <span className={`font-mono text-xs font-bold ${etf6208NetSum > 0 ? 'text-rose-400' : etf6208NetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
                     {etf6208NetSum > 0 ? '+' : ''}{etf6208NetSum.toFixed(0)}張
                   </span>
