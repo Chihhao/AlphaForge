@@ -287,3 +287,29 @@ def get_data_status():
         }
     finally:
         db.close()
+
+
+@router.get("/pcr")
+def get_pcr(days: int = 30):
+    """Put/Call Ratio 歷史資料（近 N 天）"""
+    from app.models.market_pcr import MarketPCR
+    db = SessionLocal()
+    try:
+        from datetime import date, timedelta
+        from sqlalchemy import and_
+        cutoff = date.today() - timedelta(days=days)
+        rows = (
+            db.query(MarketPCR)
+            .filter(MarketPCR.date >= cutoff)
+            .order_by(MarketPCR.date.asc())
+            .all()
+        )
+        history = [{"date": r.date.isoformat(), "pcr": r.pcr, "put_oi": r.put_oi, "call_oi": r.call_oi} for r in rows]
+        latest = rows[-1] if rows else None
+        return {
+            "latest_pcr": latest.pcr if latest else None,
+            "latest_date": latest.date.isoformat() if latest else None,
+            "history": history,
+        }
+    finally:
+        db.close()

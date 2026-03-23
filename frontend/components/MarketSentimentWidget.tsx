@@ -6,18 +6,26 @@ interface ETFRow {
   net_flow: number
 }
 
+interface PCRData {
+  latest_pcr: number | null
+  latest_date: string | null
+  history: Array<{ date: string; pcr: number }>
+}
+
 export default function MarketSentimentWidget() {
   const [etfRows, setEtfRows] = useState<ETFRow[]>([])
   const [etf878Rows, setEtf878Rows] = useState<ETFRow[]>([])
   const [etf6208Rows, setEtf6208Rows] = useState<ETFRow[]>([])
+  const [pcrData, setPcrData] = useState<PCRData | null>(null)
 
   useEffect(() => {
     api.get('/market/etf-flows?etf_id=0050&days=14').then(r => setEtfRows(r.data ?? [])).catch(() => {})
     api.get('/market/etf-flows?etf_id=00878&days=14').then(r => setEtf878Rows(r.data ?? [])).catch(() => {})
     api.get('/market/etf-flows?etf_id=006208&days=14').then(r => setEtf6208Rows(r.data ?? [])).catch(() => {})
+    api.get('/market/pcr?days=30').then(r => setPcrData(r.data)).catch(() => {})
   }, [])
 
-  if (etfRows.length === 0 && etf878Rows.length === 0 && etf6208Rows.length === 0) return null
+  if (etfRows.length === 0 && etf878Rows.length === 0 && etf6208Rows.length === 0 && !pcrData?.latest_pcr) return null
 
   const etfRecent5 = etfRows.slice(-5)
   const etfNetSum = etfRecent5.reduce((s, r) => s + (r.net_flow ?? 0), 0)
@@ -112,6 +120,28 @@ export default function MarketSentimentWidget() {
             )
           })()}
         </div>
+
+        {/* PCR 區塊 */}
+        {pcrData?.latest_pcr != null && (
+          <div className="shrink-0 w-20 flex flex-col items-center justify-center gap-1 border-l border-zinc-800/60 pl-4">
+            <span className="text-zinc-600 text-[9px] uppercase tracking-widest font-bold">PCR</span>
+            <span className={`text-xl font-bold font-mono leading-none ${
+              pcrData.latest_pcr >= 1.3 ? 'text-emerald-400' :
+              pcrData.latest_pcr >= 1.0 ? 'text-amber-400' :
+              'text-rose-400'
+            }`}>
+              {pcrData.latest_pcr.toFixed(2)}
+            </span>
+            <span className={`text-[9px] font-semibold ${
+              pcrData.latest_pcr >= 1.3 ? 'text-emerald-500/70' :
+              pcrData.latest_pcr >= 1.0 ? 'text-amber-500/70' :
+              'text-rose-500/70'
+            }`}>
+              {pcrData.latest_pcr >= 1.3 ? '恐慌偏高' : pcrData.latest_pcr >= 1.0 ? '中性偏空' : '樂觀偏多'}
+            </span>
+            <span className="text-zinc-700 text-[8px]">Put/Call</span>
+          </div>
+        )}
       </div>
     </div>
   )

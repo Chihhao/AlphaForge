@@ -123,6 +123,17 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 16:50 抓取 PCR (Put/Call Ratio，選擇權未平倉) ---
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: __import__(
+            'app.services.taifex_pcr_crawler', fromlist=['sync_pcr']
+        ).sync_pcr(db, days_back=3)),
+        trigger=CronTrigger(hour=16, minute=50),
+        id="sync_pcr_daily",
+        name="Daily TAIFEX PCR sync",
+        replace_existing=True
+    )
+
     # --- 第四梯次：17:05 計算每日特徵快照 (Alpha Miner 數據基礎) ---
     # 需在籌碼資料寫入後執行，確保籌碼欄位可以合入
     scheduler.add_job(
