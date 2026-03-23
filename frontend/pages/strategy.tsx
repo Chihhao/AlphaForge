@@ -852,15 +852,6 @@ const StrategyPage = () => {
                                 明日操作建議
                             </h1>
                             <span className="text-zinc-600 text-xs font-mono self-center">{displayDate}</span>
-                            {!activeLoading && (() => {
-                                const exitCount = activePicks.filter(p => !['持有中', '資料不足', '已結算'].includes(p.status)).length
-                                if (exitCount === 0) return null
-                                return (
-                                    <span className="text-[11px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2.5 py-0.5 leading-none animate-pulse">
-                                        ⚠ 今日賣出 {exitCount} 檔
-                                    </span>
-                                )
-                            })()}
                         </div>
                         <p className="text-zinc-500 text-sm leading-relaxed">
                             量化模型篩選 · 每日收盤後自動更新 · 不構成投資建議
@@ -927,65 +918,6 @@ const StrategyPage = () => {
                     </div>
                 )}
 
-                {/* ── 今日建議賣出（出場提醒，最優先顯示）──────────── */}
-                {!activeLoading && activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足').length > 0 && (() => {
-                    const alerts = activePicks.filter(p => !['持有中', '資料不足', '已結算'].includes(p.status))
-                    const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string; icon: string }> = {
-                        '建議停利': { label: '停利出場', bg: 'bg-rose-500/8', border: 'border-rose-500/40', text: 'text-rose-400', icon: '▲' },
-                        '建議停損': { label: '停損出場', bg: 'bg-emerald-500/8', border: 'border-emerald-500/40', text: 'text-emerald-400', icon: '▼' },
-                        '到期出場': { label: '到期出場', bg: 'bg-amber-500/8', border: 'border-amber-500/40', text: 'text-amber-400', icon: '⏱' },
-                        '明日到期': { label: '明日出場', bg: 'bg-zinc-500/8', border: 'border-zinc-500/30', text: 'text-zinc-400', icon: '📅' },
-                    }
-                    return (
-                        <div className="border border-amber-500/25 bg-amber-500/5 rounded-2xl px-4 py-3.5">
-                            <div className="flex items-center gap-2 mb-3">
-                                <svg viewBox="0 0 24 24" width={16} height={16} className="fill-amber-400 shrink-0">
-                                    <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
-                                </svg>
-                                <span className="text-sm font-bold text-amber-300">今日建議賣出</span>
-                                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 leading-none">
-                                    {alerts.length} 檔
-                                </span>
-                                <span className="ml-auto text-[10px] text-zinc-600">模型追蹤 · 基於首次推薦日</span>
-                            </div>
-                            <div className="space-y-2">
-                                {alerts.map((p, i) => {
-                                    const cfg = STATUS_CONFIG[p.status] ?? STATUS_CONFIG['到期出場']
-                                    return (
-                                        <div key={i} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border ${cfg.bg} ${cfg.border}`}>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-200 hover:text-amber-300 transition-colors text-sm">
-                                                        {p.stock_name}
-                                                    </Link>
-                                                    <span className="text-zinc-500 font-mono text-xs">{p.stock_id}</span>
-                                                    <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 leading-none shrink-0 ${cfg.text} ${cfg.bg} ${cfg.border}`}>
-                                                        {cfg.icon} {cfg.label}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                    <span className="text-zinc-600 font-mono text-xs">
-                                                        買入 {p.entry_price.toLocaleString()}
-                                                    </span>
-                                                    <span className="text-zinc-700 text-xs">→</span>
-                                                    <span className="text-zinc-400 font-mono text-xs">
-                                                        現價 {p.current_price.toLocaleString()}
-                                                    </span>
-                                                    {p.float_pct !== null && (
-                                                        <span className={`font-mono text-sm font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                                            {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
-                                                        </span>
-                                                    )}
-                                                    <span className="text-zinc-600 text-xs">持 {p.days_held} 天</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )
-                })()}
 
                 {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
                 {!activeLoading && activePicks.filter(p => ['持有中', '資料不足', '已結算'].includes(p.status)).length > 0 && (() => {
@@ -1051,7 +983,6 @@ const StrategyPage = () => {
                                             </span>
                                         </div>
                                     ))}
-                                    <p className="text-[10px] text-zinc-700 pt-1">各持倉達停利/停損目標時，會自動列入上方「今日建議賣出」</p>
                                 </div>
                             )}
                         </div>

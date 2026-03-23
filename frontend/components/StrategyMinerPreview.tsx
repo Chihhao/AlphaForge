@@ -37,17 +37,6 @@ interface PerfStats {
   trade_count_test: number
 }
 
-interface ActivePick {
-  stock_id: string
-  stock_name: string
-  entry_price: number
-  current_price: number
-  float_pct: number | null
-  days_held: number
-  status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足' | '已結算'
-  take_profit_pct: number
-  stop_loss_pct: number
-}
 
 function scoreToStars(score: number): number {
   if (score >= 20) return 5
@@ -132,17 +121,10 @@ export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
   const [perf, setPerf] = useState<Record<string, PerfStats>>({})
   const [loading, setLoading] = useState(true)
-  const [exitAlerts, setExitAlerts] = useState<ActivePick[]>([])
   const [livePerf, setLivePerf] = useState<{ trade_count: number; win_rate: number | null; avg_return: number | null } | null>(null)
 
   useEffect(() => {
-    // 非阻塞載入出場提醒 + 即時績效
-    api.get<ActivePick[]>('/strategy-miner/picks/active')
-      .then(r => {
-        const alerts = (r.data || []).filter(p => !['持有中', '資料不足', '已結算'].includes(p.status))
-        setExitAlerts(alerts)
-      })
-      .catch(() => {})
+    // 即時績效
 
     api.get('/strategy-miner/picks/live-performance')
       .then(r => setLivePerf(r.data))
@@ -187,11 +169,6 @@ export default function StrategyMinerPreview() {
               <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
             </svg>
             今日操作建議
-            {exitAlerts.length > 0 && (
-              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/25 rounded-full px-1.5 py-0.5 leading-none normal-case">
-                {exitAlerts.length} 需賣出
-              </span>
-            )}
           </div>
           <div className="text-xs text-zinc-600 mt-0.5">量化多策略共振 · 停利停損由回測優化</div>
         </div>
@@ -206,54 +183,6 @@ export default function StrategyMinerPreview() {
         </Link>
       </div>
 
-      {/* 今日建議賣出（出場提醒，最多顯示5筆） */}
-      {exitAlerts.length > 0 && (
-        <div className="mb-3 border border-amber-500/20 bg-amber-500/5 rounded-xl px-3 py-2.5">
-          <div className="flex items-center gap-1.5 mb-2">
-            <svg viewBox="0 0 24 24" width={12} height={12} className="fill-amber-400 shrink-0">
-              <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
-            </svg>
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">今日建議賣出</span>
-            <span className="text-[10px] text-amber-500/60 font-mono">{exitAlerts.length} 檔</span>
-            {exitAlerts.length > 5 && (
-              <Link href="/strategy" className="ml-auto text-[10px] text-amber-500/70 hover:text-amber-400">
-                查看全部 →
-              </Link>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            {exitAlerts.slice(0, 5).map((p, i) => {
-              const STATUS_LABEL: Record<string, string> = { '建議停利': '停利', '建議停損': '停損', '到期出場': '到期', '明日到期': '明日' }
-              const STATUS_COLOR: Record<string, string> = {
-                '建議停利': 'text-rose-400',
-                '建議停損': 'text-emerald-400',
-                '到期出場': 'text-amber-400',
-                '明日到期': 'text-zinc-400',
-              }
-              return (
-                <div key={i} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Link href={`/stock/${p.stock_id}`} className="text-sm font-semibold text-zinc-100 hover:text-amber-300 transition-colors truncate">
-                      {p.stock_name}
-                    </Link>
-                    <span className="text-xs text-zinc-500 shrink-0">{p.stock_id}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {p.float_pct !== null && (
-                      <span className={`text-xs font-mono font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
-                      </span>
-                    )}
-                    <span className={`text-[10px] font-bold ${STATUS_COLOR[p.status] ?? 'text-amber-400'}`}>
-                      {STATUS_LABEL[p.status] ?? p.status}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* List */}
       {loading ? (
