@@ -26,20 +26,6 @@ interface StrategyMinerPick {
     stock_trade_count?: number        // 個股交易筆數
 }
 
-interface ActivePick {
-    pick_date: string
-    stock_id: string
-    stock_name: string
-    entry_price: number
-    current_price: number
-    take_profit_pct: number
-    stop_loss_pct: number
-    hold_days_max: number
-    days_held: number
-    float_pct: number | null
-    status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足' | '已結算'
-    time_dimension: string
-}
 
 interface TradeRecord {
     strategy_id: string
@@ -677,11 +663,6 @@ const StrategyPage = () => {
     const [perfData, setPerfData] = useState<Record<string, any> | null>(null)
     const [perfLoading, setPerfLoading] = useState(false)
 
-    // 持倉追蹤（過去推薦的浮動損益）
-    const [activePicks, setActivePicks] = useState<ActivePick[]>([])
-    const [activeLoading, setActiveLoading] = useState(true)
-    const [holdExpanded, setHoldExpanded] = useState(false)
-
     // 近期精選歷史
     const [histExpanded, setHistExpanded] = useState(false)
     const [histPicks, setHistPicks] = useState<StrategyMinerPick[]>([])
@@ -820,12 +801,6 @@ const StrategyPage = () => {
 
         loadPicks()
 
-        // 持倉追蹤 + 即時績效：不影響主列表的非阻塞載入
-        api.get('/strategy-miner/picks/active')
-            .then(r => setActivePicks(r.data ?? []))
-            .catch(() => {})
-            .finally(() => setActiveLoading(false))
-
         api.get('/strategy-miner/picks/live-performance')
             .then(r => setLivePerf(r.data))
             .catch(() => {})
@@ -902,12 +877,6 @@ const StrategyPage = () => {
                                 </span>
                             </>
                         )}
-                        {livePerf.still_holding > 0 && (
-                            <>
-                                <span className="text-zinc-800">·</span>
-                                <span className="text-zinc-600 font-mono">{livePerf.still_holding} 持倉中</span>
-                            </>
-                        )}
                         <span className="ml-auto text-zinc-500 text-[10px]">非回測 · 基於首次推薦日收盤價</span>
                     </div>
                 )}
@@ -918,76 +887,6 @@ const StrategyPage = () => {
                     </div>
                 )}
 
-
-                {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
-                {!activeLoading && activePicks.filter(p => ['持有中', '資料不足', '已結算'].includes(p.status)).length > 0 && (() => {
-                    const holding = activePicks
-                        .filter(p => ['持有中', '資料不足', '已結算'].includes(p.status))
-                        .sort((a, b) => {
-                            // 有浮盈的排前面，按浮盈由高到低
-                            if (a.float_pct === null && b.float_pct === null) return 0
-                            if (a.float_pct === null) return 1
-                            if (b.float_pct === null) return -1
-                            return b.float_pct - a.float_pct
-                        })
-                    return (
-                        <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
-                            <button
-                                onClick={() => setHoldExpanded(v => !v)}
-                                className="w-full flex items-center justify-between px-4 py-3.5 bg-zinc-900/40 hover:bg-zinc-800/40 transition-colors cursor-pointer"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <svg viewBox="0 0 24 24" width={15} height={15} className="fill-zinc-500 shrink-0">
-                                        <path d="M12 2A10 10 0 0 0 2 12A10 10 0 0 0 12 22A10 10 0 0 0 22 12A10 10 0 0 0 12 2M16.2 16.2L11 13V7H12.5V12.2L17 14.9L16.2 16.2Z" />
-                                    </svg>
-                                    <span className="text-zinc-400 font-semibold text-sm">持倉中</span>
-                                    <span className="text-zinc-600 text-xs font-mono">{holding.length} 檔</span>
-                                    {(() => {
-                                        const withPct = holding.filter(p => p.float_pct !== null && p.float_pct !== 0)
-                                        if (withPct.length === 0) return null
-                                        const avg = withPct.reduce((s, p) => s + (p.float_pct ?? 0), 0) / withPct.length
-                                        return (
-                                            <span className={`text-xs font-mono font-bold ${avg >= 0 ? 'text-rose-400/70' : 'text-emerald-400/70'}`}>
-                                                均{avg >= 0 ? '+' : ''}{avg.toFixed(1)}%
-                                            </span>
-                                        )
-                                    })()}
-                                </div>
-                                <span className="text-zinc-600 text-xs">{holdExpanded ? '▲ 收起' : '▼ 展開'}</span>
-                            </button>
-                            {holdExpanded && (
-                                <div className="px-4 pb-3 pt-1 space-y-1.5">
-                                    {holding.map((p, i) => (
-                                        <div key={i} className="flex items-center gap-2 text-sm py-1">
-                                            <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-300 hover:text-amber-300 transition-colors shrink-0 w-20 truncate text-sm">
-                                                {p.stock_name}
-                                            </Link>
-                                            <span className="text-zinc-400 font-mono text-xs">
-                                                {p.entry_price.toLocaleString()}
-                                            </span>
-                                            <span className="text-zinc-600 text-xs">→</span>
-                                            <span className="text-zinc-300 font-mono text-xs">
-                                                {p.current_price.toLocaleString()}
-                                            </span>
-                                            {p.float_pct !== null && (
-                                                <span className={`font-mono text-xs font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                                    {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
-                                                </span>
-                                            )}
-                                            <span className="text-zinc-600 text-xs ml-auto">
-                                                {p.status === '已結算' ? (
-                                                    <span className="text-zinc-500">已結算</span>
-                                                ) : (
-                                                    `${p.days_held}天`
-                                                )}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )
-                })()}
 
                 {/* ── 明日建議買入 ──────────────────────────────────────── */}
                 <div className="flex items-center gap-2 px-1">
@@ -1049,22 +948,11 @@ const StrategyPage = () => {
                                 <p className="text-zinc-600 text-sm text-center py-4">近 14 日無精選記錄</p>
                             )}
                             {!histLoading && histPicks.length > 0 && (() => {
-                                // 建立 activePicks lookup: stock_id → ActivePick（含最早進場的 float_pct）
-                                const activeMap = new Map(
-                                    activePicks.map(ap => [ap.stock_id, ap])
-                                )
                                 // 按日期分組
                                 const byDate = histPicks.reduce<Record<string, StrategyMinerPick[]>>((acc, p) => {
                                     ;(acc[p.pick_date] ??= []).push(p)
                                     return acc
                                 }, {})
-                                const STATUS_BADGE: Record<string, string> = {
-                                    '建議停利': 'text-rose-400',
-                                    '建議停損': 'text-emerald-400',
-                                    '到期出場': 'text-amber-400',
-                                    '已結算': 'text-zinc-700',
-                                    '持有中':   'text-zinc-500',
-                                }
                                 return (
                                     <div className="space-y-2 mt-1">
                                         {Object.entries(byDate)
@@ -1075,32 +963,18 @@ const StrategyPage = () => {
                                                         {new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
                                                     </p>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {dayPicks.map(p => {
-                                                            const ap = activeMap.get(p.stock_id)
-                                                            return (
+                                                        {dayPicks.map(p => (
                                                                 <Link
                                                                     key={p.stock_id}
                                                                     href={`/stock/${p.stock_id}`}
                                                                     className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
                                                                 >
                                                                     <span className="text-zinc-300 font-medium">{p.stock_name}</span>
-                                                                    {ap && ap.float_pct !== null ? (
-                                                                        <span className={`font-mono font-bold ${ap.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                                                            {ap.float_pct >= 0 ? '+' : ''}{ap.float_pct.toFixed(1)}%
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="text-amber-500/60 font-mono">
-                                                                            TP+{Math.round(p.take_profit_pct * 100)}%
-                                                                        </span>
-                                                                    )}
-                                                                    {ap && (
-                                                                        <span className={`text-[9px] font-bold ${STATUS_BADGE[ap.status] ?? 'text-zinc-600'}`}>
-                                                                            {ap.status === '持有中' ? `${ap.days_held}天` : ap.status === '已結算' ? '已結算' : ap.status.replace('建議', '')}
-                                                                        </span>
-                                                                    )}
+                                                                    <span className="text-amber-500/60 font-mono">
+                                                                        TP+{Math.round(p.take_profit_pct * 100)}%
+                                                                    </span>
                                                                 </Link>
-                                                            )
-                                                        })}
+                                                            ))}
                                                     </div>
                                                 </div>
                                             ))}
