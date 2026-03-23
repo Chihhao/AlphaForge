@@ -862,7 +862,7 @@ const StrategyPage = () => {
                             </p>
                         )}
                         {/* 操作流程提示 */}
-                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-600">
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-400">
                             <span className="flex items-center gap-1.5">
                                 <span className="text-amber-500 font-bold">1</span>
                                 <span>明日開盤後以參考價附近買入</span>
@@ -884,7 +884,7 @@ const StrategyPage = () => {
                 {/* ── 即時追蹤績效摘要 ──────────────────────────────────────── */}
                 {livePerf && livePerf.trade_count > 0 && (
                     <div className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/40 border border-zinc-800/50 rounded-2xl flex-wrap text-xs">
-                        <span className="text-zinc-600 uppercase tracking-widest font-semibold text-[10px]">即時追蹤</span>
+                        <span className="text-zinc-400 uppercase tracking-widest font-semibold text-[10px]">即時追蹤</span>
                         <span className="text-zinc-500 font-mono">{livePerf.trade_count} 筆已出場</span>
                         {livePerf.win_rate !== null && (
                             <>
@@ -908,7 +908,7 @@ const StrategyPage = () => {
                                 <span className="text-zinc-600 font-mono">{livePerf.still_holding} 持倉中</span>
                             </>
                         )}
-                        <span className="ml-auto text-zinc-700 text-[10px]">非回測 · 基於首次推薦日收盤價</span>
+                        <span className="ml-auto text-zinc-500 text-[10px]">非回測 · 基於首次推薦日收盤價</span>
                     </div>
                 )}
 
@@ -962,11 +962,11 @@ const StrategyPage = () => {
                                             <Link href={`/stock/${p.stock_id}`} className="font-bold text-zinc-300 hover:text-amber-300 transition-colors shrink-0 w-20 truncate text-sm">
                                                 {p.stock_name}
                                             </Link>
-                                            <span className="text-zinc-600 font-mono text-xs">
+                                            <span className="text-zinc-400 font-mono text-xs">
                                                 {p.entry_price.toLocaleString()}
                                             </span>
-                                            <span className="text-zinc-700 text-xs">→</span>
-                                            <span className="text-zinc-500 font-mono text-xs">
+                                            <span className="text-zinc-600 text-xs">→</span>
+                                            <span className="text-zinc-300 font-mono text-xs">
                                                 {p.current_price.toLocaleString()}
                                             </span>
                                             {p.float_pct !== null && (
@@ -976,7 +976,7 @@ const StrategyPage = () => {
                                             )}
                                             <span className="text-zinc-600 text-xs ml-auto">
                                                 {p.status === '已結算' ? (
-                                                    <span className="text-zinc-700">已結算</span>
+                                                    <span className="text-zinc-500">已結算</span>
                                                 ) : (
                                                     `${p.days_held}天`
                                                 )}
@@ -1012,7 +1012,7 @@ const StrategyPage = () => {
                     {!loading && picks.length === 0 && !error && (
                         <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
                             <p className="text-zinc-500 text-sm">今日暫無訊號</p>
-                            <p className="text-zinc-600 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
+                            <p className="text-zinc-400 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
                         </div>
                     )}
                     {picks.map((pick, i) => (

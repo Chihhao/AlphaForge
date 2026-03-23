@@ -156,13 +156,13 @@ export default function MarketSummary() {
             {/* 底部整合狀態與時間戳記 */}
             <div className="absolute bottom-3 left-6 right-6 flex items-center gap-3 pointer-events-none">
                 <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${data.is_live ? 'bg-emerald-400/80 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`}></div>
-                <span className="text-[10px] font-mono tracking-wider text-zinc-400 opacity-70">
+                <span className="text-[10px] font-mono tracking-wider text-zinc-400">
                     {data.is_live ? `更新: ${data.last_updated}` : `收盤數據: ${data.data_date}`}
                 </span>
                 {data.volume_ratio > 0 && (
                     <span className={`ml-auto text-[10px] font-mono font-semibold ${
                         data.volume_status === 'high' ? 'text-amber-400' :
-                        data.volume_status === 'low'  ? 'text-zinc-600'  : 'text-zinc-500'
+                        data.volume_status === 'low'  ? 'text-zinc-400'  : 'text-zinc-400'
                     }`}>
                         量能 {data.volume_ratio.toFixed(2)}x {
                             data.volume_status === 'high' ? '放量' :

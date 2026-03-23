@@ -124,7 +124,7 @@ export default function MarketSentimentWidget() {
         {/* PCR 區塊 */}
         {pcrData?.latest_pcr != null && (
           <div className="shrink-0 w-20 flex flex-col items-center justify-center gap-1 border-l border-zinc-800/60 pl-4">
-            <span className="text-zinc-600 text-[9px] uppercase tracking-widest font-bold">PCR</span>
+            <span className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">PCR</span>
             <span className={`text-xl font-bold font-mono leading-none ${
               pcrData.latest_pcr >= 1.3 ? 'text-emerald-400' :
               pcrData.latest_pcr >= 1.0 ? 'text-amber-400' :
@@ -132,14 +132,14 @@ export default function MarketSentimentWidget() {
             }`}>
               {pcrData.latest_pcr.toFixed(2)}
             </span>
-            <span className={`text-[9px] font-semibold ${
+            <span className={`text-[10px] font-semibold ${
               pcrData.latest_pcr >= 1.3 ? 'text-emerald-500/70' :
               pcrData.latest_pcr >= 1.0 ? 'text-amber-500/70' :
               'text-rose-500/70'
             }`}>
               {pcrData.latest_pcr >= 1.3 ? '恐慌偏高' : pcrData.latest_pcr >= 1.0 ? '中性偏空' : '樂觀偏多'}
             </span>
-            <span className="text-zinc-700 text-[8px]">Put/Call</span>
+            <span className="text-zinc-500 text-[10px]">Put/Call</span>
           </div>
         )}
       </div>

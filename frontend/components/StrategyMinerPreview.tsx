@@ -170,7 +170,7 @@ export default function StrategyMinerPreview() {
             </svg>
             今日操作建議
           </div>
-          <div className="text-xs text-zinc-600 mt-0.5">量化多策略共振 · 停利停損由回測優化</div>
+          <div className="text-xs text-zinc-400 mt-0.5">量化多策略共振 · 停利停損由回測優化</div>
         </div>
         <Link
           href="/strategy"
@@ -192,7 +192,7 @@ export default function StrategyMinerPreview() {
           <SkeletonRow />
         </>
       ) : picks.length === 0 ? (
-        <div className="py-4 text-center text-xs text-zinc-600">今日暫無推薦</div>
+        <div className="py-4 text-center text-xs text-zinc-400">今日暫無推薦</div>
       ) : (
         picks.map((pick, i) => (
           <PickRow key={pick.stock_id} pick={pick} rank={i + 1} />
@@ -206,7 +206,7 @@ export default function StrategyMinerPreview() {
           const winRate = Math.round(livePerf.win_rate * 100)
           return (
             <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
-              <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">即時追蹤</span>
+              <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">即時追蹤</span>
               <span className="text-[10px] font-mono text-zinc-500">{livePerf.trade_count} 筆已出場</span>
               <span className={`text-[10px] font-mono font-semibold ${winRate >= 60 ? 'text-rose-400' : winRate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
                 勝率 {winRate}%
@@ -231,7 +231,7 @@ export default function StrategyMinerPreview() {
         const dimLabel = DIM_LABEL[dim] ?? dim
         return (
           <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">回測績效</span>
+            <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">回測績效</span>
             <span className="text-[10px] font-mono text-zinc-500">{dimLabel}策略</span>
             <span className={`text-[10px] font-mono font-semibold ${winRate >= 55 ? 'text-rose-400' : winRate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
               勝率 {winRate}%

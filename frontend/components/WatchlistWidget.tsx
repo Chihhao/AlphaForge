@@ -66,7 +66,7 @@ export default function WatchlistWidget() {
           </svg>
           觀察清單
         </span>
-        <span className="text-zinc-700 text-[10px] font-mono">{items.length} 檔</span>
+        <span className="text-zinc-500 text-[10px] font-mono">{items.length} 檔</span>
       </div>
       <div>
         {rows.map(row => (
@@ -85,7 +85,7 @@ export default function WatchlistWidget() {
             </Link>
             <div className="flex items-center gap-2 ml-2 shrink-0">
               {row.loading ? (
-                <span className="text-zinc-700 text-xs font-mono animate-pulse">…</span>
+                <span className="text-zinc-500 text-xs font-mono animate-pulse">…</span>
               ) : row.price != null ? (
                 <>
                   <span className="text-sm font-mono font-bold text-zinc-100">{formatPrice(row.price)}</span>
@@ -94,7 +94,7 @@ export default function WatchlistWidget() {
                   </span>
                 </>
               ) : (
-                <span className="text-zinc-700 text-xs">—</span>
+                <span className="text-zinc-500 text-xs">—</span>
               )}
               <button
                 onClick={() => remove(row.stock_id)}

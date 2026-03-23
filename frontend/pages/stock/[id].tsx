@@ -410,7 +410,7 @@ export default function StockDetail() {
             </div>
           </div>
           {quote?.fundamental_updated_at && (
-            <p className="text-xs text-zinc-600 mt-3 text-right">
+            <p className="text-xs text-zinc-400 mt-3 text-right">
               基本面資料更新：{new Date(quote.fundamental_updated_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
             </p>
           )}
@@ -429,7 +429,7 @@ export default function StockDetail() {
                 {/* 月營收 */}
                 {rev.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
                     <div className="flex items-end gap-px h-16">
                       {rev.map((r: any, i: number) => {
                         const h = Math.min((r.revenue / maxRev) * 100, 100)
@@ -444,7 +444,7 @@ export default function StockDetail() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-1 text-[9px] text-zinc-700 font-mono">
+                    <div className="flex justify-between mt-1 text-[10px] text-zinc-500 font-mono">
                       <span>{rev[0]?.label?.slice(-3)}</span>
                       <span>{rev[rev.length - 1]?.label?.slice(-3)}</span>
                     </div>
@@ -460,7 +460,7 @@ export default function StockDetail() {
                 {/* 季 EPS */}
                 {eps.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
                     <div className="flex items-end gap-px h-16">
                       {eps.map((e: any, i: number) => {
                         const v = e.eps ?? 0
@@ -476,7 +476,7 @@ export default function StockDetail() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-1 text-[9px] text-zinc-700 font-mono">
+                    <div className="flex justify-between mt-1 text-[10px] text-zinc-500 font-mono">
                       <span>{eps[0]?.label}</span>
                       <span>{eps[eps.length - 1]?.label}</span>
                     </div>
