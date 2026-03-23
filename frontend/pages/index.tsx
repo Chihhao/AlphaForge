@@ -20,9 +20,9 @@ export default function Home() {
           <MarketSummary />
         </section>
 
-        {/* 強弱排行榜 */}
+        {/* 市場情緒：ETF 申贖資金流向 */}
         <section className="mb-4">
-          <MarketRanking />
+          <MarketSentimentWidget />
         </section>
 
         {/* 今日操作建議：Strategy Miner 精簡預覽 */}
@@ -35,9 +35,9 @@ export default function Home() {
           <WatchlistWidget />
         </section>
 
-        {/* 市場情緒：ETF 申贖資金流向 */}
+        {/* 強弱排行榜 */}
         <section className="mb-4">
-          <MarketSentimentWidget />
+          <MarketRanking />
         </section>
 
         {/* 單欄佈局：全寬度的選股雷達 */}
