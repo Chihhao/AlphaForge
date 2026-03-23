@@ -24,6 +24,7 @@ export default function WatchlistWidget() {
   const { items, remove } = useWatchlist()
   const [rows, setRows] = useState<WatchlistRowData[]>([])
   const [pickedIds, setPickedIds] = useState<Set<string>>(new Set())
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   useEffect(() => {
     api.get<MinerPick[]>('/strategy-miner/picks/today')
@@ -34,16 +35,21 @@ export default function WatchlistWidget() {
   useEffect(() => {
     if (items.length === 0) { setRows([]); return }
 
-    // Initialize with loading state
     setRows(items.map(i => ({ ...i, loading: true })))
 
-    // Fetch quotes for all watchlisted stocks
     items.forEach(item => {
       api.get<StockQuote>(`/stocks/${item.stock_id}/quote`)
         .then(r => {
           setRows(prev => prev.map(row =>
             row.stock_id === item.stock_id
-              ? { ...row, price: r.data.current_price, change: r.data.change_percent, loading: false }
+              ? {
+                  ...row,
+                  // 用 API 回傳的名稱覆蓋 localStorage 可能存到的 fallback 值
+                  stock_name: r.data.stock_name || row.stock_name,
+                  price: r.data.current_price,
+                  change: r.data.change_percent,
+                  loading: false
+                }
               : row
           ))
         })
@@ -57,10 +63,21 @@ export default function WatchlistWidget() {
 
   if (items.length === 0) return null
 
+  const handleRemoveClick = (stock_id: string) => {
+    if (confirmId === stock_id) {
+      remove(stock_id)
+      setConfirmId(null)
+    } else {
+      setConfirmId(stock_id)
+      // 3 秒後自動取消確認狀態
+      setTimeout(() => setConfirmId(prev => prev === stock_id ? null : prev), 3000)
+    }
+  }
+
   return (
     <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5">
+        <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5">
           <svg viewBox="0 0 24 24" width={12} height={12} className="fill-current">
             <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
           </svg>
@@ -96,15 +113,24 @@ export default function WatchlistWidget() {
               ) : (
                 <span className="text-zinc-500 text-xs">—</span>
               )}
-              <button
-                onClick={() => remove(row.stock_id)}
-                className="opacity-0 group-hover:opacity-100 text-zinc-700 hover:text-rose-400 transition-all ml-1"
-                title="移除"
-              >
-                <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
-                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
-                </svg>
-              </button>
+              {confirmId === row.stock_id ? (
+                <button
+                  onClick={() => handleRemoveClick(row.stock_id)}
+                  className="text-[10px] font-bold text-rose-400 bg-rose-500/15 border border-rose-500/30 rounded px-1.5 py-0.5 leading-none ml-1 transition-all"
+                >
+                  確認刪除
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleRemoveClick(row.stock_id)}
+                  className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 transition-all ml-1"
+                  title="移除"
+                >
+                  <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+                    <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         ))}
