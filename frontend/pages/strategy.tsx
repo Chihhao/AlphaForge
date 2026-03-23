@@ -122,25 +122,27 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
 
     return (
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
-            {/* Row 1: rank + name + id + stars + watchlist */}
-            <div className="flex items-baseline gap-1.5 mb-1.5">
-                <span className="text-zinc-600 font-mono text-xs shrink-0 w-5">#{rank}</span>
-                <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
-                    {pick.stock_name}
-                </Link>
-                <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
-                {pick.dims && pick.dims.length > 1 && (
-                    <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap shrink-0">
-                        多維
-                    </span>
-                )}
-                {pick.stock_win_rate != null && (pick.stock_win_rate < 0.3 || (pick.stock_avg_return ?? 0) < -3) && (
-                    <span title="此股歷史回測績效偏弱，謹慎參考" className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap shrink-0">
-                        ⚠ 績效偏弱
-                    </span>
-                )}
-                <span className="ml-auto flex items-center gap-2">
-                    <span className="text-amber-400 text-base shrink-0 tracking-tight">{toStars(pick.weighted_score)}</span>
+            {/* Row 1: rank + name + id + badges | stars + watchlist */}
+            <div className="flex items-start gap-1.5 mb-1.5">
+                <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
+                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
+                        {pick.stock_name}
+                    </Link>
+                    <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
+                    {pick.dims && pick.dims.length > 1 && (
+                        <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
+                            多維
+                        </span>
+                    )}
+                    {pick.stock_win_rate != null && (pick.stock_win_rate < 0.3 || (pick.stock_avg_return ?? 0) < -3) && (
+                        <span title="此股歷史回測績效偏弱，謹慎參考" className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
+                            ⚠ 績效偏弱
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-amber-400 text-base tracking-tight">{toStars(pick.weighted_score)}</span>
                     <button
                         onClick={e => { e.stopPropagation(); toggle(pick.stock_id, pick.stock_name) }}
                         title={watched ? '從觀察清單移除' : '加入觀察清單'}
@@ -153,7 +155,7 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                             } />
                         </svg>
                     </button>
-                </span>
+                </div>
             </div>
 
             {/* 買入理由 tagline（策略名稱，跳過純計數文字） */}
