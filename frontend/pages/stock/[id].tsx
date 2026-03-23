@@ -544,9 +544,29 @@ export default function StockDetail() {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-zinc-800/50 text-xs text-zinc-600">
                 <span>近5日累計</span>
-                {latestFgnHoldPct != null && (
-                  <span>外資持股 <span className="text-zinc-400 font-mono">{latestFgnHoldPct.toFixed(1)}%</span></span>
-                )}
+                {latestFgnHoldPct != null && (() => {
+                  // 計算外資持股趨勢（最近5日 vs 前5日）
+                  const holdPcts = chipData.map((r: any) => r.foreign_hold_pct).filter((v: any) => v != null)
+                  const trend = holdPcts.length >= 4
+                    ? holdPcts[holdPcts.length - 1] - holdPcts[holdPcts.length - 4]
+                    : null
+                  const trendColor = trend == null ? 'text-zinc-400' : trend > 0.3 ? 'text-rose-400' : trend < -0.3 ? 'text-emerald-400' : 'text-zinc-400'
+                  const trendArrow = trend == null ? '' : trend > 0.3 ? '↑' : trend < -0.3 ? '↓' : '→'
+                  return (
+                    <span className="flex items-center gap-1">
+                      <span>外資持股</span>
+                      <span className={`font-mono font-bold ${trendColor}`}>{latestFgnHoldPct.toFixed(1)}%</span>
+                      {trendArrow && (
+                        <span className={`text-[10px] font-bold ${trendColor}`}>{trendArrow}</span>
+                      )}
+                      {trend != null && Math.abs(trend) > 0.1 && (
+                        <span className={`font-mono text-[10px] ${trendColor}`}>
+                          {trend > 0 ? '+' : ''}{trend.toFixed(1)}%
+                        </span>
+                      )}
+                    </span>
+                  )
+                })()}
                 {latestMargin != null && (
                   <span>融資餘額 <span className="text-zinc-400 font-mono">{latestMargin.toLocaleString()}</span></span>
                 )}
