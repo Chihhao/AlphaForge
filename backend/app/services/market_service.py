@@ -5,6 +5,7 @@ import twstock
 
 from app.schemas.market import RankingItem, MarketRankingResponse
 from app.models.stock_price import StockPrice
+from app.models.stock_fundamental import StockFundamental
 from app.db.database import SessionLocal
 
 # 盤中快取（5 分鐘）
@@ -66,6 +67,13 @@ class MarketService:
             today_date = latest_dates[0][0]
             yesterday_date = latest_dates[1][0]
 
+            # 批次撈 stock_fundamentals 名稱（補 twstock 沒有的股票）
+            fund_names: Dict[str, str] = {
+                r.stock_id: r.stock_name
+                for r in db.query(StockFundamental.stock_id, StockFundamental.stock_name).all()
+                if r.stock_name
+            }
+
             # 一次撈全市場兩天的收盤價
             prices = db.query(StockPrice).filter(
                 StockPrice.date.in_([today_date, yesterday_date])
@@ -95,8 +103,9 @@ class MarketService:
 
                 change_percent = (float(curr.close) - prev_close) / prev_close * 100
 
-                info = twstock.codes.get(sid)
-                name = info.name if info else sid
+                # 名稱查詢：twstock → fundamentals DB → 代號
+                tw_info = twstock.codes.get(sid)
+                name = tw_info.name if tw_info else fund_names.get(sid, sid)
 
                 items.append(RankingItem(
                     stock_id=sid,
