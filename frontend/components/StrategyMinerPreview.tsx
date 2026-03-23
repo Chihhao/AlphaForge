@@ -181,7 +181,12 @@ export default function StrategyMinerPreview() {
             <svg viewBox="0 0 24 24" width={16} height={16} className="fill-rose-400">
               <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
             </svg>
-            明日建議買入
+            今日操作建議
+            {exitAlerts.length > 0 && (
+              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/25 rounded-full px-1.5 py-0.5 leading-none normal-case">
+                {exitAlerts.length} 需賣出
+              </span>
+            )}
           </div>
           <div className="text-xs text-zinc-600 mt-0.5">量化多策略共振 · 停利停損由回測優化</div>
         </div>
