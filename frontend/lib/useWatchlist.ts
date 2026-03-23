@@ -32,31 +32,29 @@ export function useWatchlist() {
   }, [])
 
   const add = useCallback((stock_id: string, stock_name: string) => {
-    setItems(prev => {
-      if (prev.some(i => i.stock_id === stock_id)) return prev
-      const next = [{ stock_id, stock_name, added_at: new Date().toISOString() }, ...prev]
-      save(next)
-      return next
-    })
+    // 每次從 localStorage 讀最新狀態，避免多個元件實例競態覆蓋
+    const current = load()
+    if (current.some(i => i.stock_id === stock_id)) return
+    const next = [{ stock_id, stock_name, added_at: new Date().toISOString() }, ...current]
+    save(next)
+    setItems(next)
   }, [])
 
   const remove = useCallback((stock_id: string) => {
-    setItems(prev => {
-      const next = prev.filter(i => i.stock_id !== stock_id)
-      save(next)
-      return next
-    })
+    const current = load()
+    const next = current.filter(i => i.stock_id !== stock_id)
+    save(next)
+    setItems(next)
   }, [])
 
   const toggle = useCallback((stock_id: string, stock_name: string) => {
-    setItems(prev => {
-      const has = prev.some(i => i.stock_id === stock_id)
-      const next = has
-        ? prev.filter(i => i.stock_id !== stock_id)
-        : [{ stock_id, stock_name, added_at: new Date().toISOString() }, ...prev]
-      save(next)
-      return next
-    })
+    const current = load()
+    const has = current.some(i => i.stock_id === stock_id)
+    const next = has
+      ? current.filter(i => i.stock_id !== stock_id)
+      : [{ stock_id, stock_name, added_at: new Date().toISOString() }, ...current]
+    save(next)
+    setItems(next)
   }, [])
 
   const has = useCallback((stock_id: string) => items.some(i => i.stock_id === stock_id), [items])
