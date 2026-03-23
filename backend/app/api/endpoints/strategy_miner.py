@@ -268,6 +268,80 @@ def get_active_picks(db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/picks/live-performance")
+def get_live_performance(db: Session = Depends(get_db)):
+    """即時追蹤績效：基於歷史 picks 的真實前向表現（非回測）
+
+    統計所有「已有結果」的 picks（到期出場 + 已結算 + 停利 + 停損）的勝率與均報酬。
+    「建議停利/停損」使用當前收盤價的浮動損益作為近似出場報酬。
+    持有中的 picks 不計入（結果未定）。
+    """
+    today = date.today()
+    # 取最近 60 天的 picks（涵蓋完整的歷史回補資料）
+    cutoff = today - timedelta(days=60)
+
+    rows = (
+        db.query(StrategyMinerPick)
+        .filter(
+            StrategyMinerPick.pick_date >= cutoff,
+            StrategyMinerPick.pick_date < today,
+        )
+        .order_by(StrategyMinerPick.pick_date.desc())
+        .all()
+    )
+    if not rows:
+        return {"trade_count": 0, "win_rate": None, "avg_return": None, "total_return": None}
+
+    # 同股票只保留最早一筆
+    seen: dict = {}
+    for p in rows:
+        seen[p.stock_id] = p
+    rows = list(seen.values())
+
+    stock_ids = [p.stock_id for p in rows]
+    price_map = _get_current_prices(db, stock_ids)
+
+    finished = []  # (return_pct, is_win)
+    for p in rows:
+        entry = p.entry_price or 0
+        current = price_map.get(p.stock_id, 0)
+        if entry <= 0 or current <= 0:
+            continue
+        days_held = (today - p.pick_date).days
+        float_pct = (current - entry) / entry * 100
+
+        # 判斷是否已「有定論」
+        if current >= entry * (1 + p.take_profit_pct):
+            # 停利達標：以當前報酬為近似出場報酬
+            finished.append(float_pct)
+        elif current <= entry * (1 - p.stop_loss_pct):
+            # 停損達標
+            finished.append(float_pct)
+        elif days_held > p.hold_days_max + 7:
+            # 已結算（到期超寬限）
+            finished.append(float_pct)
+        elif days_held >= p.hold_days_max:
+            # 到期出場（寬限期內）
+            finished.append(float_pct)
+        # else: 持有中，不計入
+
+    if not finished:
+        return {"trade_count": 0, "win_rate": None, "avg_return": None, "total_return": None}
+
+    wins = sum(1 for r in finished if r > 0)
+    win_rate = round(wins / len(finished), 4)
+    avg_return = round(sum(finished) / len(finished), 2)
+    total_return = round(sum(finished), 2)
+
+    return {
+        "trade_count": len(finished),
+        "win_rate": win_rate,
+        "avg_return": avg_return,
+        "total_return": total_return,
+        "still_holding": len(rows) - len(finished),
+    }
+
+
 @router.get("/picks/history")
 def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
     """過去 N 天的推薦記錄"""
