@@ -106,35 +106,10 @@ export default function MarketSummary() {
             {/* 主要內容區 */}
             <div className="relative z-10 flex flex-col text-white">
                 {/* 標題與小統計 */}
-                <div className="flex items-center justify-between mb-1.5 sm:mb-2.5">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xl sm:text-2xl font-black tracking-widest uppercase text-white">加權指數</span>
-                        <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity ml-1">
-                            <EducationalHint glossaryId="taiex" />
-                        </div>
-                    </div>
-
-                    {/* 漲跌家數小標籤 */}
-                    <div className="flex items-center gap-x-3 sm:gap-x-4">
-                        <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-tighter">0050</span>
-                        {(data.advances > 0 || data.declines > 0) ? (
-                        <div className="flex items-center gap-x-3 sm:gap-x-4">
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-zinc-400 font-bold text-sm sm:text-base">平</span>
-                                <span className="text-zinc-300 font-black font-mono text-lg sm:text-xl">{data.unchanged}</span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-rose-500 font-bold text-sm sm:text-base">漲</span>
-                                <span className="text-rose-400 font-black font-mono text-lg sm:text-xl">{data.advances}</span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-emerald-500 font-bold text-sm sm:text-base">跌</span>
-                                <span className="text-emerald-400 font-black font-mono text-lg sm:text-xl">{data.declines}</span>
-                            </div>
-                        </div>
-                        ) : (
-                        <span className="text-zinc-600 text-xs font-mono tracking-widest uppercase hidden sm:inline">非交易日</span>
-                        )}
+                <div className="flex items-center gap-2 mb-1.5 sm:mb-2.5">
+                    <span className="text-xl sm:text-2xl font-black tracking-widest uppercase text-white">加權指數</span>
+                    <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity ml-1">
+                        <EducationalHint glossaryId="taiex" />
                     </div>
                 </div>
             </div>
