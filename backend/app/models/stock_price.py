@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Float, Date, ForeignKey, Index
+from sqlalchemy import Column, Integer, BigInteger, String, Float, Date, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -21,4 +21,5 @@ class StockPrice(Base):
     # 複合索引：加速特定股票的時間區間查詢
     __table_args__ = (
         Index('ix_stock_prices_stock_id_date', 'stock_id', 'date'),
+        UniqueConstraint('stock_id', 'date', name='uq_stock_prices_stock_date'),
     )

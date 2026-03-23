@@ -289,6 +289,24 @@ def get_data_status():
         db.close()
 
 
+@router.post("/admin/deduplicate-prices")
+def deduplicate_prices():
+    """清除 stock_prices 中重複的 (stock_id, date) 記錄，只保留最新 id 的那筆。開發維運用。"""
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        result = db.execute(text("""
+            DELETE FROM stock_prices
+            WHERE id NOT IN (
+                SELECT MAX(id) FROM stock_prices GROUP BY stock_id, date
+            )
+        """))
+        db.commit()
+        return {"deleted": result.rowcount}
+    finally:
+        db.close()
+
+
 @router.get("/pcr")
 def get_pcr(days: int = 30):
     """Put/Call Ratio 歷史資料（近 N 天）"""

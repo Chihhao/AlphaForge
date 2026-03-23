@@ -100,6 +100,17 @@ class StockSyncService:
                 new_prices.append(price_entry)
 
             if new_prices:
+                # 過濾掉 DB 中已存在的日期，避免重複寫入
+                existing_dates = {
+                    d for (d,) in db.query(StockPrice.date)
+                    .filter(
+                        StockPrice.stock_id == stock_id,
+                        StockPrice.date.in_([p.date for p in new_prices])
+                    ).all()
+                }
+                new_prices = [p for p in new_prices if p.date not in existing_dates]
+
+            if new_prices:
                 db.bulk_save_objects(new_prices)
                 db.commit()
                 print(f"Synced {len(new_prices)} rows for {stock_id}")
