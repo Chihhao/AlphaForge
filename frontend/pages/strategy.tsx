@@ -843,6 +843,15 @@ const StrategyPage = () => {
                                 明日操作建議
                             </h1>
                             <span className="text-zinc-600 text-xs font-mono self-center">{displayDate}</span>
+                            {!activeLoading && (() => {
+                                const exitCount = activePicks.filter(p => !['持有中', '資料不足', '已結算'].includes(p.status)).length
+                                if (exitCount === 0) return null
+                                return (
+                                    <span className="text-[11px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2.5 py-0.5 leading-none animate-pulse">
+                                        ⚠ 今日賣出 {exitCount} 檔
+                                    </span>
+                                )
+                            })()}
                         </div>
                         <p className="text-zinc-500 text-sm leading-relaxed">
                             量化模型篩選 · 每日收盤後自動更新 · 不構成投資建議
