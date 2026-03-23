@@ -921,7 +921,7 @@ const StrategyPage = () => {
                                                         現價 {p.current_price.toLocaleString()}
                                                     </span>
                                                     {p.float_pct !== null && (
-                                                        <span className={`font-mono text-xs font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                        <span className={`font-mono text-sm font-bold ${p.float_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                                                             {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
                                                         </span>
                                                     )}
@@ -938,7 +938,15 @@ const StrategyPage = () => {
 
                 {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
                 {!activeLoading && activePicks.filter(p => ['持有中', '資料不足'].includes(p.status)).length > 0 && (() => {
-                    const holding = activePicks.filter(p => ['持有中', '資料不足'].includes(p.status))
+                    const holding = activePicks
+                        .filter(p => ['持有中', '資料不足'].includes(p.status))
+                        .sort((a, b) => {
+                            // 有浮盈的排前面，按浮盈由高到低
+                            if (a.float_pct === null && b.float_pct === null) return 0
+                            if (a.float_pct === null) return 1
+                            if (b.float_pct === null) return -1
+                            return b.float_pct - a.float_pct
+                        })
                     return (
                         <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
                             <button
@@ -950,7 +958,17 @@ const StrategyPage = () => {
                                         <path d="M12 2A10 10 0 0 0 2 12A10 10 0 0 0 12 22A10 10 0 0 0 22 12A10 10 0 0 0 12 2M16.2 16.2L11 13V7H12.5V12.2L17 14.9L16.2 16.2Z" />
                                     </svg>
                                     <span className="text-zinc-400 font-semibold text-sm">持倉中</span>
-                                    <span className="text-zinc-600 text-xs font-mono">{holding.length} 檔觀察中</span>
+                                    <span className="text-zinc-600 text-xs font-mono">{holding.length} 檔</span>
+                                    {(() => {
+                                        const withPct = holding.filter(p => p.float_pct !== null && p.float_pct !== 0)
+                                        if (withPct.length === 0) return null
+                                        const avg = withPct.reduce((s, p) => s + (p.float_pct ?? 0), 0) / withPct.length
+                                        return (
+                                            <span className={`text-xs font-mono font-bold ${avg >= 0 ? 'text-rose-400/70' : 'text-emerald-400/70'}`}>
+                                                均{avg >= 0 ? '+' : ''}{avg.toFixed(1)}%
+                                            </span>
+                                        )
+                                    })()}
                                 </div>
                                 <span className="text-zinc-600 text-xs">{holdExpanded ? '▲ 收起' : '▼ 展開'}</span>
                             </button>

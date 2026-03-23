@@ -44,7 +44,7 @@ interface ActivePick {
   current_price: number
   float_pct: number | null
   days_held: number
-  status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '資料不足'
+  status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足'
   take_profit_pct: number
   stop_loss_pct: number
 }
@@ -213,11 +213,12 @@ export default function StrategyMinerPreview() {
           </div>
           <div className="space-y-1.5">
             {exitAlerts.map((p, i) => {
-              const STATUS_LABEL: Record<string, string> = { '建議停利': '停利', '建議停損': '停損', '到期出場': '到期' }
+              const STATUS_LABEL: Record<string, string> = { '建議停利': '停利', '建議停損': '停損', '到期出場': '到期', '明日到期': '明日' }
               const STATUS_COLOR: Record<string, string> = {
                 '建議停利': 'text-rose-400',
                 '建議停損': 'text-emerald-400',
                 '到期出場': 'text-amber-400',
+                '明日到期': 'text-zinc-400',
               }
               return (
                 <div key={i} className="flex items-center justify-between gap-2">
