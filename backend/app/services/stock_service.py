@@ -87,7 +87,17 @@ class StockService:
                 change_percent = 0.0
 
             twstock_info = twstock.codes.get(stock_id)
-            stock_name = twstock_info.name if twstock_info else f"股票 {stock_id}"
+            if twstock_info:
+                stock_name = twstock_info.name
+            else:
+                # twstock 找不到時，從 DB 補查（涵蓋興櫃、新上市等）
+                try:
+                    db_temp = SessionLocal()
+                    fundamental = db_temp.query(StockFundamental).filter(StockFundamental.stock_id == stock_id).first()
+                    db_temp.close()
+                    stock_name = fundamental.stock_name if fundamental and fundamental.stock_name else f"股票 {stock_id}"
+                except Exception:
+                    stock_name = f"股票 {stock_id}"
 
             # --- 整合基本面數據 ---
             # 先取 yfinance info（判斷是否為 ETF，並抓 ETF 專屬欄位）
