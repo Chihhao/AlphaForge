@@ -233,7 +233,12 @@ def get_active_picks(db: Session = Depends(get_db)):
             elif current <= entry * (1 - p.stop_loss_pct):
                 status = "建議停損"
             elif days_held >= p.hold_days_max:
-                status = "到期出場"
+                # 超過寬限期（7 天）的到期出場視為「已結算」，不再顯示
+                # 7 天寬限覆蓋週末與節假日；TP/SL 觸發不受此限制
+                if days_held > p.hold_days_max + 7:
+                    status = "已結算"
+                else:
+                    status = "到期出場"
             elif days_held >= p.hold_days_max - 1:
                 status = "明日到期"
             else:

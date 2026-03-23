@@ -37,7 +37,7 @@ interface ActivePick {
     hold_days_max: number
     days_held: number
     float_pct: number | null
-    status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足'
+    status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足' | '已結算'
     time_dimension: string
 }
 
@@ -880,7 +880,7 @@ const StrategyPage = () => {
 
                 {/* ── 今日建議賣出（出場提醒，最優先顯示）──────────── */}
                 {!activeLoading && activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足').length > 0 && (() => {
-                    const alerts = activePicks.filter(p => !['持有中', '資料不足'].includes(p.status))
+                    const alerts = activePicks.filter(p => !['持有中', '資料不足', '已結算'].includes(p.status))
                     const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string; icon: string }> = {
                         '建議停利': { label: '停利出場', bg: 'bg-rose-500/8', border: 'border-rose-500/40', text: 'text-rose-400', icon: '▲' },
                         '建議停損': { label: '停損出場', bg: 'bg-emerald-500/8', border: 'border-emerald-500/40', text: 'text-emerald-400', icon: '▼' },
@@ -939,9 +939,9 @@ const StrategyPage = () => {
                 })()}
 
                 {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
-                {!activeLoading && activePicks.filter(p => ['持有中', '資料不足'].includes(p.status)).length > 0 && (() => {
+                {!activeLoading && activePicks.filter(p => ['持有中', '資料不足', '已結算'].includes(p.status)).length > 0 && (() => {
                     const holding = activePicks
-                        .filter(p => ['持有中', '資料不足'].includes(p.status))
+                        .filter(p => ['持有中', '資料不足', '已結算'].includes(p.status))
                         .sort((a, b) => {
                             // 有浮盈的排前面，按浮盈由高到低
                             if (a.float_pct === null && b.float_pct === null) return 0
@@ -993,7 +993,13 @@ const StrategyPage = () => {
                                                     {p.float_pct >= 0 ? '+' : ''}{p.float_pct.toFixed(1)}%
                                                 </span>
                                             )}
-                                            <span className="text-zinc-600 text-xs ml-auto">{p.days_held}天</span>
+                                            <span className="text-zinc-600 text-xs ml-auto">
+                                                {p.status === '已結算' ? (
+                                                    <span className="text-zinc-700">已結算</span>
+                                                ) : (
+                                                    `${p.days_held}天`
+                                                )}
+                                            </span>
                                         </div>
                                     ))}
                                     <p className="text-[10px] text-zinc-700 pt-1">各持倉達停利/停損目標時，會自動列入上方「今日建議賣出」</p>
@@ -1076,6 +1082,7 @@ const StrategyPage = () => {
                                     '建議停利': 'text-rose-400',
                                     '建議停損': 'text-emerald-400',
                                     '到期出場': 'text-amber-400',
+                                    '已結算': 'text-zinc-700',
                                     '持有中':   'text-zinc-500',
                                 }
                                 return (
@@ -1108,7 +1115,7 @@ const StrategyPage = () => {
                                                                     )}
                                                                     {ap && (
                                                                         <span className={`text-[9px] font-bold ${STATUS_BADGE[ap.status] ?? 'text-zinc-600'}`}>
-                                                                            {ap.status === '持有中' ? `${ap.days_held}天` : ap.status.replace('建議', '')}
+                                                                            {ap.status === '持有中' ? `${ap.days_held}天` : ap.status === '已結算' ? '已結算' : ap.status.replace('建議', '')}
                                                                         </span>
                                                                     )}
                                                                 </Link>

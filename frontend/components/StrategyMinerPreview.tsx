@@ -44,7 +44,7 @@ interface ActivePick {
   current_price: number
   float_pct: number | null
   days_held: number
-  status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足'
+  status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足' | '已結算'
   take_profit_pct: number
   stop_loss_pct: number
 }
@@ -138,7 +138,7 @@ export default function StrategyMinerPreview() {
     // 非阻塞載入出場提醒
     api.get<ActivePick[]>('/strategy-miner/picks/active')
       .then(r => {
-        const alerts = (r.data || []).filter(p => !['持有中', '資料不足'].includes(p.status))
+        const alerts = (r.data || []).filter(p => !['持有中', '資料不足', '已結算'].includes(p.status))
         setExitAlerts(alerts)
       })
       .catch(() => {})
