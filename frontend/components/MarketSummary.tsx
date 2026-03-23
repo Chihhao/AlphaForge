@@ -101,7 +101,7 @@ export default function MarketSummary() {
         <div className={`overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 px-4 py-3 shadow-xl transition-colors duration-500 ${flashClass}`}>
             {/* Row 1: 標題 + 狀態 */}
             <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-bold text-zinc-200 uppercase tracking-widest">加權指數</span>
+                <span className="text-sm font-bold text-zinc-200 uppercase tracking-widest">加權指數</span>
                 <div className="flex items-center gap-1.5">
                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${data.is_live ? 'bg-emerald-400/80 animate-pulse' : 'bg-zinc-600'}`} />
                     <span className="text-[10px] font-mono text-zinc-400">
