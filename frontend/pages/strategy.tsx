@@ -897,7 +897,7 @@ const StrategyPage = () => {
                                 <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-2 py-0.5 leading-none">
                                     {alerts.length} 檔
                                 </span>
-                                <span className="ml-auto text-[10px] text-zinc-600">基於進場日推算</span>
+                                <span className="ml-auto text-[10px] text-zinc-600">模型追蹤 · 基於首次推薦日</span>
                             </div>
                             <div className="space-y-2">
                                 {alerts.map((p, i) => {
