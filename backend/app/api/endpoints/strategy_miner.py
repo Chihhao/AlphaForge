@@ -207,7 +207,14 @@ def get_active_picks(db: Session = Depends(get_db)):
     if not rows:
         return []
 
-    stock_ids = list({r.stock_id for r in rows})
+    # 同股票只保留最新一筆推薦（避免同一股票多次出現在持倉追蹤）
+    seen: dict = {}
+    for p in rows:
+        if p.stock_id not in seen:
+            seen[p.stock_id] = p  # rows 已按 pick_date desc 排序，第一次即最新
+    rows = list(seen.values())
+
+    stock_ids = [p.stock_id for p in rows]
     price_map = _get_current_prices(db, stock_ids)
 
     result = []
