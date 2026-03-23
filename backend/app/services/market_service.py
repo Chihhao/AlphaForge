@@ -113,6 +113,7 @@ class MarketService:
                 top_gainers=sorted(items, key=lambda x: x.change_percent, reverse=True)[:limit],
                 top_losers=sorted(items, key=lambda x: x.change_percent)[:limit],
                 top_volume=sorted(items, key=lambda x: x.volume, reverse=True)[:limit],
+                data_date=str(today_date),
             )
         except Exception as e:
             print(f"Error in DB rankings: {e}")

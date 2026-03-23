@@ -15,6 +15,7 @@ class MarketRankingResponse(BaseModel):
     top_gainers: List[RankingItem]
     top_losers: List[RankingItem]
     top_volume: List[RankingItem]
+    data_date: str = ""   # 資料日期 YYYY-MM-DD
 
 
 class MarketSummary(BaseModel):

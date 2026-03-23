@@ -16,6 +16,7 @@ interface MarketRankingResponse {
     top_gainers: RankingItem[];
     top_losers: RankingItem[];
     top_volume: RankingItem[];
+    data_date?: string;
 }
 
 type TabKey = 'gainers' | 'losers' | 'volume'
@@ -34,7 +35,7 @@ export default function MarketRanking() {
     useEffect(() => {
         const fetchRankings = async () => {
             try {
-                const res = await api.get('/stocks/rankings?limit=5');
+                const res = await api.get('/stocks/rankings?limit=30');
                 setData(res.data);
             } catch (error) {
                 console.error('Failed to fetch rankings', error);
@@ -56,7 +57,7 @@ export default function MarketRanking() {
     if (!data) return null;
 
     const renderItems = (items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
-        <div className="flex-grow flex flex-col">
+        <div className="overflow-y-auto max-h-[22rem] flex flex-col">
             {items.map((item, index) => {
                 const isGainer = item.change_percent >= 0;
                 const valueColor = isGainer ? 'text-rose-400' : 'text-emerald-400';
@@ -104,13 +105,22 @@ export default function MarketRanking() {
         </div>
     );
 
+    const dateLabel = data?.data_date
+        ? `${data.data_date.slice(5).replace('-', '/')} 收盤`
+        : ''
+
     const renderCard = (title: string, glossaryId: string, items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
         <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3 flex flex-col">
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-zinc-800/40">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{title}</span>
-                <div className="text-zinc-600 opacity-60 hover:opacity-100 transition-opacity">
-                    <EducationalHint glossaryId={glossaryId} />
+            <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800/40">
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{title}</span>
+                    <div className="text-zinc-600 opacity-60 hover:opacity-100 transition-opacity">
+                        <EducationalHint glossaryId={glossaryId} />
+                    </div>
                 </div>
+                {dateLabel && (
+                    <span className="text-[10px] font-mono text-zinc-500">{dateLabel}</span>
+                )}
             </div>
             {renderItems(items, type)}
         </div>
@@ -134,7 +144,7 @@ export default function MarketRanking() {
             {/* 行動端：tab 切換 */}
             <div className="md:hidden bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden">
                 {/* Tab bar */}
-                <div className="flex border-b border-zinc-800/80">
+                <div className="flex items-center border-b border-zinc-800/80">
                     {TAB_CONFIG.map(tab => (
                         <button
                             key={tab.key}
@@ -148,6 +158,9 @@ export default function MarketRanking() {
                             {tab.shortLabel}
                         </button>
                     ))}
+                    {dateLabel && (
+                        <span className="text-[10px] font-mono text-zinc-500 px-3 shrink-0">{dateLabel}</span>
+                    )}
                 </div>
                 {/* Content */}
                 <div className="px-2 py-1">
