@@ -24,101 +24,38 @@ class MarketService:
     @staticmethod
     def get_market_rankings(limit: int = 5) -> MarketRankingResponse:
         """
-        取得市場排行榜（漲幅、跌幅、成交量）
+        取得全市場排行榜（漲幅、跌幅、成交量）
 
-        - 盤後 / 假日：直接讀 DB（穩定正確）
-        - 盤中：yfinance + 5 分鐘 server-side cache
+        - 盤後 / 假日：直接讀 DB 全市場數據
+        - 盤中：同上，但加 5 分鐘 server-side cache
         """
         global _rankings_cache, _rankings_cache_time
 
-        pool_ids = [
-            "2330", "2317", "2454", "2308", "2382", "2881", "2882", "2412", "2891", "2303",
-            "2886", "2884", "1216", "2002", "2885", "3231", "2603", "2892", "3045", "5871",
-            "2890", "2207", "3008", "2357", "2618", "2609", "3481", "2409", "3037", "3711"
-        ]
-
-        # 盤後直接讀 DB
-        if not _is_trading_hour():
-            return MarketService._get_rankings_from_db(pool_ids, limit)
+        now = datetime.now()
 
         # 盤中：先確認快取是否有效
-        now = datetime.now()
-        if (
-            _rankings_cache is not None
-            and _rankings_cache_time is not None
-            and (now - _rankings_cache_time).total_seconds() < _CACHE_TTL_SECONDS
-        ):
-            return _rankings_cache
+        if _is_trading_hour():
+            if (
+                _rankings_cache is not None
+                and _rankings_cache_time is not None
+                and (now - _rankings_cache_time).total_seconds() < _CACHE_TTL_SECONDS
+            ):
+                return _rankings_cache
 
-        # 快取過期，重新從 yfinance 抓取
-        try:
-            import yfinance as yf
+        result = MarketService._get_rankings_from_db(limit)
 
-            tickers = [f"{sid}.TW" for sid in pool_ids]
-            # 用 5d 日線確保今天和昨天都能取到
-            data = yf.download(tickers, period="5d", group_by="ticker", progress=False, threads=True)
-
-            today_date = now.date()
-            items = []
-
-            for sid in pool_ids:
-                ticker = f"{sid}.TW"
-                if ticker not in data.columns.levels[0]:
-                    ticker = f"{sid}.TWO"
-                    if ticker not in data.columns.levels[0]:
-                        continue
-
-                stock_df = data[ticker].dropna()
-                if len(stock_df) < 2:
-                    continue
-
-                # 確保最後一根確實是今天
-                last_date = stock_df.index[-1].date()
-                if last_date != today_date:
-                    continue
-
-                today_row = stock_df.iloc[-1]
-                prev_row = stock_df.iloc[-2]
-
-                close_price = float(today_row["Close"])
-                prev_close = float(prev_row["Close"])
-                volume = int(today_row["Volume"])
-
-                change_percent = ((close_price - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
-
-                info = twstock.codes.get(sid)
-                name = info.name if info else f"股票 {sid}"
-
-                items.append(RankingItem(
-                    stock_id=sid,
-                    stock_name=name,
-                    price=round(close_price, 2),
-                    change_percent=round(change_percent, 2),
-                    volume=volume,
-                ))
-
-            if not items:
-                return MarketService._get_rankings_from_db(pool_ids, limit)
-
-            result = MarketRankingResponse(
-                top_gainers=sorted(items, key=lambda x: x.change_percent, reverse=True)[:limit],
-                top_losers=sorted(items, key=lambda x: x.change_percent)[:limit],
-                top_volume=sorted(items, key=lambda x: x.volume, reverse=True)[:limit],
-            )
-
+        if _is_trading_hour():
             _rankings_cache = result
             _rankings_cache_time = now
-            return result
 
-        except Exception as e:
-            print(f"Error fetching real-time rankings: {e}")
-            return MarketService._get_rankings_from_db(pool_ids, limit)
+        return result
 
     @staticmethod
-    def _get_rankings_from_db(pool_ids: List[str], limit: int) -> MarketRankingResponse:
-        """從資料庫讀取最後兩個交易日數據"""
+    def _get_rankings_from_db(limit: int) -> MarketRankingResponse:
+        """從資料庫讀取全市場最後兩個交易日數據"""
         db = SessionLocal()
         try:
+            # 最近兩個有資料的交易日（排除加權指數本身）
             latest_dates = db.query(StockPrice.date).filter(
                 StockPrice.stock_id == "^TWII"
             ).order_by(StockPrice.date.desc()).limit(2).all()
@@ -129,43 +66,45 @@ class MarketService:
             today_date = latest_dates[0][0]
             yesterday_date = latest_dates[1][0]
 
-            names = {}
-            for sid in pool_ids:
-                info = twstock.codes.get(sid)
-                names[sid] = info.name if info else f"股票 {sid}"
-
+            # 一次撈全市場兩天的收盤價
             prices = db.query(StockPrice).filter(
-                StockPrice.stock_id.in_(pool_ids),
                 StockPrice.date.in_([today_date, yesterday_date])
             ).all()
 
-            stock_data: Dict[str, Dict[str, StockPrice]] = {}
+            stock_data: Dict[str, Dict] = {}
             for p in prices:
-                if p.stock_id not in stock_data:
-                    stock_data[p.stock_id] = {}
-                stock_data[p.stock_id][str(p.date)] = p
+                sid = p.stock_id
+                if sid.startswith("^"):
+                    continue  # 排除指數
+                if sid not in stock_data:
+                    stock_data[sid] = {}
+                stock_data[sid][str(p.date)] = p
 
-            items = []
             str_today = str(today_date)
             str_ytd = str(yesterday_date)
 
-            for sid in pool_ids:
-                if sid in stock_data and str_today in stock_data[sid] and str_ytd in stock_data[sid]:
-                    curr = stock_data[sid][str_today]
-                    prev = stock_data[sid][str_ytd]
+            items = []
+            for sid, days in stock_data.items():
+                if str_today not in days or str_ytd not in days:
+                    continue
+                curr = days[str_today]
+                prev = days[str_ytd]
+                prev_close = float(prev.close)
+                if prev_close <= 0:
+                    continue
 
-                    change_percent = (
-                        ((float(curr.close) - float(prev.close)) / float(prev.close)) * 100
-                        if float(prev.close) > 0 else 0.0
-                    )
+                change_percent = (float(curr.close) - prev_close) / prev_close * 100
 
-                    items.append(RankingItem(
-                        stock_id=sid,
-                        stock_name=names[sid],
-                        price=round(float(curr.close), 2),
-                        change_percent=round(float(change_percent), 2),
-                        volume=int(curr.volume),
-                    ))
+                info = twstock.codes.get(sid)
+                name = info.name if info else sid
+
+                items.append(RankingItem(
+                    stock_id=sid,
+                    stock_name=name,
+                    price=round(float(curr.close), 2),
+                    change_percent=round(change_percent, 2),
+                    volume=int(curr.volume),
+                ))
 
             if not items:
                 return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
