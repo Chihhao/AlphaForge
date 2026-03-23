@@ -254,9 +254,12 @@ def get_active_picks(db: Session = Depends(get_db)):
             "time_dimension": p.time_dimension,
         })
 
-    # 出場提醒排前面
+    # 出場提醒排前面；同狀態內，停利按 float_pct 由高到低，停損按 float_pct 由低到高
     EXIT_ORDER = {"建議停利": 0, "建議停損": 1, "到期出場": 2, "明日到期": 3, "持有中": 4, "資料不足": 5}
-    result.sort(key=lambda x: EXIT_ORDER.get(x["status"], 9))
+    result.sort(key=lambda x: (
+        EXIT_ORDER.get(x["status"], 9),
+        -(x.get("float_pct") or 0),  # 停利：獲利大的排前；停損：虧損多的也排前（負值大=虧多）
+    ))
     return result
 
 
