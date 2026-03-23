@@ -66,30 +66,28 @@ export default function MarketRanking() {
                     <Link
                         key={item.stock_id}
                         href={`/stock/${item.stock_id}`}
-                        className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0 active:scale-[0.98]"
+                        className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0 active:scale-[0.98]"
                     >
-                        <div className="flex items-center gap-3">
-                            <span className={`font-mono font-bold text-xs w-4 text-center ${index < 3 ? 'text-cyan-400' : 'text-zinc-600'}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className={`font-mono font-bold text-xs w-4 shrink-0 text-center ${index < 3 ? 'text-cyan-400' : 'text-zinc-600'}`}>
                                 {index + 1}
                             </span>
-                            <div className="flex flex-col">
-                                <span className="text-sm font-semibold text-zinc-100">{item.stock_name}</span>
-                                <span className="text-xs text-zinc-500 font-mono">{item.stock_id}</span>
-                            </div>
+                            <span className="text-sm font-semibold text-zinc-100 truncate">{item.stock_name}</span>
+                            <span className="text-xs text-zinc-500 font-mono shrink-0">{item.stock_id}</span>
                         </div>
-                        <div className="text-right flex flex-col justify-center">
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
                             <span className="text-sm font-bold text-zinc-100 font-mono">{formatPrice(item.price)}</span>
                             {type === 'volume' ? (
-                                <span className="text-xs font-mono text-cyan-400 font-bold">
+                                <span className="text-xs font-mono text-cyan-400 font-bold w-16 text-right">
                                     {(() => {
                                         const lots = item.volume / 1000;
                                         return lots >= 10000
-                                            ? (lots / 10000).toFixed(2) + ' 萬張'
-                                            : Math.floor(lots).toLocaleString() + ' 張';
+                                            ? (lots / 10000).toFixed(2) + '萬張'
+                                            : Math.floor(lots).toLocaleString() + '張';
                                     })()}
                                 </span>
                             ) : (
-                                <span className={`text-xs font-mono font-bold ${valueColor}`}>
+                                <span className={`text-xs font-mono font-bold w-16 text-right ${valueColor}`}>
                                     {isGainer ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
                                 </span>
                             )}
