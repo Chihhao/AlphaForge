@@ -207,11 +207,11 @@ def get_active_picks(db: Session = Depends(get_db)):
     if not rows:
         return []
 
-    # 同股票只保留最新一筆推薦（避免同一股票多次出現在持倉追蹤）
+    # 同股票只保留最早一筆推薦（代表「首次推薦時的進場價」，可顯示完整持倉期間的浮動損益）
+    # rows 已按 pick_date desc 排序（新到舊），持續覆寫後保留的是最舊（最早）一筆
     seen: dict = {}
     for p in rows:
-        if p.stock_id not in seen:
-            seen[p.stock_id] = p  # rows 已按 pick_date desc 排序，第一次即最新
+        seen[p.stock_id] = p  # 覆寫到最後 = 最舊一筆
     rows = list(seen.values())
 
     stock_ids = [p.stock_id for p in rows]
