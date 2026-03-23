@@ -99,51 +99,56 @@ export default function MarketSummary() {
     const changeArrow = isUp ? '▲' : '▼';
 
     return (
-        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 px-6 py-5 shadow-xl transition-colors duration-500 ${flashClass}`}>
-            {/* 背景裝飾 */}
+        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 px-5 py-4 shadow-xl transition-colors duration-500 ${flashClass}`}>
             <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/[0.015]" />
 
-            {/* 主要內容區 */}
-            <div className="relative z-10 flex flex-col text-white">
-                {/* 標題與小統計 */}
-                <div className="flex items-center gap-2 mb-1.5 sm:mb-2.5">
-                    <span className="text-xl sm:text-2xl font-black tracking-widest uppercase text-white">加權指數</span>
-                    <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity ml-1">
-                        <EducationalHint glossaryId="taiex" />
+            <div className="relative z-10 flex flex-col gap-2">
+                {/* Row 1: 標題列 */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">加權指數</span>
+                        <div className="inline-flex text-zinc-500 opacity-60 hover:opacity-100 transition-opacity">
+                            <EducationalHint glossaryId="taiex" />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${data.is_live ? 'bg-emerald-400/80 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`} />
+                        <span className="text-[10px] font-mono text-zinc-400">
+                            {data.is_live ? `即時 ${data.last_updated}` : `收盤 ${data.data_date}`}
+                        </span>
                     </div>
                 </div>
-            </div>
 
-            {/* 指數價格與漲跌幅 */}
-            <div className="flex items-center justify-between w-full">
-                <span className="text-4xl sm:text-5xl font-black tracking-tight font-mono">
-                    {formatPrice(data.taiex_price)}
-                </span>
-                <div className="flex flex-col items-end gap-1 sm:gap-1.5 pt-0.5">
-                    <span className={`text-xl sm:text-2xl font-black font-mono leading-none ${changeColor}`}>
-                        {changeArrow} {Math.abs(data.taiex_change).toFixed(2)}
+                {/* Row 2: 價格 + 漲跌 */}
+                <div className="flex items-baseline justify-between gap-4">
+                    <span className="text-4xl sm:text-5xl font-black tracking-tight font-mono text-white">
+                        {formatPrice(data.taiex_price)}
                     </span>
-                    <span className={`text-lg sm:text-xl font-black font-mono leading-none ${changeColor} opacity-90`}>
-                        {isUp ? '+' : ''}{data.taiex_change_percent.toFixed(2)}%
-                    </span>
+                    <div className="flex flex-col items-end shrink-0">
+                        <span className={`text-xl sm:text-2xl font-black font-mono leading-tight ${changeColor}`}>
+                            {changeArrow} {Math.abs(data.taiex_change).toFixed(2)}
+                        </span>
+                        <span className={`text-base sm:text-lg font-black font-mono leading-tight ${changeColor}`}>
+                            {isUp ? '+' : ''}{data.taiex_change_percent.toFixed(2)}%
+                        </span>
+                    </div>
                 </div>
-            </div>
-            {/* 底部整合狀態與時間戳記 */}
-            <div className="absolute bottom-3 left-6 right-6 flex items-center gap-3 pointer-events-none">
-                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${data.is_live ? 'bg-emerald-400/80 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`}></div>
-                <span className="text-[10px] font-mono tracking-wider text-zinc-400">
-                    {data.is_live ? `更新: ${data.last_updated}` : `收盤數據: ${data.data_date}`}
-                </span>
+
+                {/* Row 3: 量能 */}
                 {data.volume_ratio > 0 && (
-                    <span className={`ml-auto text-[10px] font-mono font-semibold ${
-                        data.volume_status === 'high' ? 'text-amber-400' :
-                        data.volume_status === 'low'  ? 'text-zinc-400'  : 'text-zinc-400'
-                    }`}>
-                        量能 {data.volume_ratio.toFixed(2)}x {
-                            data.volume_status === 'high' ? '放量' :
-                            data.volume_status === 'low'  ? '縮量' : '正常'
-                        }
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-mono font-semibold ${
+                            data.volume_status === 'high' ? 'text-amber-400' : 'text-zinc-400'
+                        }`}>
+                            量能 {data.volume_ratio.toFixed(2)}x
+                        </span>
+                        <span className={`text-[10px] font-mono ${
+                            data.volume_status === 'high' ? 'text-amber-400' :
+                            data.volume_status === 'low'  ? 'text-zinc-400' : 'text-zinc-500'
+                        }`}>
+                            {data.volume_status === 'high' ? '放量' : data.volume_status === 'low' ? '縮量' : '正常'}
+                        </span>
+                    </div>
                 )}
             </div>
         </div>
