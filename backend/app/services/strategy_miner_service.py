@@ -272,7 +272,10 @@ class StrategyMinerService:
         cutoff = date.today() - timedelta(days=days)
         return (
             db.query(StrategyMinerPick)
-            .filter(StrategyMinerPick.pick_date >= cutoff)
+            .filter(
+                StrategyMinerPick.pick_date >= cutoff,
+                StrategyMinerPick.pick_date < date.today(),  # 排除今日（今日在「明日建議買入」顯示）
+            )
             .order_by(StrategyMinerPick.pick_date.desc(), StrategyMinerPick.weighted_score.desc())
             .all()
         )
