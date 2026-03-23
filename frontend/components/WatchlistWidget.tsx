@@ -87,10 +87,10 @@ export default function WatchlistWidget() {
       </div>
       <div>
         {rows.map(row => (
-          <div key={row.stock_id} className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0 group">
+          <div key={row.stock_id} className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0 group">
             <Link
               href={`/stock/${row.stock_id}`}
-              className="flex items-center gap-2 min-w-0"
+              className="flex items-center gap-2 min-w-0 flex-1"
             >
               <span className="text-sm font-semibold text-zinc-100 truncate">{row.stock_name}</span>
               <span className="text-xs text-zinc-500 font-mono shrink-0">{row.stock_id}</span>
@@ -100,30 +100,30 @@ export default function WatchlistWidget() {
                 </span>
               )}
             </Link>
-            <div className="flex items-center gap-2 ml-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 ml-2">
               {row.loading ? (
                 <span className="text-zinc-500 text-xs font-mono animate-pulse">…</span>
               ) : row.price != null ? (
                 <>
                   <span className="text-sm font-mono font-bold text-zinc-100">{formatPrice(row.price)}</span>
-                  <span className={`text-xs font-mono font-bold ${(row.change ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    {(row.change ?? 0) >= 0 ? '+' : ''}{(row.change ?? 0).toFixed(2)}%
+                  <span className={`text-xs font-mono font-bold w-16 text-right ${(row.change ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {(row.change ?? 0) >= 0 ? '▲' : '▼'} {Math.abs(row.change ?? 0).toFixed(2)}%
                   </span>
                 </>
               ) : (
-                <span className="text-zinc-500 text-xs">—</span>
+                <span className="text-zinc-500 text-xs w-16 text-right">—</span>
               )}
               {confirmId === row.stock_id ? (
                 <button
                   onClick={() => handleRemoveClick(row.stock_id)}
-                  className="text-[10px] font-bold text-rose-400 bg-rose-500/15 border border-rose-500/30 rounded px-1.5 py-0.5 leading-none ml-1 transition-all"
+                  className="text-[10px] font-bold text-rose-400 bg-rose-500/15 border border-rose-500/30 rounded px-1.5 py-0.5 leading-none transition-all"
                 >
                   確認刪除
                 </button>
               ) : (
                 <button
                   onClick={() => handleRemoveClick(row.stock_id)}
-                  className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 transition-all ml-1"
+                  className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 transition-all"
                   title="移除"
                 >
                   <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
