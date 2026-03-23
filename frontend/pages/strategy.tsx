@@ -1063,9 +1063,9 @@ const StrategyPage = () => {
                                 <p className="text-zinc-600 text-sm text-center py-4">近 14 日無精選記錄</p>
                             )}
                             {!histLoading && histPicks.length > 0 && (() => {
-                                // 建立 activePicks lookup: "stock_id:pick_date" → ActivePick
+                                // 建立 activePicks lookup: stock_id → ActivePick（含最早進場的 float_pct）
                                 const activeMap = new Map(
-                                    activePicks.map(ap => [`${ap.stock_id}:${ap.pick_date}`, ap])
+                                    activePicks.map(ap => [ap.stock_id, ap])
                                 )
                                 // 按日期分組
                                 const byDate = histPicks.reduce<Record<string, StrategyMinerPick[]>>((acc, p) => {
@@ -1089,7 +1089,7 @@ const StrategyPage = () => {
                                                     </p>
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {dayPicks.map(p => {
-                                                            const ap = activeMap.get(`${p.stock_id}:${p.pick_date}`)
+                                                            const ap = activeMap.get(p.stock_id)
                                                             return (
                                                                 <Link
                                                                     key={p.stock_id}
