@@ -110,7 +110,7 @@ export default function WatchlistWidget() {
             {/* 左側：編號 + 名稱 + 代號 + 精選badge */}
             {editMode ? (
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-mono font-bold text-xs w-4 shrink-0 text-center text-zinc-600">
+                <span className={`font-mono font-bold text-xs w-4 shrink-0 text-center ${index < 3 ? 'text-cyan-400' : 'text-zinc-600'}`}>
                   {index + 1}
                 </span>
                 <span className="text-sm font-semibold text-zinc-100 truncate">{row.stock_name}</span>
@@ -118,7 +118,7 @@ export default function WatchlistWidget() {
               </div>
             ) : (
               <Link href={`/stock/${row.stock_id}`} className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-mono font-bold text-xs w-4 shrink-0 text-center text-zinc-600">
+                <span className={`font-mono font-bold text-xs w-4 shrink-0 text-center ${index < 3 ? 'text-cyan-400' : 'text-zinc-600'}`}>
                   {index + 1}
                 </span>
                 <span className="text-sm font-semibold text-zinc-100 truncate">{row.stock_name}</span>
