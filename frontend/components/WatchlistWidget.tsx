@@ -79,9 +79,9 @@ export default function WatchlistWidget() {
   }
 
   return (
-    <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
+    <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-2 py-3">
       {/* 標題列 */}
-      <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800/40">
+      <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800/40 px-2">
         <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5">
           <svg viewBox="0 0 24 24" width={12} height={12} className="fill-current">
             <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
