@@ -138,7 +138,7 @@ export default function StrategyMinerPreview() {
     // 非阻塞載入出場提醒
     api.get<ActivePick[]>('/strategy-miner/picks/active')
       .then(r => {
-        const alerts = (r.data || []).filter(p => p.status !== '持有中' && p.status !== '資料不足')
+        const alerts = (r.data || []).filter(p => !['持有中', '資料不足'].includes(p.status))
         setExitAlerts(alerts)
       })
       .catch(() => {})

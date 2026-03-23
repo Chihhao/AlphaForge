@@ -227,6 +227,8 @@ def get_active_picks(db: Session = Depends(get_db)):
                 status = "建議停損"
             elif days_held >= p.hold_days_max:
                 status = "到期出場"
+            elif days_held >= p.hold_days_max - 1:
+                status = "明日到期"
             else:
                 status = "持有中"
 
@@ -246,7 +248,7 @@ def get_active_picks(db: Session = Depends(get_db)):
         })
 
     # 出場提醒排前面
-    EXIT_ORDER = {"建議停利": 0, "建議停損": 1, "到期出場": 2, "持有中": 3, "資料不足": 4}
+    EXIT_ORDER = {"建議停利": 0, "建議停損": 1, "到期出場": 2, "明日到期": 3, "持有中": 4, "資料不足": 5}
     result.sort(key=lambda x: EXIT_ORDER.get(x["status"], 9))
     return result
 

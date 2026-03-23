@@ -37,7 +37,7 @@ interface ActivePick {
     hold_days_max: number
     days_held: number
     float_pct: number | null
-    status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '資料不足'
+    status: '持有中' | '建議停利' | '建議停損' | '到期出場' | '明日到期' | '資料不足'
     time_dimension: string
 }
 
@@ -878,11 +878,12 @@ const StrategyPage = () => {
 
                 {/* ── 今日建議賣出（出場提醒，最優先顯示）──────────── */}
                 {!activeLoading && activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足').length > 0 && (() => {
-                    const alerts = activePicks.filter(p => p.status !== '持有中' && p.status !== '資料不足')
+                    const alerts = activePicks.filter(p => !['持有中', '資料不足'].includes(p.status))
                     const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string; icon: string }> = {
                         '建議停利': { label: '停利出場', bg: 'bg-rose-500/8', border: 'border-rose-500/40', text: 'text-rose-400', icon: '▲' },
                         '建議停損': { label: '停損出場', bg: 'bg-emerald-500/8', border: 'border-emerald-500/40', text: 'text-emerald-400', icon: '▼' },
                         '到期出場': { label: '到期出場', bg: 'bg-amber-500/8', border: 'border-amber-500/40', text: 'text-amber-400', icon: '⏱' },
+                        '明日到期': { label: '明日出場', bg: 'bg-zinc-500/8', border: 'border-zinc-500/30', text: 'text-zinc-400', icon: '📅' },
                     }
                     return (
                         <div className="border border-amber-500/25 bg-amber-500/5 rounded-2xl px-4 py-3.5">
@@ -936,8 +937,8 @@ const StrategyPage = () => {
                 })()}
 
                 {/* ── 持倉中（次要資訊，折疊）─────────────────────────── */}
-                {!activeLoading && activePicks.filter(p => p.status === '持有中').length > 0 && (() => {
-                    const holding = activePicks.filter(p => p.status === '持有中')
+                {!activeLoading && activePicks.filter(p => ['持有中', '資料不足'].includes(p.status)).length > 0 && (() => {
+                    const holding = activePicks.filter(p => ['持有中', '資料不足'].includes(p.status))
                     return (
                         <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
                             <button
