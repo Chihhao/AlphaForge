@@ -56,32 +56,30 @@ export default function MarketRanking() {
     if (!data) return null;
 
     const renderItems = (items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
-        <div className="flex-grow flex flex-col gap-3">
+        <div className="flex-grow flex flex-col">
             {items.map((item, index) => {
                 const isGainer = item.change_percent >= 0;
-                const valueColor = isGainer ? 'text-rose-500' : 'text-emerald-400';
-                const bgHighlight = index < 3 ? 'bg-zinc-900/50' : '';
-                const borderHighlight = index === 0 ? 'border-l-4 border-l-cyan-400' : 'border-l-4 border-l-transparent';
+                const valueColor = isGainer ? 'text-rose-400' : 'text-emerald-400';
 
                 return (
                     <Link
                         key={item.stock_id}
                         href={`/stock/${item.stock_id}`}
-                        className={`flex items-center justify-between p-4 transition-all hover:bg-white/5 active:scale-[0.98] ${bgHighlight} ${borderHighlight}`}
+                        className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0 active:scale-[0.98]"
                     >
-                        <div className="flex items-center gap-4">
-                            <span className={`font-mono font-bold text-xl w-6 text-center ${index < 3 ? 'text-cyan-400' : 'text-neutral-600'}`}>
+                        <div className="flex items-center gap-3">
+                            <span className={`font-mono font-bold text-xs w-4 text-center ${index < 3 ? 'text-cyan-400' : 'text-zinc-600'}`}>
                                 {index + 1}
                             </span>
                             <div className="flex flex-col">
-                                <span className="font-bold text-neutral-100 text-xl tracking-wide">{item.stock_name}</span>
-                                <span className="text-base text-neutral-500 font-mono tracking-widest mt-1">{item.stock_id}</span>
+                                <span className="text-sm font-semibold text-zinc-100">{item.stock_name}</span>
+                                <span className="text-xs text-zinc-500 font-mono">{item.stock_id}</span>
                             </div>
                         </div>
                         <div className="text-right flex flex-col justify-center">
-                            <span className="font-bold text-neutral-50 text-xl font-mono">{formatPrice(item.price)}</span>
+                            <span className="text-sm font-bold text-zinc-100 font-mono">{formatPrice(item.price)}</span>
                             {type === 'volume' ? (
-                                <span className="text-base font-mono text-cyan-500 font-medium tracking-widest mt-1">
+                                <span className="text-xs font-mono text-cyan-400 font-bold">
                                     {(() => {
                                         const lots = item.volume / 1000;
                                         return lots >= 10000
@@ -90,7 +88,7 @@ export default function MarketRanking() {
                                     })()}
                                 </span>
                             ) : (
-                                <span className={`text-base font-mono font-bold tracking-widest mt-1 ${valueColor}`}>
+                                <span className={`text-xs font-mono font-bold ${valueColor}`}>
                                     {isGainer ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
                                 </span>
                             )}
@@ -99,7 +97,7 @@ export default function MarketRanking() {
                 );
             })}
             {items.length === 0 && (
-                <div className="text-neutral-500 text-center py-10 text-base bg-zinc-900/20 border border-dashed border-zinc-800/50 rounded-lg">
+                <div className="text-zinc-500 text-center py-8 text-sm bg-zinc-900/20 border border-dashed border-zinc-800/50 rounded-lg">
                     目前無資料
                 </div>
             )}
@@ -107,14 +105,12 @@ export default function MarketRanking() {
     );
 
     const renderCard = (title: string, glossaryId: string, items: RankingItem[], type: 'gainer' | 'loser' | 'volume') => (
-        <div className="bg-gradient-to-b from-zinc-900/50 to-zinc-950/80 backdrop-blur-md p-6 rounded-xl flex flex-col h-full border border-zinc-800/50 hover:border-zinc-700/80 transition-all duration-500 shadow-2xl">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-900">
-                <h3 className="text-2xl font-bold text-neutral-50 flex items-center tracking-tight">
-                    {title}
-                    <div className="inline-flex text-zinc-400 opacity-50 hover:opacity-100 transition-opacity ml-2">
-                        <EducationalHint glossaryId={glossaryId} />
-                    </div>
-                </h3>
+        <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3 flex flex-col">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-zinc-800/40">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{title}</span>
+                <div className="text-zinc-600 opacity-60 hover:opacity-100 transition-opacity">
+                    <EducationalHint glossaryId={glossaryId} />
+                </div>
             </div>
             {renderItems(items, type)}
         </div>
@@ -136,7 +132,7 @@ export default function MarketRanking() {
             </div>
 
             {/* 行動端：tab 切換 */}
-            <div className="md:hidden bg-gradient-to-b from-zinc-900/50 to-zinc-950/80 backdrop-blur-md rounded-xl border border-zinc-800/50 shadow-2xl overflow-hidden">
+            <div className="md:hidden bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden">
                 {/* Tab bar */}
                 <div className="flex border-b border-zinc-800/80">
                     {TAB_CONFIG.map(tab => (
@@ -154,7 +150,7 @@ export default function MarketRanking() {
                     ))}
                 </div>
                 {/* Content */}
-                <div className="p-4">
+                <div className="px-2 py-1">
                     {renderItems(tabItems[activeTab].items, tabItems[activeTab].type)}
                 </div>
             </div>

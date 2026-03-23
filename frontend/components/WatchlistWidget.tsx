@@ -68,15 +68,15 @@ export default function WatchlistWidget() {
         </span>
         <span className="text-zinc-700 text-[10px] font-mono">{items.length} 檔</span>
       </div>
-      <div className="space-y-1">
+      <div>
         {rows.map(row => (
-          <div key={row.stock_id} className="flex items-center justify-between py-1 group">
+          <div key={row.stock_id} className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0 group">
             <Link
               href={`/stock/${row.stock_id}`}
-              className="flex items-center gap-2 min-w-0 hover:text-amber-300 transition-colors"
+              className="flex items-center gap-2 min-w-0"
             >
-              <span className="text-zinc-200 text-sm font-medium truncate">{row.stock_name}</span>
-              <span className="text-zinc-600 text-xs font-mono shrink-0">{row.stock_id}</span>
+              <span className="text-sm font-semibold text-zinc-100 truncate">{row.stock_name}</span>
+              <span className="text-xs text-zinc-500 font-mono shrink-0">{row.stock_id}</span>
               {pickedIds.has(row.stock_id) && (
                 <span className="shrink-0 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none">
                   精選
@@ -88,7 +88,7 @@ export default function WatchlistWidget() {
                 <span className="text-zinc-700 text-xs font-mono animate-pulse">…</span>
               ) : row.price != null ? (
                 <>
-                  <span className="text-zinc-300 text-sm font-mono">{formatPrice(row.price)}</span>
+                  <span className="text-sm font-mono font-bold text-zinc-100">{formatPrice(row.price)}</span>
                   <span className={`text-xs font-mono font-bold ${(row.change ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {(row.change ?? 0) >= 0 ? '+' : ''}{(row.change ?? 0).toFixed(2)}%
                   </span>

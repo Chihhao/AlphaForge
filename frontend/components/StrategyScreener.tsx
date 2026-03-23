@@ -123,12 +123,12 @@ export default function StrategyScreener() {
                                             <React.Fragment key={stock.symbol}>
                                                 <Link
                                                     href={`/stock/${stock.symbol}`}
-                                                    className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
+                                                    className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
                                                 >
                                                     <div className="flex flex-col ml-1">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-white font-bold">{stock.name}</span>
-                                                            <span className="text-zinc-500 text-xs font-mono">{stock.symbol}</span>
+                                                            <span className="text-sm font-semibold text-zinc-100">{stock.name}</span>
+                                                            <span className="text-xs text-zinc-500 font-mono">{stock.symbol}</span>
                                                         </div>
                                                         <div className="flex items-center gap-1 mt-0.5">
                                                             {isFundamental ? (
@@ -157,7 +157,7 @@ export default function StrategyScreener() {
                                                         <div className="flex items-center">
                                                             {stock.change > 0 && <span className="text-rose-400 text-[10px] mr-1">▲</span>}
                                                             {stock.change < 0 && <span className="text-emerald-400 text-[10px] mr-1">▼</span>}
-                                                            <span className={`${changeColor} font-mono font-bold text-lg`}>
+                                                            <span className={`${changeColor} font-mono font-bold text-sm`}>
                                                                 {stock.price === 0 ? '---' :
                                                                     stock.price < 100 ? stock.price.toFixed(2) :
                                                                         stock.price < 500 ? stock.price.toFixed(1) :
@@ -165,14 +165,11 @@ export default function StrategyScreener() {
                                                                 }
                                                             </span>
                                                         </div>
-                                                        <span className={`${changeColor} text-xs font-bold font-mono opacity-90`}>
+                                                        <span className={`${changeColor} text-xs font-bold font-mono`}>
                                                             {stock.change === 0 ? '0.00' : (stock.change > 0 ? '+' : '') + stock.change.toFixed(2)}%
                                                         </span>
                                                     </div>
                                                 </Link>
-                                                {index < strategy.stocks.length - 1 && (
-                                                    <div className="h-px bg-white/[0.06] mx-4" />
-                                                )}
                                             </React.Fragment>
                                         );
                                     })

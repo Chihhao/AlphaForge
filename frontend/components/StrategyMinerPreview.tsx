@@ -87,17 +87,17 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   const topReason = pick.buy_reasons.find(r => !r.includes('個策略')) ?? pick.buy_reasons[0]
 
   return (
-    <div className="py-2 border-b border-zinc-800/50 last:border-b-0">
+    <div className="py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-zinc-700 font-mono text-[10px] shrink-0">{rank}</span>
+          <span className="text-zinc-600 font-mono text-[10px] shrink-0">{rank}</span>
           <Link
             href={`/stock/${pick.stock_id}`}
-            className="text-sm font-semibold text-zinc-200 hover:text-amber-300 transition-colors truncate"
+            className="text-sm font-semibold text-zinc-100 hover:text-amber-300 transition-colors truncate"
           >
             {pick.stock_name}
           </Link>
-          <span className="text-zinc-600 text-xs shrink-0">{pick.stock_id}</span>
+          <span className="text-xs text-zinc-500 shrink-0">{pick.stock_id}</span>
           {isMultiDim && (
             <span className="shrink-0 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
               多維
@@ -233,10 +233,10 @@ export default function StrategyMinerPreview() {
               return (
                 <div key={i} className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <Link href={`/stock/${p.stock_id}`} className="text-sm font-semibold text-zinc-200 hover:text-amber-300 transition-colors truncate">
+                    <Link href={`/stock/${p.stock_id}`} className="text-sm font-semibold text-zinc-100 hover:text-amber-300 transition-colors truncate">
                       {p.stock_name}
                     </Link>
-                    <span className="text-zinc-600 text-xs shrink-0">{p.stock_id}</span>
+                    <span className="text-xs text-zinc-500 shrink-0">{p.stock_id}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {p.float_pct !== null && (
