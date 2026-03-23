@@ -99,57 +99,46 @@ export default function MarketSummary() {
     const changeArrow = isUp ? '▲' : '▼';
 
     return (
-        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 px-5 py-4 shadow-xl transition-colors duration-500 ${flashClass}`}>
-            <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/[0.015]" />
-
-            <div className="relative z-10 flex flex-col gap-2">
-                {/* Row 1: 標題列 */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
+        <div className={`relative overflow-hidden bg-gradient-to-br ${isUp ? 'from-rose-900/20 to-zinc-900/80' : 'from-emerald-900/30 to-zinc-900/80'} backdrop-blur-md rounded-2xl border border-white/10 px-5 py-3.5 shadow-xl transition-colors duration-500 ${flashClass}`}>
+            <div className="relative z-10 flex items-center justify-between gap-4">
+                {/* 左：標題 + 價格 */}
+                <div className="flex items-baseline gap-3 min-w-0">
+                    <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">加權指數</span>
                         <div className="inline-flex text-zinc-500 opacity-60 hover:opacity-100 transition-opacity">
                             <EducationalHint glossaryId="taiex" />
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${data.is_live ? 'bg-emerald-400/80 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`} />
-                        <span className="text-[10px] font-mono text-zinc-400">
-                            {data.is_live ? `即時 ${data.last_updated}` : `收盤 ${data.data_date}`}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Row 2: 價格 + 漲跌 */}
-                <div className="flex items-baseline justify-between gap-4">
-                    <span className="text-4xl sm:text-5xl font-black tracking-tight font-mono text-white">
+                    <span className="text-3xl sm:text-4xl font-black tracking-tight font-mono text-white leading-none">
                         {formatPrice(data.taiex_price)}
                     </span>
-                    <div className="flex flex-col items-end shrink-0">
-                        <span className={`text-xl sm:text-2xl font-black font-mono leading-tight ${changeColor}`}>
+                </div>
+
+                {/* 右：漲跌 + 次要資訊 */}
+                <div className="flex flex-col items-end shrink-0 gap-0.5">
+                    <div className="flex items-baseline gap-2">
+                        <span className={`text-lg sm:text-xl font-black font-mono leading-none ${changeColor}`}>
                             {changeArrow} {Math.abs(data.taiex_change).toFixed(2)}
                         </span>
-                        <span className={`text-base sm:text-lg font-black font-mono leading-tight ${changeColor}`}>
+                        <span className={`text-base sm:text-lg font-black font-mono leading-none ${changeColor}`}>
                             {isUp ? '+' : ''}{data.taiex_change_percent.toFixed(2)}%
                         </span>
                     </div>
-                </div>
-
-                {/* Row 3: 量能 */}
-                {data.volume_ratio > 0 && (
-                    <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-mono font-semibold ${
-                            data.volume_status === 'high' ? 'text-amber-400' : 'text-zinc-400'
-                        }`}>
-                            量能 {data.volume_ratio.toFixed(2)}x
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <div className={`w-1 h-1 rounded-full ${data.is_live ? 'bg-emerald-400/80 animate-pulse' : 'bg-zinc-600'}`} />
+                        <span className="text-[10px] font-mono text-zinc-500">
+                            {data.is_live ? `即時 ${data.last_updated}` : `收盤 ${data.data_date}`}
                         </span>
-                        <span className={`text-[10px] font-mono ${
-                            data.volume_status === 'high' ? 'text-amber-400' :
-                            data.volume_status === 'low'  ? 'text-zinc-400' : 'text-zinc-500'
-                        }`}>
-                            {data.volume_status === 'high' ? '放量' : data.volume_status === 'low' ? '縮量' : '正常'}
-                        </span>
+                        {data.volume_ratio > 0 && (
+                            <>
+                                <span className="text-zinc-700 text-[10px]">·</span>
+                                <span className={`text-[10px] font-mono ${data.volume_status === 'high' ? 'text-amber-400' : 'text-zinc-500'}`}>
+                                    量能 {data.volume_ratio.toFixed(2)}x {data.volume_status === 'high' ? '放量' : data.volume_status === 'low' ? '縮量' : '正常'}
+                                </span>
+                            </>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
