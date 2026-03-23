@@ -201,7 +201,7 @@ export default function StrategyMinerPreview() {
         </Link>
       </div>
 
-      {/* 今日建議賣出（出場提醒） */}
+      {/* 今日建議賣出（出場提醒，最多顯示5筆） */}
       {exitAlerts.length > 0 && (
         <div className="mb-3 border border-amber-500/20 bg-amber-500/5 rounded-xl px-3 py-2.5">
           <div className="flex items-center gap-1.5 mb-2">
@@ -210,9 +210,14 @@ export default function StrategyMinerPreview() {
             </svg>
             <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">今日建議賣出</span>
             <span className="text-[10px] text-amber-500/60 font-mono">{exitAlerts.length} 檔</span>
+            {exitAlerts.length > 5 && (
+              <Link href="/strategy" className="ml-auto text-[10px] text-amber-500/70 hover:text-amber-400">
+                查看全部 →
+              </Link>
+            )}
           </div>
           <div className="space-y-1.5">
-            {exitAlerts.map((p, i) => {
+            {exitAlerts.slice(0, 5).map((p, i) => {
               const STATUS_LABEL: Record<string, string> = { '建議停利': '停利', '建議停損': '停損', '到期出場': '到期', '明日到期': '明日' }
               const STATUS_COLOR: Record<string, string> = {
                 '建議停利': 'text-rose-400',
