@@ -133,14 +133,19 @@ export default function StrategyMinerPreview() {
   const [perf, setPerf] = useState<Record<string, PerfStats>>({})
   const [loading, setLoading] = useState(true)
   const [exitAlerts, setExitAlerts] = useState<ActivePick[]>([])
+  const [livePerf, setLivePerf] = useState<{ trade_count: number; win_rate: number | null; avg_return: number | null } | null>(null)
 
   useEffect(() => {
-    // 非阻塞載入出場提醒
+    // 非阻塞載入出場提醒 + 即時績效
     api.get<ActivePick[]>('/strategy-miner/picks/active')
       .then(r => {
         const alerts = (r.data || []).filter(p => !['持有中', '資料不足', '已結算'].includes(p.status))
         setExitAlerts(alerts)
       })
+      .catch(() => {})
+
+    api.get('/strategy-miner/picks/live-performance')
+      .then(r => setLivePerf(r.data))
       .catch(() => {})
 
     Promise.all([
@@ -265,8 +270,30 @@ export default function StrategyMinerPreview() {
         ))
       )}
 
-      {/* 回測績效摘要 */}
+      {/* 即時追蹤績效（優先）或回測績效（備用）*/}
       {!loading && picks.length > 0 && (() => {
+        // 優先顯示即時績效
+        if (livePerf && livePerf.trade_count > 0 && livePerf.win_rate !== null) {
+          const winRate = Math.round(livePerf.win_rate * 100)
+          return (
+            <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
+              <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">即時追蹤</span>
+              <span className="text-[10px] font-mono text-zinc-500">{livePerf.trade_count} 筆已出場</span>
+              <span className={`text-[10px] font-mono font-semibold ${winRate >= 60 ? 'text-rose-400' : winRate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                勝率 {winRate}%
+              </span>
+              {livePerf.avg_return !== null && (
+                <>
+                  <span className="text-zinc-700 text-[10px]">·</span>
+                  <span className={`text-[10px] font-mono font-semibold ${livePerf.avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    均{livePerf.avg_return >= 0 ? '+' : ''}{livePerf.avg_return.toFixed(1)}%
+                  </span>
+                </>
+              )}
+            </div>
+          )
+        }
+        // 備用：回測績效
         const dim = picks[0].time_dimension
         const stats = perf[dim]
         if (!stats) return null
@@ -284,8 +311,6 @@ export default function StrategyMinerPreview() {
             <span className={`text-[10px] font-mono font-semibold ${stats.avg_return_test >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
               均報酬 {stats.avg_return_test >= 0 ? '+' : ''}{avgRet}%
             </span>
-            <span className="text-zinc-700 text-[10px]">·</span>
-            <span className="text-[10px] font-mono text-zinc-600">{stats.trade_count_test} 筆交易</span>
           </div>
         )
       })()}
