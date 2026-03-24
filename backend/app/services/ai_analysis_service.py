@@ -3,7 +3,7 @@
 import httpx
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from datetime import datetime
 
 from app.core.config import settings
 from app.models.stock_ai_analysis import StockAIAnalysis
@@ -174,16 +174,23 @@ def get_or_create_analysis(
 
     text = resp.json()["choices"][0]["message"]["content"].strip()
 
-    # upsert（PostgreSQL INSERT ON CONFLICT DO UPDATE）
-    stmt = (
-        pg_insert(StockAIAnalysis)
-        .values(stock_id=stock_id, date=today, analysis_text=text, model=GROQ_MODEL)
-        .on_conflict_do_update(
-            index_elements=["stock_id", "date"],
-            set_={"analysis_text": text, "model": GROQ_MODEL},
-        )
+    # upsert（SQLite 相容：先查後寫）
+    existing = (
+        db.query(StockAIAnalysis)
+        .filter(StockAIAnalysis.stock_id == stock_id, StockAIAnalysis.date == today)
+        .first()
     )
-    db.execute(stmt)
+    if existing:
+        existing.analysis_text = text
+        existing.model = GROQ_MODEL
+        existing.created_at = datetime.utcnow()
+    else:
+        db.add(StockAIAnalysis(
+            stock_id=stock_id,
+            date=today,
+            analysis_text=text,
+            model=GROQ_MODEL,
+        ))
     db.commit()
 
     return {

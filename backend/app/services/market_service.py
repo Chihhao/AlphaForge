@@ -56,9 +56,12 @@ class MarketService:
         """從資料庫讀取全市場最後兩個交易日數據"""
         db = SessionLocal()
         try:
-            # 最近兩個有資料的交易日（排除加權指數本身）
+            # 最近兩個有資料的交易日（用個股數據偵測，避免依賴 ^TWII 同步）
+            from sqlalchemy import func, distinct
             latest_dates = db.query(StockPrice.date).filter(
-                StockPrice.stock_id == "^TWII"
+                ~StockPrice.stock_id.startswith("^")
+            ).group_by(StockPrice.date).having(
+                func.count(distinct(StockPrice.stock_id)) > 100
             ).order_by(StockPrice.date.desc()).limit(2).all()
 
             if not latest_dates or len(latest_dates) < 2:
