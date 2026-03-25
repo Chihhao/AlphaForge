@@ -42,9 +42,9 @@ export default function MarketSentimentWidget() {
           {etfRows.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold">外資 0050</span>
+                <span className="text-zinc-300 text-xs uppercase tracking-widest font-bold">外資 0050</span>
                 <span className={`font-mono text-xs font-bold ${etfNetSum > 0 ? 'text-rose-400' : etfNetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  {etfNetSum > 0 ? '+' : ''}{etfNetSum.toFixed(0)}張
+                  {etfNetSum > 0 ? '+' : ''}{Math.abs(etfNetSum) >= 1000 ? (etfNetSum < 0 ? '-' : '') + Math.abs(etfNetSum).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : etfNetSum.toFixed(0)} 張
                 </span>
               </div>
               <div className="flex items-center gap-px h-5">
@@ -67,9 +67,9 @@ export default function MarketSentimentWidget() {
           {etf878Rows.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold">外資 00878</span>
+                <span className="text-zinc-300 text-xs uppercase tracking-widest font-bold">外資 00878</span>
                 <span className={`font-mono text-xs font-bold ${etf878NetSum > 0 ? 'text-rose-400' : etf878NetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  {etf878NetSum > 0 ? '+' : ''}{etf878NetSum.toFixed(0)}張
+                  {etf878NetSum > 0 ? '+' : ''}{Math.abs(etf878NetSum) >= 1000 ? (etf878NetSum < 0 ? '-' : '') + Math.abs(etf878NetSum).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : etf878NetSum.toFixed(0)} 張
                 </span>
               </div>
               <div className="flex items-center gap-px h-5">
@@ -96,9 +96,9 @@ export default function MarketSentimentWidget() {
             return (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-zinc-300 text-[10px] uppercase tracking-widest font-bold">外資 006208</span>
+                  <span className="text-zinc-300 text-xs uppercase tracking-widest font-bold">外資 006208</span>
                   <span className={`font-mono text-xs font-bold ${etf6208NetSum > 0 ? 'text-rose-400' : etf6208NetSum < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                    {etf6208NetSum > 0 ? '+' : ''}{etf6208NetSum.toFixed(0)}張
+                    {etf6208NetSum > 0 ? '+' : ''}{Math.abs(etf6208NetSum) >= 1000 ? (etf6208NetSum < 0 ? '-' : '') + Math.abs(etf6208NetSum).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : etf6208NetSum.toFixed(0)} 張
                   </span>
                 </div>
                 <div className="flex items-center gap-px h-5">
@@ -123,23 +123,25 @@ export default function MarketSentimentWidget() {
 
         {/* PCR 區塊 */}
         {pcrData?.latest_pcr != null && (
-          <div className="shrink-0 w-20 flex flex-col items-center justify-center gap-1 border-l border-zinc-800/60 pl-4">
-            <span className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">PCR</span>
-            <span className={`text-xl font-bold font-mono leading-none ${
+          <div className="shrink-0 w-20 flex flex-col items-center justify-center gap-1">
+            <span className="text-zinc-400 text-sm uppercase tracking-widest font-bold">PCR</span>
+            <span className={`text-3xl font-bold font-mono leading-none ${
               pcrData.latest_pcr >= 1.3 ? 'text-emerald-400' :
               pcrData.latest_pcr >= 1.0 ? 'text-amber-400' :
               'text-rose-400'
             }`}>
               {pcrData.latest_pcr.toFixed(2)}
             </span>
-            <span className={`text-[10px] font-semibold ${
+            <span className={`text-sm font-semibold ${
               pcrData.latest_pcr >= 1.3 ? 'text-emerald-500/70' :
               pcrData.latest_pcr >= 1.0 ? 'text-amber-500/70' :
               'text-rose-500/70'
             }`}>
               {pcrData.latest_pcr >= 1.3 ? '恐慌偏高' : pcrData.latest_pcr >= 1.0 ? '中性偏空' : '樂觀偏多'}
             </span>
-            <span className="text-zinc-500 text-[10px]">Put/Call</span>
+            {pcrData.latest_date && (
+              <span className="text-zinc-400 text-[10px] font-mono">{pcrData.latest_date}</span>
+            )}
           </div>
         )}
       </div>

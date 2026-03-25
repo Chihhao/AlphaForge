@@ -122,6 +122,7 @@ export default function StrategyMinerPreview() {
   const [perf, setPerf] = useState<Record<string, PerfStats>>({})
   const [loading, setLoading] = useState(true)
   const [livePerf, setLivePerf] = useState<{ trade_count: number; win_rate: number | null; avg_return: number | null } | null>(null)
+  const [pickDate, setPickDate] = useState<string | null>(null)
 
   useEffect(() => {
     // 即時績效
@@ -135,6 +136,7 @@ export default function StrategyMinerPreview() {
       api.get<Record<string, PerfStats>>('/strategy-miner/performance'),
     ])
       .then(([picksRes, perfRes]) => {
+        if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
         const top3 = (picksRes.data || []).slice(0, 5).map(p => ({
           stock_id: p.stock_id,
           stock_name: p.stock_name,
@@ -162,16 +164,16 @@ export default function StrategyMinerPreview() {
   return (
     <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
       {/* Header */}
-      <div className="flex justify-between items-center mb-3">
-        <div>
-          <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-            <svg viewBox="0 0 24 24" width={16} height={16} className="fill-rose-400">
-              <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
-            </svg>
-            今日操作建議
-          </div>
-          <div className="text-xs text-zinc-400 mt-0.5">量化多策略共振 · 停利停損由回測優化</div>
-        </div>
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-800/40">
+        <span className="text-amber-400 text-sm font-bold flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+            <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+          </svg>
+          今日操作建議
+          {pickDate && (
+            <span className="text-zinc-400 text-[10px] font-mono font-normal ml-1">{pickDate}</span>
+          )}
+        </span>
         <Link
           href="/strategy"
           className="text-xs text-amber-500 hover:text-amber-300 transition-colors flex items-center gap-1"

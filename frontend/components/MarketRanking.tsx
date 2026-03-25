@@ -117,7 +117,7 @@ export default function MarketRanking() {
                     </div>
                 </div>
                 {dateLabel && (
-                    <span className="text-[10px] font-mono text-zinc-500">{dateLabel}</span>
+                    <span className="text-[10px] font-mono text-zinc-400">{dateLabel}</span>
                 )}
             </div>
             {renderItems(items, type)}
@@ -157,7 +157,7 @@ export default function MarketRanking() {
                         </button>
                     ))}
                     {dateLabel && (
-                        <span className="text-[10px] font-mono text-zinc-500 px-3 shrink-0">{dateLabel}</span>
+                        <span className="text-[10px] font-mono text-zinc-400 px-3 shrink-0">{dateLabel}</span>
                     )}
                 </div>
                 {/* Content */}

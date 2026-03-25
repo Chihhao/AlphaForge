@@ -92,7 +92,7 @@ export default function StrategyScreener() {
                                             </div>
                                         </div>
                                         {strategy.data_date && (
-                                            <span className="text-[10px] font-medium text-zinc-500 tracking-wide flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-[10px] font-medium text-zinc-400 tracking-wide flex items-center gap-1.5 mt-0.5">
                                                 已於 {strategy.data_date} 盤後刷新
                                             </span>
                                         )}
