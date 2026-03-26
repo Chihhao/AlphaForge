@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import api from '../lib/api'
 
 interface SectorItem {
   industry: string
@@ -17,10 +18,9 @@ export default function SectorStrengthWidget() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/market/sector-strength')
-      .then(r => r.json())
-      .then((json: SectorStrengthData) => {
-        setData(json)
+    api.get('/market/sector-strength')
+      .then(r => {
+        setData(r.data)
         setLoading(false)
       })
       .catch(() => setLoading(false))
