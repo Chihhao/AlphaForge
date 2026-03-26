@@ -72,3 +72,15 @@ class AlphaStats(BaseModel):
     equity_curve: List[EquityCurvePoint]
     recent_signals: List[RecentSignal]
     data_date: str              # 計算基準日
+
+
+class SectorStrengthItem(BaseModel):
+    industry: str
+    median_rs: float
+    stock_count: int
+
+
+class SectorStrengthResponse(BaseModel):
+    date: Optional[str]
+    top: List[SectorStrengthItem]
+    bottom: List[SectorStrengthItem]
