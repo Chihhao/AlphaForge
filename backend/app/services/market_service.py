@@ -1,17 +1,24 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+import pandas as pd
 import twstock
 
-from app.schemas.market import RankingItem, MarketRankingResponse
+from app.schemas.market import RankingItem, MarketRankingResponse, SectorStrengthItem, SectorStrengthResponse
 from app.models.stock_price import StockPrice
 from app.models.stock_fundamental import StockFundamental
+from app.models.stock_feature import StockFeature
+from app.models.user import Stock
 from app.db.database import SessionLocal
 
 # 盤中快取（5 分鐘）
 _rankings_cache: Optional[MarketRankingResponse] = None
 _rankings_cache_time: Optional[datetime] = None
 _CACHE_TTL_SECONDS = 300  # 5 分鐘
+
+# 產業強弱快取（sector_rs 為每日指標，5 分鐘防止重複查詢）
+_sector_cache: Optional[SectorStrengthResponse] = None
+_sector_cache_time: Optional[datetime] = None
 
 
 def _is_trading_hour() -> bool:
@@ -130,5 +137,105 @@ class MarketService:
         except Exception as e:
             print(f"Error in DB rankings: {e}")
             return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
+        finally:
+            db.close()
+
+    @staticmethod
+    def get_sector_strength(top_n: int = 5) -> SectorStrengthResponse:
+        """取得各產業 sector_rs 強弱排行（前 N 強 / 後 N 弱）
+
+        sector_rs 為每日指標，採用 5 分鐘快取防止重複查詢，
+        不跟隨 _is_trading_hour() 模式（盤中不會更新，快取可更激進）。
+        """
+        global _sector_cache, _sector_cache_time
+
+        now = datetime.now()
+        if (
+            _sector_cache is not None
+            and _sector_cache_time is not None
+            and (now - _sector_cache_time).total_seconds() < _CACHE_TTL_SECONDS
+        ):
+            return _sector_cache
+
+        result = MarketService._compute_sector_strength(top_n)
+        _sector_cache = result
+        _sector_cache_time = now
+        return result
+
+    @staticmethod
+    def _compute_sector_strength(top_n: int = 5) -> SectorStrengthResponse:
+        from sqlalchemy import func
+        import logging
+        logger = logging.getLogger(__name__)
+        db = SessionLocal()
+        try:
+            # 最近一個有效交易日（個股數 > 100，且有 sector_rs 資料）
+            latest = (
+                db.query(StockFeature.date)
+                .filter(StockFeature.sector_rs.isnot(None))
+                .group_by(StockFeature.date)
+                .having(func.count(StockFeature.stock_id) > 100)
+                .order_by(StockFeature.date.desc())
+                .first()
+            )
+            if not latest:
+                return SectorStrengthResponse(date=None, top=[], bottom=[])
+
+            target_date = latest[0]
+
+            # 取得當日特徵 + 產業（join stocks 表）
+            # 注意：Stock 定義於 app.models.user（歷史遺留，與 User 同檔案）
+            rows = (
+                db.query(StockFeature.stock_id, StockFeature.sector_rs, Stock.industry)
+                .join(Stock, Stock.stock_id == StockFeature.stock_id)
+                .filter(
+                    StockFeature.date == target_date,
+                    StockFeature.sector_rs.isnot(None),
+                    Stock.industry.isnot(None),
+                )
+                .all()
+            )
+
+            if not rows:
+                return SectorStrengthResponse(date=target_date.isoformat(), top=[], bottom=[])
+
+            # 按產業分組計算中位數
+            df = pd.DataFrame(rows, columns=['stock_id', 'sector_rs', 'industry'])
+            agg = (
+                df.groupby('industry')['sector_rs']
+                .agg(median_rs='median', stock_count='count')
+                .reset_index()
+            )
+            # 過濾股票數 < 3 的產業
+            agg = agg[agg['stock_count'] >= 3].sort_values('median_rs', ascending=False)
+
+            top_rows = agg.head(top_n)
+            bottom_rows = agg.tail(top_n).sort_values('median_rs', ascending=True)
+
+            top = [
+                SectorStrengthItem(
+                    industry=r['industry'],
+                    median_rs=round(float(r['median_rs']), 2),
+                    stock_count=int(r['stock_count']),
+                )
+                for _, r in top_rows.iterrows()
+            ]
+            bottom = [
+                SectorStrengthItem(
+                    industry=r['industry'],
+                    median_rs=round(float(r['median_rs']), 2),
+                    stock_count=int(r['stock_count']),
+                )
+                for _, r in bottom_rows.iterrows()
+            ]
+
+            return SectorStrengthResponse(
+                date=target_date.isoformat(),
+                top=top,
+                bottom=bottom,
+            )
+        except Exception as e:
+            logger.error(f"[MarketService] sector_strength error: {e}")
+            return SectorStrengthResponse(date=None, top=[], bottom=[])
         finally:
             db.close()
