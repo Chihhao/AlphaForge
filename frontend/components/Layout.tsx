@@ -98,9 +98,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     const menuItems = [
         { name: '首頁', icon: icons.home, href: '/' },
-        { name: '今日最強訊號', icon: icons.signal, href: '/signals' },
         { name: '每日精選', icon: icons.strategy, href: '/strategy' },
         { name: '系統日誌', icon: icons.console, href: '/logs' },
+        // { name: '今日最強訊號', icon: icons.signal, href: '/signals' },
         // { name: 'ECF 分析', icon: icons.ecf, href: '/ecf' },
     ]
 
@@ -240,7 +240,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             {[
                                 { href: '/', icon: icons.home, label: '首頁' },
                                 { href: '/strategy', icon: icons.strategy, label: '精選' },
-                                { href: '/signals', icon: icons.signal, label: '訊號' },
                             ].map(item => {
                                 const isActive = router.pathname === item.href
                                 return (

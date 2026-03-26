@@ -653,11 +653,6 @@ const StrategyPage = () => {
     const [activeDim, setActiveDim] = useState<DimKey>('5d')
     const [selectedStratId, setSelectedStratId] = useState<string | null>(null)
 
-    // 即時追蹤績效
-    const [livePerf, setLivePerf] = useState<{
-        trade_count: number; win_rate: number | null; avg_return: number | null; still_holding: number
-    } | null>(null)
-
     // Strategy Miner 回測績效
     const [perfExpanded, setPerfExpanded] = useState(false)
     const [perfData, setPerfData] = useState<Record<string, any> | null>(null)
@@ -801,9 +796,6 @@ const StrategyPage = () => {
 
         loadPicks()
 
-        api.get('/strategy-miner/picks/live-performance')
-            .then(r => setLivePerf(r.data))
-            .catch(() => {})
     }, [])
 
     const displayDate = signalDate
@@ -855,31 +847,6 @@ const StrategyPage = () => {
                         </div>
                     </div>
                 </div>
-
-                {/* ── 即時追蹤績效摘要 ──────────────────────────────────────── */}
-                {livePerf && livePerf.trade_count > 0 && (
-                    <div className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/40 border border-zinc-800/50 rounded-2xl flex-wrap text-xs">
-                        <span className="text-zinc-400 uppercase tracking-widest font-semibold text-[10px]">即時追蹤</span>
-                        <span className="text-zinc-500 font-mono">{livePerf.trade_count} 筆已出場</span>
-                        {livePerf.win_rate !== null && (
-                            <>
-                                <span className="text-zinc-800">·</span>
-                                <span className={`font-mono font-bold ${livePerf.win_rate >= 0.6 ? 'text-rose-400' : livePerf.win_rate >= 0.5 ? 'text-amber-400' : 'text-zinc-500'}`}>
-                                    勝率 {Math.round(livePerf.win_rate * 100)}%
-                                </span>
-                            </>
-                        )}
-                        {livePerf.avg_return !== null && (
-                            <>
-                                <span className="text-zinc-800">·</span>
-                                <span className={`font-mono font-bold ${livePerf.avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                    均報酬 {livePerf.avg_return >= 0 ? '+' : ''}{livePerf.avg_return.toFixed(1)}%
-                                </span>
-                            </>
-                        )}
-                        <span className="ml-auto text-zinc-500 text-[10px]">非回測 · 基於首次推薦日收盤價</span>
-                    </div>
-                )}
 
                 {error && (
                     <div className="bg-rose-900/20 border border-rose-800/50 rounded-2xl p-4 text-rose-400 text-sm">
