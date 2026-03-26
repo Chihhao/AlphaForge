@@ -164,45 +164,71 @@ class MarketService:
 
     @staticmethod
     def _compute_sector_strength(top_n: int = 5) -> SectorStrengthResponse:
+        """按各產業的 20 日報酬中位數排行（正確方法）。
+
+        注意：不能用 sector_rs 來排名，因為 sector_rs = ret20 - 產業中位數，
+        同產業內的 sector_rs 中位數恆為 0（數學上必然）。
+        正確做法：直接從 stock_prices 計算近 20 個交易日漲幅，再按產業聚合。
+        """
         from sqlalchemy import func
+        from datetime import date as date_type
         import logging
         logger = logging.getLogger(__name__)
         db = SessionLocal()
         try:
-            # 最近一個有效交易日（個股數 > 100，且有 sector_rs 資料）
-            latest = (
-                db.query(StockFeature.date)
-                .filter(StockFeature.sector_rs.isnot(None))
-                .group_by(StockFeature.date)
-                .having(func.count(StockFeature.stock_id) > 100)
-                .order_by(StockFeature.date.desc())
-                .first()
+            # 最近一個有效交易日（個股數 > 100）
+            latest_dates = (
+                db.query(StockPrice.date)
+                .filter(~StockPrice.stock_id.startswith("^"))
+                .group_by(StockPrice.date)
+                .having(func.count(StockPrice.stock_id) > 100)
+                .order_by(StockPrice.date.desc())
+                .limit(25)
+                .all()
             )
-            if not latest:
+            if len(latest_dates) < 21:
                 return SectorStrengthResponse(date=None, top=[], bottom=[])
 
-            target_date = latest[0]
+            target_date = latest_dates[0][0]
+            date_20d_ago = latest_dates[20][0]   # 第 21 筆 = 20 個交易日前
 
-            # 取得當日特徵 + 產業（join stocks 表）
-            # 注意：Stock 定義於 app.models.user（歷史遺留，與 User 同檔案）
-            rows = (
-                db.query(StockFeature.stock_id, StockFeature.sector_rs, Stock.industry)
-                .join(Stock, Stock.stock_id == StockFeature.stock_id)
+            # 抓這兩個日期的全市場收盤價
+            prices = (
+                db.query(StockPrice.stock_id, StockPrice.date, StockPrice.close)
                 .filter(
-                    StockFeature.date == target_date,
-                    StockFeature.sector_rs.isnot(None),
-                    Stock.industry.isnot(None),
+                    StockPrice.date.in_([target_date, date_20d_ago]),
+                    ~StockPrice.stock_id.startswith("^"),
                 )
                 .all()
             )
 
-            if not rows:
+            if not prices:
                 return SectorStrengthResponse(date=target_date.isoformat(), top=[], bottom=[])
 
-            # 按產業分組計算中位數
-            df = pd.DataFrame(rows, columns=['stock_id', 'sector_rs', 'industry'])
+            price_df = pd.DataFrame(prices, columns=['stock_id', 'date', 'close'])
+            price_dict = price_df.set_index(['stock_id', 'date'])['close'].to_dict()
+
+            # 取得產業對照表（Stock 定義於 app.models.user，歷史遺留）
+            industry_map = {
+                r.stock_id: r.industry
+                for r in db.query(Stock.stock_id, Stock.industry).filter(Stock.industry.isnot(None)).all()
+            }
+
+            # 計算每股 20 日報酬率
+            records = []
+            for sid, industry in industry_map.items():
+                curr = price_dict.get((sid, target_date))
+                prev = price_dict.get((sid, date_20d_ago))
+                if curr is not None and prev is not None and prev > 0:
+                    ret20 = (float(curr) - float(prev)) / float(prev) * 100
+                    records.append({'stock_id': sid, 'industry': industry, 'ret20': ret20})
+
+            if not records:
+                return SectorStrengthResponse(date=target_date.isoformat(), top=[], bottom=[])
+
+            df = pd.DataFrame(records)
             agg = (
-                df.groupby('industry')['sector_rs']
+                df.groupby('industry')['ret20']
                 .agg(median_rs='median', stock_count='count')
                 .reset_index()
             )
