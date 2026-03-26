@@ -28,8 +28,15 @@ export default function SectorStrengthWidget() {
 
   if (loading) {
     return (
-      <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
-        <h2 className="text-sm font-semibold text-zinc-400 mb-3">產業輪動強弱</h2>
+      <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
+        <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-800/40">
+          <span className="text-amber-400 text-sm font-bold flex items-center gap-1.5">
+            <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+              <path d="M3,13H5V11H3V13M3,17H5V15H3V17M3,9H5V7H3V9M7,13H21V11H7V13M7,17H21V15H7V17M7,7V9H21V7H7Z" />
+            </svg>
+            產業輪動強弱
+          </span>
+        </div>
         <p className="text-xs text-zinc-500">載入中...</p>
       </div>
     )
@@ -37,8 +44,15 @@ export default function SectorStrengthWidget() {
 
   if (!data || !data.date || (data.top.length === 0 && data.bottom.length === 0)) {
     return (
-      <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
-        <h2 className="text-sm font-semibold text-zinc-400 mb-3">產業輪動強弱</h2>
+      <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
+        <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-800/40">
+          <span className="text-amber-400 text-sm font-bold flex items-center gap-1.5">
+            <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+              <path d="M3,13H5V11H3V13M3,17H5V15H3V17M3,9H5V7H3V9M7,13H21V11H7V13M7,17H21V15H7V17M7,7V9H21V7H7Z" />
+            </svg>
+            產業輪動強弱
+          </span>
+        </div>
         <p className="text-xs text-zinc-500">產業資料尚未就緒，請先執行特徵回補</p>
       </div>
     )
@@ -47,10 +61,15 @@ export default function SectorStrengthWidget() {
   const formatRs = (val: number) => (val >= 0 ? `+${val.toFixed(1)}` : val.toFixed(1))
 
   return (
-    <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-zinc-200">產業輪動強弱</h2>
-        <span className="text-xs text-zinc-500">{data.date}</span>
+    <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-800/40">
+        <span className="text-amber-400 text-sm font-bold flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+            <path d="M3,13H5V11H3V13M3,17H5V15H3V17M3,9H5V7H3V9M7,13H21V11H7V13M7,17H21V15H7V17M7,7V9H21V7H7Z" />
+          </svg>
+          產業輪動強弱
+        </span>
+        <span className="text-zinc-400 text-[10px] font-mono font-normal">{data.date}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
