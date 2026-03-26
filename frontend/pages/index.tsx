@@ -5,6 +5,7 @@ import StrategyMinerPreview from '../components/StrategyMinerPreview';
 import MarketSentimentWidget from '../components/MarketSentimentWidget';
 import MarketRanking from '../components/MarketRanking';
 import WatchlistWidget from '../components/WatchlistWidget';
+import SectorStrengthWidget from '../components/SectorStrengthWidget';
 
 export default function Home() {
 
@@ -28,6 +29,11 @@ export default function Home() {
         {/* 今日操作建議：Strategy Miner 精簡預覽 */}
         <section className="mb-4">
           <StrategyMinerPreview />
+        </section>
+
+        {/* 產業輪動強弱 */}
+        <section className="mb-4">
+          <SectorStrengthWidget />
         </section>
 
         {/* 觀察清單（localStorage，有內容才顯示）*/}
