@@ -75,7 +75,7 @@ export default function SectorStrengthWidget() {
       <div className="grid grid-cols-2 gap-3">
         {/* 強勢產業 */}
         <div>
-          <p className="text-xs text-emerald-400 font-medium mb-2">強勢產業</p>
+          <p className="text-xs text-emerald-400 font-medium mb-2">近20日漲幅居前</p>
           <div className="space-y-1">
             {data.top.map((item) => (
               <div key={item.industry} className="flex items-center justify-between">
@@ -90,7 +90,7 @@ export default function SectorStrengthWidget() {
 
         {/* 弱勢產業 */}
         <div>
-          <p className="text-xs text-rose-400 font-medium mb-2">弱勢產業</p>
+          <p className="text-xs text-rose-400 font-medium mb-2">近20日漲幅居後</p>
           <div className="space-y-1">
             {data.bottom.map((item) => (
               <div key={item.industry} className="flex items-center justify-between">
