@@ -12,7 +12,7 @@ from app.services.screener_service import ScreenerService
 from app.services.market_data_crawler import MarketDataCrawler
 from app.services.feature_service import FeatureService
 from app.models.system_event import SystemEvent
-from app.schemas.market import MarketSummary, AlphaStats
+from app.schemas.market import MarketSummary, AlphaStats, SectorStrengthResponse
 from app.schemas.screener import StrategyResult
 from app.db.database import SessionLocal
 
@@ -331,3 +331,10 @@ def get_pcr(days: int = 30):
         }
     finally:
         db.close()
+
+
+@router.get("/sector-strength", response_model=SectorStrengthResponse)
+def get_sector_strength():
+    """各產業 sector_rs 強弱排行（前 5 強 / 後 5 弱）"""
+    from app.services.market_service import MarketService
+    return MarketService.get_sector_strength()
