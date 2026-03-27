@@ -12,7 +12,7 @@ from app.services.screener_service import ScreenerService
 from app.services.market_data_crawler import MarketDataCrawler
 from app.services.feature_service import FeatureService
 from app.models.system_event import SystemEvent
-from app.schemas.market import MarketSummary, AlphaStats, SectorStrengthResponse
+from app.schemas.market import MarketSummary, AlphaStats, SectorStrengthResponse, SectorStocksResponse
 from app.schemas.screener import StrategyResult
 from app.db.database import SessionLocal
 
@@ -338,3 +338,10 @@ def get_sector_strength():
     """各產業 sector_rs 強弱排行（前 5 強 / 後 5 弱）"""
     from app.services.market_service import MarketService
     return MarketService.get_sector_strength()
+
+
+@router.get("/sector-stocks", response_model=SectorStocksResponse)
+def get_sector_stocks(industry: str, top: int = 10):
+    """指定產業的個股 20 日漲幅排行（Top N）"""
+    from app.services.market_service import MarketService
+    return MarketService.get_sector_stocks(industry, top=min(top, 20))
