@@ -7,6 +7,7 @@ import {
     LineChart, Line, XAxis, YAxis, Tooltip,
     ResponsiveContainer, CartesianGrid, ReferenceLine
 } from 'recharts'
+import PicksTrackRecord from '../components/PicksTrackRecord'
 
 // ─── Strategy Miner API 回傳型別 ──────────────────────────────────────────────
 interface StrategyMinerPick {
@@ -854,6 +855,8 @@ const StrategyPage = () => {
                     </div>
                 )}
 
+                {/* ── 歷史推薦成績 ──────────────────────────────────────── */}
+                <PicksTrackRecord />
 
                 {/* ── 明日建議買入 ──────────────────────────────────────── */}
                 <div className="flex items-center gap-2 px-1">
