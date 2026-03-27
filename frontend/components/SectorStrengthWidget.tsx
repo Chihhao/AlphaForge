@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import api from '../lib/api'
 
 interface SectorItem {
@@ -83,14 +84,14 @@ export default function SectorStrengthWidget() {
     return (
       <div className="mt-1 mb-2 pl-2 border-l border-zinc-700/60 space-y-0.5 py-1">
         {stocks.map((s, idx) => (
-          <div key={s.stock_id} className="flex items-center gap-1 text-[10px] font-mono">
+          <Link key={s.stock_id} href={`/stock/${s.stock_id}`} className="flex items-center gap-1 text-xs font-mono hover:bg-zinc-700/30 rounded px-0.5 transition-colors">
             <span className="text-zinc-600 w-3 shrink-0">{idx + 1}</span>
             <span className="text-zinc-500 w-10 shrink-0">{s.stock_id}</span>
             <span className="text-zinc-300 flex-1 truncate">{s.name}</span>
             <span className={s.ret20 > 0 ? 'text-emerald-400' : s.ret20 < 0 ? 'text-rose-400' : 'text-zinc-400'}>
               {s.ret20 > 0 ? `+${s.ret20.toFixed(1)}` : s.ret20.toFixed(1)}%
             </span>
-          </div>
+          </Link>
         ))}
       </div>
     )
