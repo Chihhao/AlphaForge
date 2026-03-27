@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 import pandas as pd
 import twstock
 
-from app.schemas.market import RankingItem, MarketRankingResponse, SectorStrengthItem, SectorStrengthResponse
+from app.schemas.market import (
+    RankingItem, MarketRankingResponse,
+    SectorStrengthItem, SectorStrengthResponse,
+    SectorStockItem, SectorStocksResponse,
+)
 from app.models.stock_price import StockPrice
 from app.models.stock_fundamental import StockFundamental
 from app.models.stock_feature import StockFeature
@@ -19,6 +23,10 @@ _CACHE_TTL_SECONDS = 300  # 5 分鐘
 # 產業強弱快取（sector_rs 為每日指標，5 分鐘防止重複查詢）
 _sector_cache: Optional[SectorStrengthResponse] = None
 _sector_cache_time: Optional[datetime] = None
+
+# 產業個股快取（以產業名稱為 key）
+_sector_stocks_cache: Dict[str, "SectorStocksResponse"] = {}
+_sector_stocks_cache_time: Dict[str, datetime] = {}
 
 
 def _is_trading_hour() -> bool:
@@ -263,5 +271,106 @@ class MarketService:
         except Exception as e:
             logger.error(f"[MarketService] sector_strength error: {e}")
             return SectorStrengthResponse(date=None, top=[], bottom=[])
+        finally:
+            db.close()
+
+    @staticmethod
+    def get_sector_stocks(industry: str, top: int = 10) -> SectorStocksResponse:
+        """取得指定產業的 Top N 個股（按 20 日漲幅降序），附 5 分鐘快取。"""
+        global _sector_stocks_cache, _sector_stocks_cache_time
+        now = datetime.now()
+        if (
+            industry in _sector_stocks_cache
+            and industry in _sector_stocks_cache_time
+            and (now - _sector_stocks_cache_time[industry]).total_seconds() < _CACHE_TTL_SECONDS
+        ):
+            return _sector_stocks_cache[industry]
+
+        result = MarketService._compute_sector_stocks(industry, top)
+        _sector_stocks_cache[industry] = result
+        _sector_stocks_cache_time[industry] = now
+        return result
+
+    @staticmethod
+    def _compute_sector_stocks(industry: str, top: int = 10) -> SectorStocksResponse:
+        """查詢指定產業的個股 20 日報酬，回傳 Top N。"""
+        from sqlalchemy import func
+        import logging
+        logger = logging.getLogger(__name__)
+        db = SessionLocal()
+        try:
+            # 最近 21 個有效交易日
+            latest_dates = (
+                db.query(StockPrice.date)
+                .filter(~StockPrice.stock_id.startswith("^"))
+                .group_by(StockPrice.date)
+                .having(func.count(StockPrice.stock_id) > 100)
+                .order_by(StockPrice.date.desc())
+                .limit(25)
+                .all()
+            )
+            if len(latest_dates) < 21:
+                return SectorStocksResponse(industry=industry, date=None, stocks=[])
+
+            target_date = latest_dates[0][0]
+            date_20d_ago = latest_dates[20][0]
+
+            # 取得指定產業的個股清單與名稱
+            stocks_in_industry = (
+                db.query(Stock.stock_id, Stock.name, Stock.industry)
+                .filter(Stock.industry == industry)
+                .all()
+            )
+            if not stocks_in_industry:
+                return SectorStocksResponse(
+                    industry=industry, date=target_date.isoformat(), stocks=[]
+                )
+
+            stock_ids = [r.stock_id for r in stocks_in_industry]
+            name_map = {r.stock_id: r.name for r in stocks_in_industry}
+
+            # 取兩日收盤價
+            prices = (
+                db.query(StockPrice.stock_id, StockPrice.date, StockPrice.close)
+                .filter(
+                    StockPrice.date.in_([target_date, date_20d_ago]),
+                    StockPrice.stock_id.in_(stock_ids),
+                )
+                .all()
+            )
+            price_dict = {(r.stock_id, r.date): float(r.close) for r in prices}
+
+            # 計算 ret20 並排序
+            records = []
+            for sid in stock_ids:
+                curr = price_dict.get((sid, target_date))
+                prev = price_dict.get((sid, date_20d_ago))
+                if curr is not None and prev is not None and prev > 0:
+                    ret20 = round((curr - prev) / prev * 100, 2)
+                    records.append({
+                        'stock_id': sid,
+                        'name': name_map.get(sid, sid),
+                        'ret20': ret20,
+                    })
+
+            records.sort(key=lambda x: x['ret20'], reverse=True)
+            top_records = records[:top]
+
+            stocks = [
+                SectorStockItem(
+                    stock_id=r['stock_id'],
+                    name=r['name'],
+                    ret20=r['ret20'],
+                )
+                for r in top_records
+            ]
+            return SectorStocksResponse(
+                industry=industry,
+                date=target_date.isoformat(),
+                stocks=stocks,
+            )
+        except Exception as e:
+            logger.error(f"[MarketService] sector_stocks error: {e}")
+            return SectorStocksResponse(industry=industry, date=None, stocks=[])
         finally:
             db.close()
