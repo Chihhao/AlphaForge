@@ -344,7 +344,7 @@ class MarketService:
                 return SectorStocksResponse(industry=industry, date=target_date.isoformat(), stocks=[])
 
             price_df = pd.DataFrame(prices, columns=['stock_id', 'date', 'close'])
-            pivot = price_df.pivot(index='stock_id', columns='date', values='close')
+            pivot = price_df.pivot_table(index='stock_id', columns='date', values='close', aggfunc='first')
 
             # 只取有兩日資料的股票
             if target_date not in pivot.columns or date_20d_ago not in pivot.columns:
