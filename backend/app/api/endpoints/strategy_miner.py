@@ -14,6 +14,7 @@ from app.models.strategy_miner_trade import StrategyMinerTrade
 from app.models.strategy_miner_pick import StrategyMinerPick
 from app.models.stock_price import StockPrice
 from sqlalchemy import func, and_
+import json
 
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
@@ -340,6 +341,88 @@ def get_live_performance(db: Session = Depends(get_db)):
         "total_return": total_return,
         "still_holding": len(rows) - len(finished),
     }
+
+
+@router.get("/picks/concluded")
+def get_concluded_picks(
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """已出場 picks 的逐筆成績單（停利 / 停損 / 到期 / 已結算）。
+
+    與 live-performance 使用相同的去重與判斷邏輯，
+    但回傳每筆明細而非彙總數字，並支援 limit/offset 分頁。
+    """
+    today = date.today()
+    cutoff = today - timedelta(days=60)
+
+    rows = (
+        db.query(StrategyMinerPick)
+        .filter(
+            StrategyMinerPick.pick_date >= cutoff,
+            StrategyMinerPick.pick_date < today,
+        )
+        .order_by(StrategyMinerPick.pick_date.desc())
+        .all()
+    )
+    if not rows:
+        return {"items": [], "total": 0}
+
+    # 同股票只保留最早一筆（與 live-performance 邏輯一致）
+    seen: dict = {}
+    for p in rows:
+        seen[p.stock_id] = p
+    deduped = list(seen.values())
+
+    stock_ids = [p.stock_id for p in deduped]
+    price_map = _get_current_prices(db, stock_ids)
+
+    concluded = []
+    for p in deduped:
+        entry = p.entry_price or 0
+        current = price_map.get(p.stock_id, 0)
+        if entry <= 0 or current <= 0:
+            continue
+        days_held = (today - p.pick_date).days
+        float_pct = round((current - entry) / entry * 100, 2)
+
+        if current >= entry * (1 + p.take_profit_pct):
+            exit_reason = "take_profit"
+        elif current <= entry * (1 - p.stop_loss_pct):
+            exit_reason = "stop_loss"
+        elif days_held > p.hold_days_max + 7:
+            exit_reason = "settled"
+        elif days_held >= p.hold_days_max:
+            exit_reason = "time_limit"
+        else:
+            continue  # 持有中，跳過
+
+        buy_reasons: list = []
+        if p.buy_reasons:
+            try:
+                buy_reasons = json.loads(p.buy_reasons)
+            except Exception:
+                pass
+
+        concluded.append({
+            "pick_date": p.pick_date.isoformat(),
+            "stock_id": p.stock_id,
+            "stock_name": p.stock_name,
+            "entry_price": entry,
+            "exit_reason": exit_reason,
+            "return_pct": float_pct,
+            "days_held": days_held,
+            "time_dimension": p.time_dimension or "10d",
+            "buy_reasons": buy_reasons,
+            "take_profit_pct": p.take_profit_pct,
+            "stop_loss_pct": p.stop_loss_pct,
+            "hold_days_max": p.hold_days_max,
+        })
+
+    concluded.sort(key=lambda x: x["pick_date"], reverse=True)
+    total = len(concluded)
+    return {"items": concluded[offset: offset + limit], "total": total}
 
 
 @router.get("/picks/history")
