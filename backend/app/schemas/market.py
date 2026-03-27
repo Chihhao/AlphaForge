@@ -84,3 +84,15 @@ class SectorStrengthResponse(BaseModel):
     date: Optional[str]
     top: List[SectorStrengthItem]
     bottom: List[SectorStrengthItem]
+
+
+class SectorStockItem(BaseModel):
+    stock_id: str
+    name: str
+    ret20: float
+
+
+class SectorStocksResponse(BaseModel):
+    industry: str
+    date: Optional[str]
+    stocks: List[SectorStockItem]
