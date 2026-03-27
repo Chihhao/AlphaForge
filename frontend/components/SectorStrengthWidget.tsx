@@ -87,8 +87,8 @@ export default function SectorStrengthWidget() {
             <span className="text-zinc-600 w-3 shrink-0">{idx + 1}</span>
             <span className="text-zinc-500 w-10 shrink-0">{s.stock_id}</span>
             <span className="text-zinc-300 flex-1 truncate">{s.name}</span>
-            <span className={s.ret20 >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-              {s.ret20 >= 0 ? `+${s.ret20.toFixed(1)}` : s.ret20.toFixed(1)}%
+            <span className={s.ret20 > 0 ? 'text-emerald-400' : s.ret20 < 0 ? 'text-rose-400' : 'text-zinc-400'}>
+              {s.ret20 > 0 ? `+${s.ret20.toFixed(1)}` : s.ret20.toFixed(1)}%
             </span>
           </div>
         ))}

@@ -43,4 +43,5 @@ def test_get_sector_stocks_cache():
     r1 = MarketService.get_sector_stocks(industry)
     r2 = MarketService.get_sector_stocks(industry)
     # 快取命中時回傳同一個物件（is）
-    assert r1 is r2
+    assert r1 is r2  # 相同 industry + 相同 top → 命中快取，回傳同一物件
+    # 注意：不同 top 值（如 top=5 vs top=10）使用獨立 cache key，此測試不覆蓋該情境
