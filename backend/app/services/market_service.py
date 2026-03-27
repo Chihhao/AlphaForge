@@ -279,16 +279,17 @@ class MarketService:
         """取得指定產業的 Top N 個股（按 20 日漲幅降序），附 5 分鐘快取。"""
         global _sector_stocks_cache, _sector_stocks_cache_time
         now = datetime.now()
+        cache_key = f"{industry}:{top}"
         if (
-            industry in _sector_stocks_cache
-            and industry in _sector_stocks_cache_time
-            and (now - _sector_stocks_cache_time[industry]).total_seconds() < _CACHE_TTL_SECONDS
+            cache_key in _sector_stocks_cache
+            and cache_key in _sector_stocks_cache_time
+            and (now - _sector_stocks_cache_time[cache_key]).total_seconds() < _CACHE_TTL_SECONDS
         ):
-            return _sector_stocks_cache[industry]
+            return _sector_stocks_cache[cache_key]
 
         result = MarketService._compute_sector_stocks(industry, top)
-        _sector_stocks_cache[industry] = result
-        _sector_stocks_cache_time[industry] = now
+        _sector_stocks_cache[cache_key] = result
+        _sector_stocks_cache_time[cache_key] = now
         return result
 
     @staticmethod
@@ -317,7 +318,7 @@ class MarketService:
 
             # 取得指定產業的個股清單與名稱
             stocks_in_industry = (
-                db.query(Stock.stock_id, Stock.name, Stock.industry)
+                db.query(Stock.stock_id, Stock.stock_name, Stock.industry)
                 .filter(Stock.industry == industry)
                 .all()
             )
@@ -327,7 +328,7 @@ class MarketService:
                 )
 
             stock_ids = [r.stock_id for r in stocks_in_industry]
-            name_map = {r.stock_id: r.name for r in stocks_in_industry}
+            name_map = {r.stock_id: r.stock_name for r in stocks_in_industry}
 
             # 取兩日收盤價
             prices = (
@@ -338,31 +339,29 @@ class MarketService:
                 )
                 .all()
             )
-            price_dict = {(r.stock_id, r.date): float(r.close) for r in prices}
 
-            # 計算 ret20 並排序
-            records = []
-            for sid in stock_ids:
-                curr = price_dict.get((sid, target_date))
-                prev = price_dict.get((sid, date_20d_ago))
-                if curr is not None and prev is not None and prev > 0:
-                    ret20 = round((curr - prev) / prev * 100, 2)
-                    records.append({
-                        'stock_id': sid,
-                        'name': name_map.get(sid, sid),
-                        'ret20': ret20,
-                    })
+            if not prices:
+                return SectorStocksResponse(industry=industry, date=target_date.isoformat(), stocks=[])
 
-            records.sort(key=lambda x: x['ret20'], reverse=True)
-            top_records = records[:top]
+            price_df = pd.DataFrame(prices, columns=['stock_id', 'date', 'close'])
+            pivot = price_df.pivot(index='stock_id', columns='date', values='close')
+
+            # 只取有兩日資料的股票
+            if target_date not in pivot.columns or date_20d_ago not in pivot.columns:
+                return SectorStocksResponse(industry=industry, date=target_date.isoformat(), stocks=[])
+
+            pivot = pivot[[date_20d_ago, target_date]].dropna()
+            pivot = pivot[pivot[date_20d_ago] > 0]
+            pivot['ret20'] = ((pivot[target_date] - pivot[date_20d_ago]) / pivot[date_20d_ago] * 100).round(2)
+            pivot = pivot.sort_values('ret20', ascending=False).head(top)
 
             stocks = [
                 SectorStockItem(
-                    stock_id=r['stock_id'],
-                    name=r['name'],
-                    ret20=r['ret20'],
+                    stock_id=sid,
+                    name=name_map.get(sid, sid),
+                    ret20=float(row['ret20']),
                 )
-                for r in top_records
+                for sid, row in pivot.iterrows()
             ]
             return SectorStocksResponse(
                 industry=industry,
