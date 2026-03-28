@@ -74,7 +74,7 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
         <span className="text-base text-zinc-400">綜合評等</span>
         <div className="text-right">
           <span className={`font-mono font-bold text-base ${scoreColor}`}>{scoreText}</span>
-          <span className="text-zinc-600 text-xs ml-1.5">{composite_score}/100</span>
+          <span className="text-zinc-400 text-xs ml-1.5">{composite_score}/100</span>
         </div>
       </div>
       <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -83,7 +83,7 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
           style={{ width: `${composite_score}%` }}
         />
       </div>
-      <div className="flex justify-between text-[10px] text-zinc-700 mt-0.5 mb-3">
+      <div className="flex justify-between text-xs text-zinc-500 mt-0.5 mb-3">
         <span>弱勢</span><span>中性</span><span>強勢</span>
       </div>
 
