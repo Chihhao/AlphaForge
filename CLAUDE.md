@@ -127,6 +127,7 @@ API 呼叫透過 `/api/*` 路由，由 Next.js rewrites（`next.config.js`）代
 - 深色玻璃擬態主題：背景使用 `bg-gray-800` / `zinc-900`
 - 顏色語意：金色 = 強調/提示，綠色 = 僅限多頭/正向，紅色 = 僅限空頭/負向
 - 元件程式碼保持在 300 行以內
+- **字體與顏色下限**：內文最小 `text-xs`，說明性標籤最小 `text-xs`，禁止使用 `text-[10px]` 或更小；灰色文字最深 `zinc-500`（說明文字）、`zinc-400`（數值/標籤），禁止使用 `zinc-600` 或更深於正文的顏色
 
 ### API 代理
 前端呼叫 `/api/*`，由 Next.js rewrites 轉發至 `${INTERNAL_API_URL}/*`。本地開發設定 `INTERNAL_API_URL=http://localhost:8000`，Docker 環境預設為 `http://alphaforge-backend:8000`。
