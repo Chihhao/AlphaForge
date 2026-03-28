@@ -464,7 +464,7 @@ class StrategyMinerService:
 
         # 載入相關股票價格
         stock_ids = signals_df['stock_id'].unique().tolist()
-        price_dict, sorted_dates_dict = cls._load_prices(db, stock_ids, cutoff)
+        price_dict, sorted_dates_dict, open_dict = cls._load_prices(db, stock_ids, cutoff)
 
         # 訓練/測試切割（4/6 訓練、2/6 測試）
         n = len(signals_df)
@@ -479,7 +479,7 @@ class StrategyMinerService:
         is_short = (direction == 'short')
 
         # 跑 18 組參數（訓練集）
-        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, is_short=is_short)
+        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, is_short=is_short, open_dict=open_dict)
 
         # 找訓練集 Sharpe 前三
         train_sharpes: List[Tuple[int, float]] = []
@@ -491,7 +491,7 @@ class StrategyMinerService:
 
         # 跑前三（測試集）
         top3_params = [PARAMS_LIST[i] for i in top3_indices]
-        test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params, is_short=is_short)
+        test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params, is_short=is_short, open_dict=open_dict)
 
         # 選測試集最穩定者
         best_idx_in_top3 = 0
@@ -554,7 +554,7 @@ class StrategyMinerService:
 
         # 以最優參數跑全部訊號，儲存逐筆交易記錄
         all_trades_by_param = cls._simulate_entries(
-            signals_df, price_dict, sorted_dates_dict, [optimal_params], is_short=is_short,
+            signals_df, price_dict, sorted_dates_dict, [optimal_params], is_short=is_short, open_dict=open_dict,
         )
         optimal_all_trades = all_trades_by_param[0]
 
@@ -583,9 +583,10 @@ class StrategyMinerService:
         price_dict: Dict,
         sorted_dates_dict: Dict,
         is_short: bool = False,
+        open_dict: Optional[Dict] = None,
     ) -> List[List[dict]]:
         """對所有 18 組參數進行回測，回傳 list of 18 trade lists"""
-        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, PARAMS_LIST, is_short=is_short)
+        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, PARAMS_LIST, is_short=is_short, open_dict=open_dict)
 
     @classmethod
     def _simulate_entries(
@@ -595,6 +596,7 @@ class StrategyMinerService:
         sorted_dates_dict: Dict[str, List],
         params_list: List[dict],
         is_short: bool = False,
+        open_dict: Optional[Dict[str, Dict]] = None,
     ) -> List[List[dict]]:
         """對指定參數列表模擬回測，回傳每組參數的交易記錄列表"""
         results: List[List[dict]] = [[] for _ in params_list]
@@ -615,17 +617,24 @@ class StrategyMinerService:
             if not px or not dates:
                 continue
 
-            # 查進場價（signal_date 收盤）
-            entry_price = px.get(signal_date)
-            if not entry_price or entry_price <= 0:
-                continue
-
             # 找 signal_date 在 dates 中的位置（O(1) 查找）
             sig_idx = date_idx.get(stock_id, {}).get(signal_date)
             if sig_idx is None:
                 continue
 
-            # 取後續 max_hold+5 個交易日的收盤
+            # 進場價：隔日開盤價（更貼近實際操作）
+            if sig_idx + 1 >= len(dates):
+                continue
+            next_date = dates[sig_idx + 1]
+            if open_dict and stock_id in open_dict and next_date in open_dict[stock_id]:
+                entry_price = open_dict[stock_id][next_date]
+            else:
+                # fallback：隔日收盤（open 不存在時）
+                entry_price = px.get(next_date, 0)
+            if not entry_price or entry_price <= 0:
+                continue
+
+            # 取隔日(含)之後 max_hold+5 個交易日的收盤
             fwd_dates = dates[sig_idx + 1 : sig_idx + 1 + max_hold + 5]
             if not fwd_dates:
                 continue
@@ -689,9 +698,9 @@ class StrategyMinerService:
         stock_ids: List[str],
         cutoff: date,
     ) -> Tuple[Dict[str, Dict], Dict[str, List]]:
-        """批次載入股票歷史收盤價，回傳 price_dict 和 sorted_dates_dict"""
+        """批次載入股票歷史 open + close 價格"""
         rows = (
-            db.query(StockPrice.stock_id, StockPrice.date, StockPrice.close)
+            db.query(StockPrice.stock_id, StockPrice.date, StockPrice.open, StockPrice.close)
             .filter(
                 StockPrice.stock_id.in_(stock_ids),
                 StockPrice.date >= cutoff,
@@ -701,18 +710,22 @@ class StrategyMinerService:
             .all()
         )
 
-        price_dict: Dict[str, Dict] = {}
+        price_dict: Dict[str, Dict] = {}     # {stock_id: {date: close}}
+        open_dict: Dict[str, Dict] = {}      # {stock_id: {date: open}}
         sorted_dates_dict: Dict[str, List] = {}
 
         for r in rows:
             sid = str(r.stock_id)
             if sid not in price_dict:
                 price_dict[sid] = {}
+                open_dict[sid] = {}
                 sorted_dates_dict[sid] = []
             price_dict[sid][r.date] = float(r.close)
+            if r.open:
+                open_dict[sid][r.date] = float(r.open)
             sorted_dates_dict[sid].append(r.date)
 
-        return price_dict, sorted_dates_dict
+        return price_dict, sorted_dates_dict, open_dict
 
     @staticmethod
     def _default_params(dimension: str) -> Tuple[float, float, int]:
