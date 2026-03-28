@@ -68,7 +68,7 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
   return (
     <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">進階技術分析</p>
+        <p className="text-base font-bold text-amber-400">進階技術分析</p>
         <button
           onClick={() => setShowDetail(v => !v)}
           className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"

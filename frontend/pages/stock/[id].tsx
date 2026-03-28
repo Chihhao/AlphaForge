@@ -425,7 +425,7 @@ export default function StockDetail() {
           const maxEpsAbs = Math.max(...eps.map((e: any) => Math.abs(e.eps ?? 0)), 0.01)
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">財務趨勢</p>
+              <p className="text-base font-bold text-amber-400 mb-3">財務趨勢</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 月營收 */}
                 {rev.length > 0 && (
@@ -537,7 +537,7 @@ export default function StockDetail() {
 
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">籌碼面（近 {chipData.length} 日）</p>
+              <p className="text-base font-bold text-amber-400 mb-3">籌碼面（近 {chipData.length} 日）</p>
               <div className="space-y-2.5">
                 <SparkBars values={chipData.map((r: any) => r.foreign_net_buy ?? 0)} label="外資" sum={fgn5} />
                 <SparkBars values={chipData.map((r: any) => r.trust_net_buy ?? 0)} label="投信" sum={trs5} />
@@ -615,7 +615,7 @@ export default function StockDetail() {
 
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">技術面信號</p>
+              <p className="text-base font-bold text-amber-400 mb-3">技術面信號</p>
               <div>
                 {rows.map(({ key, name, hint, signal }) => (
                   <div key={key} className="flex justify-between items-center py-2.5 border-b border-zinc-800/40">
@@ -651,7 +651,7 @@ export default function StockDetail() {
           const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">Alpha Miner 歷史訊號（近 180 日）</p>
+              <p className="text-base font-bold text-amber-400 mb-3">Alpha Miner 歷史訊號（近 180 日）</p>
               <div className="space-y-1.5">
                 {alphaSignals.map((sig: any, i: number) => {
                   const isResolved = sig.is_resolved

@@ -41,7 +41,7 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
   return (
     <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl shadow-lg border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest border-l-2 border-violet-500 pl-1.5">
+        <p className="text-base font-bold text-amber-400">
           AI 智慧解讀
         </p>
         {result && (
