@@ -444,7 +444,15 @@ export default function StockDetail() {
                   })
                   return (
                   <div>
-                    <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <p className="text-xs text-zinc-400 uppercase tracking-widest font-bold">月營收（億）</p>
+                      {rev[rev.length - 1]?.yoy != null && (
+                        <span className={`text-xs font-mono font-bold ${rev[rev.length - 1].yoy >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          最新 {rev[rev.length - 1].revenue?.toFixed(1)}億 ｜
+                          YoY {rev[rev.length - 1].yoy >= 0 ? '+' : ''}{rev[rev.length - 1].yoy?.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-end gap-px h-20">
                       {rev.map((r: any, i: number) => {
                         const h = Math.min((r.revenue / maxRev) * 100, 100)
@@ -464,13 +472,6 @@ export default function StockDetail() {
                         <span key={idx} className="absolute text-xs text-zinc-500 font-mono" style={{ left: `${(idx / rev.length) * 100}%` }}>{year}</span>
                       ))}
                     </div>
-                    {rev[rev.length - 1]?.yoy != null && (
-                      <p className={`text-xs font-mono font-bold mt-1 ${rev[rev.length - 1].yoy >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        最新 {rev[rev.length - 1].revenue?.toFixed(1)}億
-                        <span className="ml-2 text-zinc-500 font-normal">YoY </span>
-                        {rev[rev.length - 1].yoy >= 0 ? '+' : ''}{rev[rev.length - 1].yoy?.toFixed(1)}%
-                      </p>
-                    )}
                   </div>
                   )
                 })()}
@@ -483,7 +484,14 @@ export default function StockDetail() {
                   })
                   return (
                   <div>
-                    <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <p className="text-xs text-zinc-400 uppercase tracking-widest font-bold">季 EPS（元）</p>
+                      {eps[eps.length - 1]?.eps != null && (
+                        <span className={`text-xs font-mono font-bold ${(eps[eps.length - 1].eps ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          最新 {eps[eps.length - 1].eps?.toFixed(2)} 元
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-end gap-px h-20">
                       {eps.map((e: any, i: number) => {
                         const v = e.eps ?? 0
@@ -504,11 +512,6 @@ export default function StockDetail() {
                         <span key={idx} className="absolute text-xs text-zinc-500 font-mono" style={{ left: `${(idx / eps.length) * 100}%` }}>{year}</span>
                       ))}
                     </div>
-                    {eps[eps.length - 1]?.eps != null && (
-                      <p className={`text-xs font-mono font-bold mt-1 ${(eps[eps.length - 1].eps ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        最新 {eps[eps.length - 1].eps?.toFixed(2)} 元
-                      </p>
-                    )}
                   </div>
                   )
                 })()}
