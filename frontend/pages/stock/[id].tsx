@@ -431,14 +431,14 @@ export default function StockDetail() {
               <div className="flex items-baseline gap-2 mb-3">
                 <p className="text-base font-bold text-amber-400">財務趨勢</p>
                 {rev.length > 0 && (
-                  <span className="text-xs text-zinc-500">{rev[rev.length - 1]?.label} 更新</span>
+                  <span className="text-xs text-zinc-500">{rev[rev.length - 1]?.label?.replace(/\/M0?/, '/')?.replace(/(\d+)$/, '$1月')} 更新</span>
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 月營收 */}
                 {rev.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
+                    <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
                     <div className="flex items-end gap-px h-16">
                       {rev.map((r: any, i: number) => {
                         const h = Math.min((r.revenue / maxRev) * 100, 100)
@@ -453,9 +453,9 @@ export default function StockDetail() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-1 text-[10px] text-zinc-500 font-mono">
-                      <span>{rev[0]?.label?.slice(-3)}</span>
-                      <span>{rev[rev.length - 1]?.label?.slice(-3)}</span>
+                    <div className="flex justify-between mt-1 text-xs text-zinc-500 font-mono">
+                      <span>{parseInt(rev[0]?.label?.slice(-2) ?? '0')}月</span>
+                      <span>{parseInt(rev[rev.length - 1]?.label?.slice(-2) ?? '0')}月</span>
                     </div>
                     {rev[rev.length - 1]?.yoy != null && (
                       <p className={`text-xs font-mono font-bold mt-1 ${rev[rev.length - 1].yoy >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -469,7 +469,7 @@ export default function StockDetail() {
                 {/* 季 EPS */}
                 {eps.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
+                    <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
                     <div className="flex items-end gap-px h-16">
                       {eps.map((e: any, i: number) => {
                         const v = e.eps ?? 0
@@ -485,9 +485,9 @@ export default function StockDetail() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-1 text-[10px] text-zinc-500 font-mono">
-                      <span>{eps[0]?.label}</span>
-                      <span>{eps[eps.length - 1]?.label}</span>
+                    <div className="flex justify-between mt-1 text-xs text-zinc-500 font-mono">
+                      <span>{eps[0]?.label?.replace(/(\d{4})Q(\d)/, '$1 Q$2')}</span>
+                      <span>{eps[eps.length - 1]?.label?.replace(/(\d{4})Q(\d)/, '$1 Q$2')}</span>
                     </div>
                     {eps[eps.length - 1]?.eps != null && (
                       <p className={`text-xs font-mono font-bold mt-1 ${(eps[eps.length - 1].eps ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
