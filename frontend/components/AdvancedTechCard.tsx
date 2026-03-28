@@ -88,15 +88,15 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
       </div>
 
       {/* ── 明細展開按鈕 ── */}
-      <button
-        onClick={() => setShowDetail(v => !v)}
-        className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-      >
-        查看明細
-        <svg viewBox="0 0 24 24" width={12} height={12} className={`fill-current transition-transform ${showDetail ? 'rotate-180' : ''}`}>
-          <path d="M7,10L12,15L17,10H7Z" />
-        </svg>
-      </button>
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowDetail(v => !v)}
+          className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+        >
+          {showDetail ? '收起' : '查看明細'}
+          <span className={`transition-transform inline-block ${showDetail ? 'rotate-90' : ''}`}>›</span>
+        </button>
+      </div>
 
       {/* ── 明細（收合） ── */}
       {showDetail && (
