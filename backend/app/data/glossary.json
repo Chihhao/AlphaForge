@@ -168,6 +168,18 @@
         "GARP",
         "基本面"
       ]
+    },
+    {
+      "id": "macd-indicator",
+      "term": "MACD 指標 (Moving Average Convergence Divergence)",
+      "category": "動能指標",
+      "importance": "Critical",
+      "content": "## MACD 指標\n判斷趨勢的**方向**與**動能強弱**，是台股最常搭配 KD 使用的指標之一。\n\n**核心三線**\n- **DIF** = 12日EMA − 26日EMA（快線）\n- **DEA** = DIF 的 9日EMA（慢線）\n- **柱狀體(OSC)** = (DIF − DEA) × 2\n\n**判讀重點**\n- ++DIF 由下往上突破 DEA++：++黃金交叉++，為++買進訊號++\n- --DIF 由上往下跌破 DEA--：--死亡交叉--，為--賣出訊號--\n- **柱狀翻正**：動能由弱轉強\n- **柱狀翻負**：動能由強轉弱\n- **DIF > 0 且持續上升**：多頭趨勢持續\n- **DIF < 0 且持續下降**：空頭趨勢持續",
+      "tags": [
+        "動能",
+        "趨勢",
+        "交叉訊號"
+      ]
     }
   ]
 }

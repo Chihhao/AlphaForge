@@ -220,6 +220,40 @@ def get_advanced_indicators(stock_id: str):
             "trend": trend,
         }
 
+    # ── MACD ────────────────────────────────────────────────────
+    ema_fast = prices.ewm(span=12, adjust=False).mean()
+    ema_slow = prices.ewm(span=26, adjust=False).mean()
+    dif = ema_fast - ema_slow
+    dea = dif.ewm(span=9, adjust=False).mean()
+    osc = (dif - dea) * 2  # 台股習慣乘以 2
+    macd_dif = round(float(dif.iloc[-1]), 3) if not pd.isna(dif.iloc[-1]) else None
+    macd_dea = round(float(dea.iloc[-1]), 3) if not pd.isna(dea.iloc[-1]) else None
+    macd_osc = round(float(osc.iloc[-1]), 3) if not pd.isna(osc.iloc[-1]) else None
+    # 前一日 DIF/DEA 用於判斷交叉
+    prev_dif = round(float(dif.iloc[-2]), 3) if len(dif) >= 2 and not pd.isna(dif.iloc[-2]) else None
+    prev_dea = round(float(dea.iloc[-2]), 3) if len(dea) >= 2 and not pd.isna(dea.iloc[-2]) else None
+    macd_signal = None
+    if prev_dif is not None and prev_dea is not None and macd_dif is not None and macd_dea is not None:
+        if prev_dif <= prev_dea and macd_dif > macd_dea:
+            macd_signal = "黃金交叉"
+        elif prev_dif >= prev_dea and macd_dif < macd_dea:
+            macd_signal = "死亡交叉"
+
+    macd = {
+        "dif": macd_dif,
+        "dea": macd_dea,
+        "osc": macd_osc,
+        "signal": macd_signal,
+    }
+
+    # ── 成交量比（今日量 / 5日均量）──────────────────────────────
+    volumes = df["成交量"] if "成交量" in df.columns else None
+    vol_ratio = None
+    if volumes is not None and len(volumes) >= 6:
+        vol_ma5 = volumes.iloc[-6:-1].mean()
+        if vol_ma5 > 0:
+            vol_ratio = round(float(volumes.iloc[-1] / vol_ma5), 2)
+
     # ── 多指標綜合評等 (0-100) ────────────────────────────────────
     rsi = StockService.calculate_rsi(prices, 14)
     rsi_val = float(rsi.dropna().iloc[-1]) if not rsi.dropna().empty else 50.0
@@ -256,6 +290,16 @@ def get_advanced_indicators(stock_id: str):
         elif b20 > 3:   score += 5
         elif b20 < -10: score += 10
         elif b20 < -3:  score -= 5
+    # MACD
+    if macd_osc is not None:
+        if macd_osc > 0 and macd_dif is not None and macd_dif > 0:
+            score += 5
+        elif macd_osc < 0 and macd_dif is not None and macd_dif < 0:
+            score -= 5
+    # 量比
+    if vol_ratio is not None:
+        if vol_ratio > 2.0:   score += 3  # 明顯放量
+        elif vol_ratio < 0.5: score -= 3  # 明顯縮量
 
     composite_score = max(0, min(100, score))
 
@@ -264,6 +308,8 @@ def get_advanced_indicators(stock_id: str):
         "current_price": current_price,
         "bias": bias,
         "ma_deduction": ma_deduction,
+        "macd": macd,
+        "vol_ratio": vol_ratio,
         "composite_score": composite_score,
     }
 

@@ -3,7 +3,6 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import api from '../../lib/api'
-import KDIndicator from '../../components/KDIndicator'
 import AdvancedTechCard from '../../components/AdvancedTechCard'
 import EducationalHint from '../../components/EducationalHint'
 import { formatPrice } from '../../lib/formatters'
@@ -343,6 +342,14 @@ export default function StockDetail() {
 
         {/* Fundamental Section */}
         <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+          <div className="flex items-baseline gap-2 mb-3">
+            <p className="text-base font-bold text-amber-400">基本面</p>
+            {quote?.fundamental_updated_at && (
+              <span className="text-xs text-zinc-500">
+                {new Date(quote.fundamental_updated_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })} 更新
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0">
             {/* 價值評估 */}
             <div>
@@ -411,11 +418,6 @@ export default function StockDetail() {
               )}
             </div>
           </div>
-          {quote?.fundamental_updated_at && (
-            <p className="text-xs text-zinc-400 mt-3 text-right">
-              基本面資料更新：{new Date(quote.fundamental_updated_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-            </p>
-          )}
         </div>
 
         {/* Financial Trends Card */}
@@ -426,7 +428,12 @@ export default function StockDetail() {
           const maxEpsAbs = Math.max(...eps.map((e: any) => Math.abs(e.eps ?? 0)), 0.01)
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-base font-bold text-amber-400 mb-3">財務趨勢</p>
+              <div className="flex items-baseline gap-2 mb-3">
+                <p className="text-base font-bold text-amber-400">財務趨勢</p>
+                {rev.length > 0 && (
+                  <span className="text-xs text-zinc-500">{rev[rev.length - 1]?.label} 更新</span>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 月營收 */}
                 {rev.length > 0 && (
@@ -538,7 +545,12 @@ export default function StockDetail() {
 
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-base font-bold text-amber-400 mb-3">籌碼面（近 {chipData.length} 日）</p>
+              <div className="flex items-baseline gap-2 mb-3">
+                <p className="text-base font-bold text-amber-400">籌碼面（近 {chipData.length} 日）</p>
+                {chipData.length > 0 && chipData[chipData.length - 1]?.date && (
+                  <span className="text-xs text-zinc-500">{chipData[chipData.length - 1].date.replace(/-/g, '/')} 更新</span>
+                )}
+              </div>
               <div className="space-y-2.5">
                 <SparkBars values={chipData.map((r: any) => r.foreign_net_buy ?? 0)} label="外資" sum={fgn5} />
                 <SparkBars values={chipData.map((r: any) => r.trust_net_buy ?? 0)} label="投信" sum={trs5} />
@@ -577,75 +589,8 @@ export default function StockDetail() {
           )
         })()}
 
-        {/* Technical Signal Card */}
-        {(() => {
-          const price = displayPrice
-          const ma20 = indicators?.ma20
-          const rsi = indicators?.rsi
-          const bbUpper = indicators?.bb_upper
-          const bbLower = indicators?.bb_lower
-
-          const trendSignal = price && ma20 ? (() => {
-            const diff = (price / ma20 - 1) * 100
-            return diff >= 0
-              ? { label: '站上 MA20', sub: `高於均線 +${diff.toFixed(1)}%`, color: 'text-rose-400' }
-              : { label: '跌破 MA20', sub: `低於均線 ${diff.toFixed(1)}%`, color: 'text-emerald-400' }
-          })() : null
-
-          const rsiSignal = rsi ? (() => {
-            if (rsi > 70) return { label: `RSI ${rsi.toFixed(1)}`, sub: '超買區，注意回檔', color: 'text-amber-400' }
-            if (rsi > 50) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏強', color: 'text-rose-400' }
-            if (rsi > 30) return { label: `RSI ${rsi.toFixed(1)}`, sub: '中性偏弱', color: 'text-zinc-400' }
-            return { label: `RSI ${rsi.toFixed(1)}`, sub: '超賣區，留意反彈', color: 'text-cyan-400' }
-          })() : null
-
-          const bbSignal = price && bbUpper && bbLower ? (() => {
-            const pos = (price - bbLower) / (bbUpper - bbLower)
-            const pct = (pos * 100).toFixed(0)
-            if (pos > 0.85) return { label: `布林 ${pct}%`, sub: '接近上軌，注意追高', color: 'text-amber-400' }
-            if (pos > 0.5)  return { label: `布林 ${pct}%`, sub: '通道上半段，偏多', color: 'text-rose-400' }
-            if (pos > 0.15) return { label: `布林 ${pct}%`, sub: '通道下半段，偏弱', color: 'text-zinc-400' }
-            return { label: `布林 ${pct}%`, sub: '接近下軌，留意支撐', color: 'text-cyan-400' }
-          })() : null
-
-          const rows = [
-            { key: 'trend', name: '均線位階', hint: 'ma-indicator' as string | null, signal: trendSignal },
-            { key: 'rsi',   name: 'RSI',      hint: 'rsi-indicator' as string | null, signal: rsiSignal },
-            { key: 'bb',    name: '布林通道',  hint: null,                             signal: bbSignal },
-          ]
-
-          return (
-            <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-base font-bold text-amber-400 mb-3">技術面信號</p>
-              <div>
-                {rows.map(({ key, name, hint, signal }) => (
-                  <div key={key} className="flex justify-between items-center py-2.5 border-b border-zinc-800/40">
-                    <span className="text-base text-zinc-400 flex items-center gap-1.5">
-                      {name}
-                      {hint && <EducationalHint glossaryId={hint} />}
-                    </span>
-                    {signal
-                      ? <div className="text-right">
-                          <p className={`font-mono text-base font-semibold ${signal.color}`}>{signal.label}</p>
-                          <p className="text-xs text-zinc-500">{signal.sub}</p>
-                        </div>
-                      : <span className="text-zinc-600">---</span>
-                    }
-                  </div>
-                ))}
-                <div className="flex justify-between items-center py-2.5">
-                  <span className="text-base text-zinc-400 flex items-center gap-1.5">
-                    KD 指標
-                    <EducationalHint glossaryId="kd-indicator" />
-                  </span>
-                  {id && <KDIndicator stockId={id as string} />}
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-        {/* 進階技術分析 */}
-        {id && <AdvancedTechCard stockId={id as string} />}
+        {/* 技術面分析（信號 + 進階） */}
+        {id && <AdvancedTechCard stockId={id as string} indicators={indicators} displayPrice={displayPrice} quoteDate={quote?.date} />}
 
         {/* Alpha Miner 歷史訊號 */}
         {alphaSignals.length > 0 && (() => {
@@ -659,7 +604,12 @@ export default function StockDetail() {
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-base font-bold text-amber-400">Alpha Miner 歷史訊號（近 180 日）</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-base font-bold text-amber-400">Alpha Miner 歷史訊號（近 180 日）</p>
+                  {alphaSignals.length > 0 && alphaSignals[0]?.signal_date && (
+                    <span className="text-xs text-zinc-500">{alphaSignals[0].signal_date.replace(/-/g, '/')} 更新</span>
+                  )}
+                </div>
                 {resolved.length > 0 && (
                   <button
                     onClick={() => setShowAlphaSignals(v => !v)}
