@@ -13,6 +13,7 @@ interface TodayPick {
   stop_loss_pct: number
   hold_days_max: number
   time_dimension: string
+  direction?: string
   buy_reasons?: string[]
   stock_win_rate?: number | null
 }
@@ -26,6 +27,7 @@ interface PickPreview {
   hold_days_max: number
   weighted_score: number
   time_dimension: string
+  direction: string
   dims: string[]
   buy_reasons: string[]
   stock_win_rate: number | null
@@ -72,7 +74,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   const tpPct = Math.round(pick.take_profit_pct * 100)
   const slPct = Math.round(pick.stop_loss_pct * 100)
   const isMultiDim = pick.dims.length > 1
-  // 顯示最關鍵的一條買入理由（跳過"N個策略觸發"這條，優先顯示具體因子）
+  const isShort = pick.direction === 'short'
   const topReason = pick.buy_reasons.find(r => !r.includes('個策略')) ?? pick.buy_reasons[0]
 
   return (
@@ -80,6 +82,11 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-zinc-600 font-mono text-[10px] shrink-0">{rank}</span>
+          {isShort ? (
+            <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
+          ) : (
+            <span className="shrink-0 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1 py-0.5 leading-none">多</span>
+          )}
           <Link
             href={`/stock/${pick.stock_id}`}
             className="text-sm font-semibold text-zinc-100 hover:text-amber-300 transition-colors truncate"
@@ -96,14 +103,24 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
         <div className="flex items-center gap-1 text-xs font-mono whitespace-nowrap shrink-0">
           <span className="text-zinc-300">{pick.entry_price.toFixed(0)}</span>
           <span className="text-zinc-600">→</span>
-          <span className="text-rose-400">+{tpPct}%</span>
-          <span className="text-zinc-700">/</span>
-          <span className="text-emerald-400">-{slPct}%</span>
+          {isShort ? (
+            <>
+              <span className="text-emerald-400">-{tpPct}%</span>
+              <span className="text-zinc-700">/</span>
+              <span className="text-rose-400">+{slPct}%</span>
+            </>
+          ) : (
+            <>
+              <span className="text-rose-400">+{tpPct}%</span>
+              <span className="text-zinc-700">/</span>
+              <span className="text-emerald-400">-{slPct}%</span>
+            </>
+          )}
         </div>
       </div>
       {topReason && (
         <div className="ml-5 mt-0.5 flex items-center gap-2">
-          <span className="text-[10px] text-amber-400/70">{topReason}</span>
+          <span className={`text-[10px] ${isShort ? 'text-rose-400/70' : 'text-amber-400/70'}`}>{topReason}</span>
           {pick.stock_win_rate !== null && (
             <span className={`text-[10px] font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/70' : 'text-zinc-500'}`}>
               歷史勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
@@ -137,7 +154,7 @@ export default function StrategyMinerPreview() {
     ])
       .then(([picksRes, perfRes]) => {
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
-        const top3 = (picksRes.data || []).slice(0, 5).map(p => ({
+        const all = (picksRes.data || []).map(p => ({
           stock_id: p.stock_id,
           stock_name: p.stock_name,
           entry_price: p.entry_price,
@@ -146,11 +163,15 @@ export default function StrategyMinerPreview() {
           hold_days_max: p.hold_days_max,
           weighted_score: p.weighted_score,
           time_dimension: p.time_dimension,
+          direction: p.direction || 'long',
           dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
           buy_reasons: p.buy_reasons ?? [],
           stock_win_rate: p.stock_win_rate ?? null,
         }))
-        setPicks(top3)
+        // 做多前 3 + 放空前 3（首頁預覽精簡版）
+        const longs = all.filter(p => p.direction === 'long').slice(0, 3)
+        const shorts = all.filter(p => p.direction === 'short').slice(0, 3)
+        setPicks([...longs, ...shorts])
         setPerf(perfRes.data || {})
       })
       .catch(() => {

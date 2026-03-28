@@ -21,6 +21,7 @@ interface StrategyMinerPick {
     stop_loss_pct: number     // decimal: 0.03 = 3%
     hold_days_max: number
     time_dimension: string
+    direction?: string        // 'long' / 'short'
     buy_reasons?: string[]    // 買入理由（策略名稱列表）
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
@@ -50,6 +51,7 @@ interface StrategyPick {
     hold_days_max: number
     weighted_score: number
     time_dimension: string
+    direction: string         // 'long' / 'short'
     dims?: string[]           // 出現的維度列表（多維共鳴時 length > 1）
     buy_reasons?: string[]    // 買入理由
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
@@ -113,6 +115,11 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             <div className="flex items-start gap-1.5 mb-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
                 <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    {pick.direction === 'short' ? (
+                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none">空</span>
+                    ) : (
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1.5 py-0.5 leading-none">多</span>
+                    )}
                     <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
                         {pick.stock_name}
                     </Link>
@@ -724,6 +731,7 @@ const StrategyPage = () => {
                         hold_days_max: p.hold_days_max,
                         weighted_score: p.weighted_score,
                         time_dimension: p.time_dimension,
+                        direction: p.direction || 'long',
                         dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
                         buy_reasons: p.buy_reasons ?? [],
                         stock_win_rate: p.stock_win_rate ?? null,
@@ -789,6 +797,7 @@ const StrategyPage = () => {
                     hold_days_max: DIM_DAYS[s.time_dimension] ?? 10,
                     weighted_score: s.trigger_count * (s.weighted_odds_ratio ?? 1),
                     time_dimension: s.time_dimension,
+                    direction: 'long',
                 }
             })
             setPicks(combined)
