@@ -434,12 +434,18 @@ export default function StockDetail() {
                   <span className="text-xs text-zinc-500">{rev[rev.length - 1]?.label?.replace(/\/M0?/, '/')?.replace(/(\d+)$/, '$1月')} 更新</span>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 {/* 月營收 */}
-                {rev.length > 0 && (
+                {rev.length > 0 && (() => {
+                  const yearLabels: { idx: number; year: string }[] = []
+                  rev.forEach((r: any, i: number) => {
+                    const y = r.label?.slice(0, 4)
+                    if (i === 0 || y !== rev[i - 1]?.label?.slice(0, 4)) yearLabels.push({ idx: i, year: y })
+                  })
+                  return (
                   <div>
                     <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2 font-bold">月營收（億）</p>
-                    <div className="flex items-end gap-px h-16">
+                    <div className="flex items-end gap-px h-20">
                       {rev.map((r: any, i: number) => {
                         const h = Math.min((r.revenue / maxRev) * 100, 100)
                         const yoyPositive = (r.yoy ?? 0) >= 0
@@ -453,9 +459,10 @@ export default function StockDetail() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-1 text-xs text-zinc-500 font-mono">
-                      <span>{parseInt(rev[0]?.label?.slice(-2) ?? '0')}月</span>
-                      <span>{parseInt(rev[rev.length - 1]?.label?.slice(-2) ?? '0')}月</span>
+                    <div className="relative mt-1 h-4">
+                      {yearLabels.map(({ idx, year }) => (
+                        <span key={idx} className="absolute text-xs text-zinc-500 font-mono" style={{ left: `${(idx / rev.length) * 100}%` }}>{year}</span>
+                      ))}
                     </div>
                     {rev[rev.length - 1]?.yoy != null && (
                       <p className={`text-xs font-mono font-bold mt-1 ${rev[rev.length - 1].yoy >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -465,12 +472,19 @@ export default function StockDetail() {
                       </p>
                     )}
                   </div>
-                )}
+                  )
+                })()}
                 {/* 季 EPS */}
-                {eps.length > 0 && (
+                {eps.length > 0 && (() => {
+                  const yearLabels: { idx: number; year: string }[] = []
+                  eps.forEach((e: any, i: number) => {
+                    const y = e.label?.slice(0, 4)
+                    if (i === 0 || y !== eps[i - 1]?.label?.slice(0, 4)) yearLabels.push({ idx: i, year: y })
+                  })
+                  return (
                   <div>
                     <p className="text-xs text-zinc-400 uppercase tracking-widest mb-2 font-bold">季 EPS（元）</p>
-                    <div className="flex items-end gap-px h-16">
+                    <div className="flex items-end gap-px h-20">
                       {eps.map((e: any, i: number) => {
                         const v = e.eps ?? 0
                         const h = Math.min((Math.abs(v) / maxEpsAbs) * 100, 100)
@@ -485,9 +499,10 @@ export default function StockDetail() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-between mt-1 text-xs text-zinc-500 font-mono">
-                      <span>{eps[0]?.label?.replace(/(\d{4})Q(\d)/, '$1 Q$2')}</span>
-                      <span>{eps[eps.length - 1]?.label?.replace(/(\d{4})Q(\d)/, '$1 Q$2')}</span>
+                    <div className="relative mt-1 h-4">
+                      {yearLabels.map(({ idx, year }) => (
+                        <span key={idx} className="absolute text-xs text-zinc-500 font-mono" style={{ left: `${(idx / eps.length) * 100}%` }}>{year}</span>
+                      ))}
                     </div>
                     {eps[eps.length - 1]?.eps != null && (
                       <p className={`text-xs font-mono font-bold mt-1 ${(eps[eps.length - 1].eps ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -495,7 +510,8 @@ export default function StockDetail() {
                       </p>
                     )}
                   </div>
-                )}
+                  )
+                })()}
               </div>
             </div>
           )

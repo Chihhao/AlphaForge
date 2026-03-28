@@ -322,20 +322,20 @@ from app.models.stock_eps import StockQuarterlyEPS
 def get_fundamental_trends(stock_id: str, db: Session = Depends(get_db)):
     """
     取得基本面成長趨勢
-    包含近 12 個月營收趨勢與近 8 季 EPS 趨勢。
+    包含近 36 個月營收趨勢與近 12 季 EPS 趨勢（3 年）。
     """
-    # 1. 取得營收趨勢 (近 12 個月)
+    # 1. 取得營收趨勢 (近 36 個月)
     revenue_history = db.query(StockMonthlyRevenue).filter(
         StockMonthlyRevenue.stock_id == stock_id
-    ).order_by(StockMonthlyRevenue.year.desc(), StockMonthlyRevenue.month.desc()).limit(12).all()
-    
+    ).order_by(StockMonthlyRevenue.year.desc(), StockMonthlyRevenue.month.desc()).limit(36).all()
+
     # 校正順序為從舊到新
     revenue_history = sorted(revenue_history, key=lambda x: (x.year, x.month))
-    
-    # 2. 取得 EPS 趨勢 (近 8 季)
+
+    # 2. 取得 EPS 趨勢 (近 12 季)
     eps_history = db.query(StockQuarterlyEPS).filter(
         StockQuarterlyEPS.stock_id == stock_id
-    ).order_by(StockQuarterlyEPS.year.desc(), StockQuarterlyEPS.quarter.desc()).limit(8).all()
+    ).order_by(StockQuarterlyEPS.year.desc(), StockQuarterlyEPS.quarter.desc()).limit(12).all()
     
     # 校正順序為從舊到新
     eps_history = sorted(eps_history, key=lambda x: (x.year, x.quarter))
