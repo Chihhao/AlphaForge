@@ -49,6 +49,7 @@ export default function StockDetail() {
   const [strategyPick, setStrategyPick] = useState<any>(null)
   const [alphaSignals, setAlphaSignals] = useState<any[]>([])
   const [funTrends, setFunTrends] = useState<any>(null)
+  const [showAlphaSignals, setShowAlphaSignals] = useState(false)
   const { toggle, has } = useWatchlist()
 
   // 籌碼數據 + Strategy Miner 精選狀態（不依賴 interval，只在切換個股時重抓）
@@ -651,8 +652,17 @@ export default function StockDetail() {
           const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
           return (
             <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <p className="text-base font-bold text-amber-400 mb-3">Alpha Miner 歷史訊號（近 180 日）</p>
-              <div className="space-y-1.5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-base font-bold text-amber-400">Alpha Miner 歷史訊號（近 180 日）</p>
+                <button
+                  onClick={() => setShowAlphaSignals(v => !v)}
+                  className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+                >
+                  {showAlphaSignals ? '收起' : '查看明細'}
+                  <span className={`transition-transform inline-block ${showAlphaSignals ? 'rotate-90' : ''}`}>›</span>
+                </button>
+              </div>
+              {showAlphaSignals && <div className="space-y-1.5">
                 {alphaSignals.map((sig: any, i: number) => {
                   const isResolved = sig.is_resolved
                   const ret = sig.actual_return
@@ -684,7 +694,7 @@ export default function StockDetail() {
                     </div>
                   )
                 })}
-              </div>
+              </div>}
             </div>
           )
         })()}
