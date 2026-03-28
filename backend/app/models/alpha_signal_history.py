@@ -15,6 +15,7 @@ class AlphaSignalHistory(Base):
     stock_id       = Column(String(10), index=True)
     stock_name     = Column(String(50))
     time_dimension = Column(String(5))               # "5d" / "10d" / "30d"
+    direction      = Column(String(5), default='long')  # "long" / "short"
     trigger_count  = Column(Integer)
     weighted_win_rate   = Column(Float)
     weighted_odds_ratio = Column(Float)
@@ -24,8 +25,9 @@ class AlphaSignalHistory(Base):
     is_resolved    = Column(Boolean, default=False)
 
     __table_args__ = (
-        UniqueConstraint('signal_date', 'stock_id', 'time_dimension',
-                         name='uq_signal_history'),
+        UniqueConstraint('signal_date', 'stock_id', 'time_dimension', 'direction',
+                         name='uq_signal_history_v2'),
         Index('ix_signal_history_dim_date', 'time_dimension', 'signal_date'),
         Index('ix_signal_history_sid_dim_date', 'stock_id', 'time_dimension', 'signal_date'),
+        Index('ix_signal_history_dir', 'direction', 'signal_date'),
     )
