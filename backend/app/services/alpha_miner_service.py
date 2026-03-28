@@ -282,8 +282,17 @@ class AlphaMinerService:
         return cls._details.get(strategy_id)
 
     @classmethod
-    def get_today_signals(cls, db: Session, dimension: str = "10d") -> List[TodaySignal]:
-        """彙整所有顯著策略的近期訊號，找出被多個策略同時看好的股票"""
+    def get_today_signals(
+        cls, db: Session, dimension: str = "10d", direction: str = "long",
+    ) -> List[TodaySignal]:
+        """彙整訊號。
+
+        direction='long': 找被多個策略同時看多的股票（現有邏輯）
+        direction='short': 從 stock_features 找滿足多個看空條件的股票
+        """
+        if direction == 'short':
+            return cls._get_short_signals(db, dimension)
+
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
             return []
@@ -298,7 +307,7 @@ class AlphaMinerService:
             detail = cls._details.get(ranking.strategy_id)
             if not detail or not detail.recent_signals:
                 continue
-            ic = max(ranking.ic, 0.0)  # 負 IC 不貢獻加權（避免 ic_sum 趨零爆炸）
+            ic = max(ranking.ic, 0.0)
             for sig in detail.recent_signals:
                 sid = sig.stock_id
                 if sid not in stock_map:
@@ -330,7 +339,7 @@ class AlphaMinerService:
                 stock_map[sid]['_w_mkt_loss'] += ranking.market_loss_rate * ic
                 stock_map[sid]['_w_mkt_loss_hi'] += ranking.market_loss_rate_hi * ic
 
-        # 動態門檻：有效策略數 × 40%（至少 2）
+        # 做多訊號：動態門檻
         valid_strategy_count = sum(
             1 for r in result.strategies
             if r.is_significant and r.time_dimension == dimension and r.ic > 0
@@ -369,6 +378,108 @@ class AlphaMinerService:
 
         signals.sort(key=lambda x: x.trigger_count, reverse=True)
         return signals[:20]
+
+    @classmethod
+    def _get_short_signals(cls, db: Session, dimension: str) -> List[TodaySignal]:
+        """從 stock_features 找滿足多個看空條件的股票。
+
+        看空條件（每滿足一個 +1 分）：
+        1. RSI > 70（超買）
+        2. KD K > 80 且 K < D（KD 高檔死叉）
+        3. MACD 柱 < 0（空頭動能）
+        4. 乖離率20 > 5%（過度偏離均線）
+        5. 外資連續賣超（foreign_buy_5d < 0）
+        6. 投信連續賣超（trust_buy_5d < 0）
+
+        至少滿足 3 個條件才納入。
+        """
+        from sqlalchemy import func as sa_func
+        from app.models.stock_feature import StockFeature
+        from app.models.user import Stock as StockModel
+
+        # 取最新一天的 features
+        latest_date = db.query(sa_func.max(StockFeature.date)).scalar()
+        if not latest_date:
+            return []
+
+        features = (
+            db.query(StockFeature)
+            .filter(StockFeature.date == latest_date)
+            .all()
+        )
+        if not features:
+            return []
+
+        tlo = 0.05 if dimension == '30d' else 0.03
+        thi = 0.10 if dimension == '30d' else 0.05
+
+        candidates = []
+        for f in features:
+            score = 0
+            reasons = []
+
+            # 1. RSI 超買
+            if f.rsi14 is not None and f.rsi14 > 70:
+                score += 1
+                reasons.append('RSI 超買')
+            # 2. KD 高檔死叉
+            if f.k is not None and f.d is not None and f.k > 80 and f.k < f.d:
+                score += 1
+                reasons.append('KD 高檔死叉')
+            # 3. MACD 空頭
+            if f.macd_osc is not None and f.macd_osc < 0:
+                score += 1
+                reasons.append('MACD 空頭')
+            # 4. 乖離率過高
+            if f.bias20 is not None and f.bias20 > 5:
+                score += 1
+                reasons.append('乖離率偏高')
+            # 5. 外資賣超
+            if hasattr(f, 'foreign_buy_5d') and f.foreign_buy_5d is not None and f.foreign_buy_5d < 0:
+                score += 1
+                reasons.append('外資賣超')
+            # 6. 投信賣超
+            if hasattr(f, 'trust_buy_5d') and f.trust_buy_5d is not None and f.trust_buy_5d < 0:
+                score += 1
+                reasons.append('投信賣超')
+
+            if score >= 3:
+                candidates.append({
+                    'stock_id': f.stock_id,
+                    'score': score,
+                    'reasons': reasons,
+                    'date': latest_date,
+                })
+
+        # 按分數排序
+        candidates.sort(key=lambda x: x['score'], reverse=True)
+        candidates = candidates[:20]
+
+        # 查股票名稱
+        signals = []
+        for c in candidates:
+            name = cls._lookup_name(c['stock_id'])
+            signals.append(TodaySignal(
+                stock_id=c['stock_id'],
+                stock_name=name,
+                trigger_count=c['score'],
+                strategies=c['reasons'],
+                signal_date=str(c['date']),
+                time_dimension=dimension,
+                threshold_low=tlo,
+                threshold_high=thi,
+                weighted_odds_ratio=float(c['score']),
+                weighted_odds_ratio_hi=float(c['score']),
+                weighted_win_rate=0.5,
+                weighted_win_rate_hi=0.5,
+                weighted_loss_rate=0.5,
+                weighted_loss_rate_hi=0.5,
+                weighted_market_win_rate=0,
+                weighted_market_win_rate_hi=0,
+                weighted_market_loss_rate=0,
+                weighted_market_loss_rate_hi=0,
+            ))
+        return signals
 
     @classmethod
     def invalidate_cache(cls) -> None:
@@ -809,10 +920,10 @@ class AlphaMinerService:
 
     # ─── 訊號歷史：儲存 / 回填 / 查詢 ────────────────────────────────────────
     @classmethod
-    def save_today_signals(cls, db: Session, dimension: str) -> int:
+    def save_today_signals(cls, db: Session, dimension: str, direction: str = 'long') -> int:
         """將今日 get_today_signals 結果持久化到 alpha_signal_history。
 
-        同一 (signal_date, stock_id, time_dimension) 組合已存在時跳過（冪等）。
+        同一 (signal_date, stock_id, time_dimension, direction) 組合已存在時跳過（冪等）。
         若訓練尚未完成，每 2 分鐘重試，最多等待 60 分鐘。
         回傳實際寫入筆數。
         """
@@ -822,16 +933,16 @@ class AlphaMinerService:
             result = cls.get_strategies(db)
             if not result.is_training:
                 break
-            logger.info(f"[SignalHistory] {dimension} 訓練尚未完成，等待 2 分鐘後重試（第 {attempt + 1} 次）...")
+            logger.info(f"[SignalHistory] {dimension}/{direction} 訓練尚未完成，等待 2 分鐘後重試（第 {attempt + 1} 次）...")
             _time.sleep(120)
         else:
-            logger.error(f"[SignalHistory] {dimension} 等待訓練逾時（{max_wait_minutes} 分鐘），放棄本日儲存")
+            logger.error(f"[SignalHistory] {dimension}/{direction} 等待訓練逾時（{max_wait_minutes} 分鐘），放棄本日儲存")
             return 0
 
         today = date.today()
-        signals = cls.get_today_signals(db, dimension=dimension)
+        signals = cls.get_today_signals(db, dimension=dimension, direction=direction)
         if not signals:
-            logger.info(f"[SignalHistory] {dimension} 無訊號，跳過儲存")
+            logger.info(f"[SignalHistory] {dimension}/{direction} 無訊號，跳過儲存")
             return 0
 
         # 查出今日已存在的 stock_id 集合（避免重複）
@@ -841,6 +952,7 @@ class AlphaMinerService:
             .filter(
                 AlphaSignalHistory.signal_date == today,
                 AlphaSignalHistory.time_dimension == dimension,
+                AlphaSignalHistory.direction == direction,
             )
             .all()
         }
@@ -854,6 +966,7 @@ class AlphaMinerService:
                 stock_id=s.stock_id,
                 stock_name=s.stock_name,
                 time_dimension=dimension,
+                direction=direction,
                 trigger_count=s.trigger_count,
                 weighted_win_rate=s.weighted_win_rate,
                 weighted_odds_ratio=s.weighted_odds_ratio,
@@ -862,7 +975,7 @@ class AlphaMinerService:
         if rows:
             db.add_all(rows)
             db.commit()
-            logger.info(f"[SignalHistory] 儲存 {dimension} 訊號 {len(rows)} 筆（{today}）")
+            logger.info(f"[SignalHistory] 儲存 {dimension}/{direction} 訊號 {len(rows)} 筆（{today}）")
         return len(rows)
 
     @classmethod
@@ -940,7 +1053,11 @@ class AlphaMinerService:
             if entry is None or exit_price is None or entry == 0:
                 continue
 
-            rec.actual_return = round((exit_price - entry) / entry, 4)
+            raw_return = (exit_price - entry) / entry
+            # 放空訊號：報酬反轉（股價跌 = 獲利）
+            if getattr(rec, 'direction', 'long') == 'short':
+                raw_return = -raw_return
+            rec.actual_return = round(raw_return, 4)
             rec.resolved_date = today
             rec.is_resolved   = True
             resolved_count += 1
