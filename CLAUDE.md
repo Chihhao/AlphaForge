@@ -4,7 +4,7 @@
 
 ## 專案概述
 
-AlphaForge 是一個台灣股市分析與模擬交易平台，定位為股票新手的學習型工具。結合量化分析（技術指標、基本面數據）與教育元件，將專業術語以「白話文」方式呈現。
+AlphaForge 是一個台灣股市分析平台，定位為股票新手的學習型工具。結合量化分析（技術指標、基本面數據）與教育元件，將專業術語以「白話文」方式呈現。
 
 ## 開發指令
 
@@ -84,8 +84,6 @@ API 端點 (backend/app/api/endpoints/)
 pages/
     index.tsx          — 儀表板（MarketSummary + StrategyScreener + SystemConsole）
     stock/[id].tsx     — 個股詳情（圖表與基本面）
-    portfolio.tsx      — 投資組合管理
-    trading.tsx        — 模擬交易
     strategy.tsx       — 策略開發
 ```
 

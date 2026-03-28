@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.db.database import Base, engine
-from app.api.endpoints import users, stocks, trading, indicators, glossary, market
+from app.api.endpoints import users, stocks, indicators, glossary, market
 from app.api.endpoints import alpha_miner
 from app.api.endpoints import strategy_miner
 from app.models.stock_price import StockPrice
@@ -34,7 +34,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="台灣股市分析與模擬交易平台 API",
+    description="台灣股市分析平台 API",
 )
 
 @app.on_event("startup")
@@ -214,7 +214,6 @@ app.add_middleware(
 # 註冊路由
 app.include_router(users.router)
 app.include_router(stocks.router)
-app.include_router(trading.router)
 app.include_router(indicators.router)
 app.include_router(glossary.router)
 app.include_router(market.router)
@@ -228,7 +227,7 @@ def read_root():
     return {
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "description": "台灣股市分析與模擬交易平台 API",
+        "description": "台灣股市分析平台 API",
         "docs": "/docs",
         "redoc": "/redoc",
     }

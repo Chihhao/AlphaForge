@@ -1,6 +1,6 @@
 # AlphaForge - Frontend
 
-台灣股市分析與模擬交易平台的前端應用
+台灣股市分析平台的前端應用
 
 ## 技術堆疊
 
@@ -40,8 +40,6 @@ npm start
 frontend/
 ├── pages/              # Next.js 頁面路由
 │   ├── index.tsx       # 首頁
-│   ├── trading.tsx     # 模擬交易頁面
-│   ├── portfolio.tsx   # 投資組合分析
 │   └── stock/[id].tsx  # 股票詳情頁面
 ├── components/         # React 組件
 │   ├── StockSearch.tsx
@@ -62,16 +60,6 @@ frontend/
 - K 線圖表展示（支援多時間週期）
 - 技術指標（MA, 布林通道, RSI, MACD, KD）
 - 買賣下單功能
-
-### 💰 模擬交易 (Trading)
-- 帳戶資訊展示
-- 持股組合管理
-- 訂單紀錄查詢
-
-### 📊 投資組合分析 (Portfolio)
-- 資產配置圖表
-- 績效統計資訊
-- 詳細持股清單
 
 ## 後續開發
 
