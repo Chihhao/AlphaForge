@@ -175,6 +175,7 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
+            "direction": getattr(p, 'direction', 'long') or 'long',
             "buy_reasons": (
                 _json.loads(p.buy_reasons) if p.buy_reasons
                 else live_reasons.get(p.stock_id, [])
@@ -231,27 +232,46 @@ def get_active_picks(db: Session = Depends(get_db)):
         entry = p.entry_price or 0
         current = price_map.get(p.stock_id, 0)
         days_held = (today - p.pick_date).days
+        direction = getattr(p, 'direction', 'long') or 'long'
+        is_short = (direction == 'short')
 
         if entry <= 0 or current <= 0:
             status = "資料不足"
             float_pct = None
         else:
-            float_pct = round((current - entry) / entry * 100, 2)
-            if current >= entry * (1 + p.take_profit_pct):
-                status = "建議停利"
-            elif current <= entry * (1 - p.stop_loss_pct):
-                status = "建議停損"
-            elif days_held >= p.hold_days_max:
-                # 超過寬限期（7 天）的到期出場視為「已結算」，不再顯示
-                # 7 天寬限覆蓋週末與節假日；TP/SL 觸發不受此限制
-                if days_held > p.hold_days_max + 7:
-                    status = "已結算"
+            # 放空：股價下跌 = 獲利
+            raw_pct = (current - entry) / entry * 100
+            float_pct = round(-raw_pct if is_short else raw_pct, 2)
+
+            if is_short:
+                # 放空 TP/SL 反轉
+                if current <= entry * (1 - p.take_profit_pct):
+                    status = "建議停利"
+                elif current >= entry * (1 + p.stop_loss_pct):
+                    status = "建議停損"
+                elif days_held >= p.hold_days_max:
+                    if days_held > p.hold_days_max + 7:
+                        status = "已結算"
+                    else:
+                        status = "到期出場"
+                elif days_held >= p.hold_days_max - 1:
+                    status = "明日到期"
                 else:
-                    status = "到期出場"
-            elif days_held >= p.hold_days_max - 1:
-                status = "明日到期"
+                    status = "持有中"
             else:
-                status = "持有中"
+                if current >= entry * (1 + p.take_profit_pct):
+                    status = "建議停利"
+                elif current <= entry * (1 - p.stop_loss_pct):
+                    status = "建議停損"
+                elif days_held >= p.hold_days_max:
+                    if days_held > p.hold_days_max + 7:
+                        status = "已結算"
+                    else:
+                        status = "到期出場"
+                elif days_held >= p.hold_days_max - 1:
+                    status = "明日到期"
+                else:
+                    status = "持有中"
 
         result.append({
             "pick_date": p.pick_date.isoformat(),
@@ -266,6 +286,7 @@ def get_active_picks(db: Session = Depends(get_db)):
             "float_pct": float_pct,
             "status": status,
             "time_dimension": p.time_dimension,
+            "direction": direction,
         })
 
     # 出場提醒排前面；同狀態內，停利按 float_pct 由高到低，停損按 float_pct 由低到高
@@ -422,6 +443,7 @@ def get_concluded_picks(
             "return_pct": float_pct,
             "days_held": days_held,
             "time_dimension": p.time_dimension or "10d",
+            "direction": getattr(p, 'direction', 'long') or 'long',
             "buy_reasons": buy_reasons,
             "take_profit_pct": p.take_profit_pct,
             "stop_loss_pct": p.stop_loss_pct,
@@ -448,6 +470,7 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
+            "direction": getattr(p, 'direction', 'long') or 'long',
         }
         for p in picks
     ]

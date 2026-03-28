@@ -165,12 +165,13 @@ def start_scheduler():
     # Alpha Miner 重訓於 17:10 啟動，需 20-40 分鐘；save_today_signals 內部亦有等待邏輯
     scheduler.add_job(
         lambda: run_with_db(lambda db: [
-            AlphaMinerService.save_today_signals(db, dim)
+            AlphaMinerService.save_today_signals(db, dim, direction)
             for dim in ["5d", "10d", "30d"]
+            for direction in ["long", "short"]
         ]),
         trigger=CronTrigger(hour=17, minute=45),
         id="save_signal_history",
-        name="Save today alpha signals to history",
+        name="Save today alpha signals to history (long + short)",
         replace_existing=True
     )
 
