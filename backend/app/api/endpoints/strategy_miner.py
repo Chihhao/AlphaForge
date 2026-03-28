@@ -13,6 +13,7 @@ from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
 from app.models.strategy_miner_pick import StrategyMinerPick
 from app.models.stock_price import StockPrice
+from app.models.alpha_signal_history import AlphaSignalHistory
 from sqlalchemy import func, and_
 import json
 
@@ -20,23 +21,30 @@ router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
 def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
-    """載入指定股票的逐筆回測績效，回傳 {stock_id: {win_rate, avg_return, trade_count}}"""
+    """載入指定股票的已結算訊號績效（與個股頁 Alpha Miner 歷史訊號同源），
+    回傳 {stock_id: {win_rate, avg_return, trade_count}}"""
     if not stock_ids:
         return {}
+    cutoff = date.today() - timedelta(days=180)
     rows = (
-        db.query(StrategyMinerTrade)
-        .filter(StrategyMinerTrade.stock_id.in_(stock_ids))
+        db.query(AlphaSignalHistory)
+        .filter(
+            AlphaSignalHistory.stock_id.in_(stock_ids),
+            AlphaSignalHistory.is_resolved == True,  # noqa: E712
+            AlphaSignalHistory.actual_return.isnot(None),
+            AlphaSignalHistory.signal_date >= cutoff,
+        )
         .all()
     )
     by_stock: dict = defaultdict(list)
     for r in rows:
-        by_stock[r.stock_id].append(r.return_pct)
+        by_stock[r.stock_id].append(r.actual_return)
     result = {}
     for sid, rets in by_stock.items():
         wins = sum(1 for x in rets if x > 0)
         result[sid] = {
             "stock_win_rate": round(wins / len(rets), 4),
-            "stock_avg_return": round(sum(rets) / len(rets), 4),
+            "stock_avg_return": round(sum(rets) / len(rets) * 100, 1),
             "stock_trade_count": len(rets),
         }
     return result

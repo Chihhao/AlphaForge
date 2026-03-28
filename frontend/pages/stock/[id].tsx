@@ -679,7 +679,7 @@ export default function StockDetail() {
                   <span className="text-zinc-400">已結算 <span className="text-zinc-200 font-mono font-bold">{resolved.length}</span> 筆</span>
                   <span className="text-zinc-400">勝率 <span className={`font-mono font-bold ${wins / resolved.length >= 0.5 ? 'text-rose-400' : 'text-emerald-400'}`}>{((wins / resolved.length) * 100).toFixed(0)}%</span></span>
                   {avgRet != null && (
-                    <span className="text-zinc-400">均報酬 <span className={`font-mono font-bold ${avgRet >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{avgRet >= 0 ? '+' : ''}{avgRet.toFixed(1)}%</span></span>
+                    <span className="text-zinc-400">均報酬 <span className={`font-mono font-bold ${avgRet >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{avgRet >= 0 ? '+' : ''}{(avgRet * 100).toFixed(1)}%</span></span>
                   )}
                 </div>
               )}
@@ -689,9 +689,10 @@ export default function StockDetail() {
                 <div className="space-y-1.5 mt-3 pt-3 border-t border-zinc-800/40">
                   {resolved.map((sig: any, i: number) => {
                     const ret = sig.actual_return
+                    const retPct = ret * 100
                     const retColor = ret >= 0 ? 'text-rose-400' : 'text-emerald-400'
-                    const retStr = `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}%`
-                    const icon = ret >= 0 ? '✅' : '❌'
+                    const retStr = `${ret >= 0 ? '+' : ''}${retPct.toFixed(1)}%`
+                    const icon = ret > 0 ? '✅' : '❌'
                     return (
                       <div key={i} className="flex items-center justify-between py-1.5 border-b border-zinc-800/30 last:border-0">
                         <div className="flex items-center gap-2 min-w-0">

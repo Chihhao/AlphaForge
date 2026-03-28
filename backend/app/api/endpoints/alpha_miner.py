@@ -76,7 +76,6 @@ def get_stock_signals(
             AlphaSignalHistory.signal_date >= cutoff,
         )
         .order_by(AlphaSignalHistory.signal_date.desc())
-        .limit(30)
         .all()
     )
     return [
