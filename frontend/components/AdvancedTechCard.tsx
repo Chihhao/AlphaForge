@@ -1,0 +1,145 @@
+import { useState, useEffect } from 'react'
+import api from '../lib/api'
+
+interface MaDeductionItem {
+  current_price: number
+  deduction_price: number | null
+  ma_value: number | null
+  deviation_pct: number | null
+  trend: 'up' | 'down' | null
+}
+
+interface AdvancedIndicators {
+  stock_id: string
+  current_price: number
+  bias: { bias5: number | null; bias10: number | null; bias20: number | null; bias60: number | null }
+  ma_deduction: { ma5: MaDeductionItem; ma20: MaDeductionItem }
+  composite_score: number
+}
+
+const BIAS_THRESHOLDS: Record<string, number> = { bias5: 5, bias10: 8, bias20: 10, bias60: 15 }
+const BIAS_LABELS: Record<string, string> = { bias5: 'BIAS 5', bias10: 'BIAS 10', bias20: 'BIAS 20', bias60: 'BIAS 60' }
+
+function biasColor(key: string, val: number | null): string {
+  if (val === null) return 'text-zinc-500'
+  const thr = BIAS_THRESHOLDS[key]
+  if (val > thr) return 'text-rose-400'
+  if (val < -thr) return 'text-emerald-400'
+  if (val > 0) return 'text-rose-300'
+  return 'text-emerald-300'
+}
+
+function biasWarning(key: string, val: number | null): string | null {
+  if (val === null) return null
+  const thr = BIAS_THRESHOLDS[key]
+  if (val > thr) return '超漲警示'
+  if (val < -thr) return '超跌警示'
+  return null
+}
+
+function scoreLabel(score: number): { text: string; color: string } {
+  if (score >= 76) return { text: '強勢', color: 'text-emerald-400' }
+  if (score >= 56) return { text: '偏強', color: 'text-emerald-300' }
+  if (score >= 46) return { text: '中性', color: 'text-zinc-400' }
+  if (score >= 26) return { text: '偏弱', color: 'text-amber-400' }
+  return { text: '弱勢', color: 'text-rose-400' }
+}
+
+function scoreBarColor(score: number): string {
+  if (score >= 66) return 'bg-emerald-500'
+  if (score >= 46) return 'bg-zinc-500'
+  return 'bg-rose-500'
+}
+
+export default function AdvancedTechCard({ stockId }: { stockId: string }) {
+  const [data, setData] = useState<AdvancedIndicators | null>(null)
+
+  useEffect(() => {
+    if (!stockId) return
+    api.get(`/stocks/${stockId}/advanced-indicators`).then(r => setData(r.data)).catch(() => {})
+  }, [stockId])
+
+  if (!data) return null
+
+  const { bias, ma_deduction, composite_score } = data
+  const { text: scoreText, color: scoreColor } = scoreLabel(composite_score)
+
+  return (
+    <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+      <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">進階技術分析</p>
+
+      {/* ── 綜合評等 ── */}
+      <div className="mb-4 pb-4 border-b border-zinc-800/40">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-base text-zinc-400">綜合評等</span>
+          <div className="text-right">
+            <span className={`font-mono font-bold text-base ${scoreColor}`}>{scoreText}</span>
+            <span className="text-zinc-600 text-xs ml-1.5">{composite_score}/100</span>
+          </div>
+        </div>
+        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${scoreBarColor(composite_score)}`}
+            style={{ width: `${composite_score}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[10px] text-zinc-700 mt-0.5">
+          <span>弱勢</span><span>中性</span><span>強勢</span>
+        </div>
+      </div>
+
+      {/* ── 乖離率 ── */}
+      <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">乖離率</p>
+      <div className="grid grid-cols-2 gap-x-4 mb-4 pb-4 border-b border-zinc-800/40">
+        {(['bias5', 'bias10', 'bias20', 'bias60'] as const).map(key => {
+          const val = bias[key]
+          const warn = biasWarning(key, val)
+          return (
+            <div key={key} className="flex justify-between items-center py-1.5">
+              <span className="text-sm text-zinc-500">{BIAS_LABELS[key]}</span>
+              <div className="text-right">
+                <span className={`font-mono text-sm font-semibold ${biasColor(key, val)}`}>
+                  {val !== null ? `${val > 0 ? '+' : ''}${val.toFixed(2)}%` : '---'}
+                </span>
+                {warn && (
+                  <span className="block text-[10px] text-amber-500">{warn}</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── 均線扣抵 ── */}
+      <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">均線扣抵</p>
+      <div>
+        {(['ma5', 'ma20'] as const).map(key => {
+          const item = ma_deduction[key]
+          const label = key === 'ma5' ? 'MA5 扣抵' : 'MA20 扣抵'
+          const trendText = item.trend === 'up' ? '均線預期上揚' : item.trend === 'down' ? '均線預期下降' : null
+          const trendColor = item.trend === 'up' ? 'text-emerald-400' : 'text-rose-400'
+          return (
+            <div key={key} className="flex justify-between items-center py-2.5 border-b border-zinc-800/40 last:border-0">
+              <span className="text-base text-zinc-400">{label}</span>
+              {item.deduction_price !== null ? (
+                <div className="text-right">
+                  <p className={`font-mono text-base font-semibold ${trendColor}`}>
+                    {item.deviation_pct !== null
+                      ? `${item.deviation_pct > 0 ? '+' : ''}${item.deviation_pct.toFixed(1)}%`
+                      : '---'}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    扣抵價 {item.deduction_price?.toFixed(1)}
+                    {trendText && <span className={`ml-1 ${trendColor}`}>· {trendText}</span>}
+                  </p>
+                </div>
+              ) : (
+                <span className="text-zinc-600">---</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

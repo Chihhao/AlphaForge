@@ -177,6 +177,97 @@ def get_indicators(
     return {"stock_id": stock_id, "data": data}
 
 
+@router.get("/{stock_id}/advanced-indicators")
+def get_advanced_indicators(stock_id: str):
+    """
+    進階技術分析：多期乖離率、均線扣抵分析、多指標綜合評等 (0-100)
+    """
+    df = StockService.get_kline_data(stock_id, "1y", "1d")
+    if df is None or df.empty:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"無法取得股票 {stock_id} 的數據",
+        )
+
+    prices = df["收盤"]
+    current_price = float(prices.iloc[-1])
+
+    # ── 多期乖離率 ─────────────────────────────────────────────────
+    bias: dict = {}
+    for period in [5, 10, 20, 60]:
+        b = StockService.calculate_bias(prices, period)
+        b_clean = b.dropna()
+        bias[f"bias{period}"] = round(float(b_clean.iloc[-1]), 2) if not b_clean.empty else None
+
+    # ── 均線扣抵分析 ──────────────────────────────────────────────
+    ma_deduction: dict = {}
+    for period in [5, 20]:
+        ma = StockService.calculate_ma(prices, period)
+        ma_clean = ma.dropna()
+        latest_ma = round(float(ma_clean.iloc[-1]), 2) if not ma_clean.empty else None
+        # 扣抵價：即將「脫離」MA 視窗的那根收盤價（period 個交易日前）
+        ded_price = round(float(prices.iloc[-period - 1]), 2) if len(prices) > period else None
+        if latest_ma and ded_price:
+            deviation_pct = round((current_price - ded_price) / ded_price * 100, 2)
+            trend = "up" if current_price >= ded_price else "down"
+        else:
+            deviation_pct, trend = None, None
+        ma_deduction[f"ma{period}"] = {
+            "current_price": current_price,
+            "deduction_price": ded_price,
+            "ma_value": latest_ma,
+            "deviation_pct": deviation_pct,
+            "trend": trend,
+        }
+
+    # ── 多指標綜合評等 (0-100) ────────────────────────────────────
+    rsi = StockService.calculate_rsi(prices, 14)
+    rsi_val = float(rsi.dropna().iloc[-1]) if not rsi.dropna().empty else 50.0
+
+    ma20 = StockService.calculate_ma(prices, 20)
+    latest_ma20 = float(ma20.dropna().iloc[-1]) if not ma20.dropna().empty else None
+
+    bb = StockService.calculate_bollinger_bands(prices, 20, 2)
+    bb_upper = float(bb["upper"].dropna().iloc[-1]) if not bb["upper"].dropna().empty else None
+    bb_lower = float(bb["lower"].dropna().iloc[-1]) if not bb["lower"].dropna().empty else None
+
+    score = 50
+    # RSI
+    if rsi_val > 70:       score -= 10
+    elif rsi_val > 55:     score += 5
+    elif rsi_val < 30:     score += 10
+    elif rsi_val < 45:     score -= 5
+    # MA20 位階
+    if latest_ma20:
+        score += 15 if current_price > latest_ma20 else -15
+    # 布林位置
+    if bb_upper and bb_lower:
+        rng = bb_upper - bb_lower
+        if rng > 0:
+            pos = (current_price - bb_lower) / rng
+            if pos > 0.85:   score -= 10
+            elif pos > 0.5:  score += 5
+            elif pos < 0.15: score += 10
+            else:            score -= 5
+    # BIAS20
+    b20 = bias.get("bias20")
+    if b20 is not None:
+        if b20 > 10:    score -= 10
+        elif b20 > 3:   score += 5
+        elif b20 < -10: score += 10
+        elif b20 < -3:  score -= 5
+
+    composite_score = max(0, min(100, score))
+
+    return {
+        "stock_id": stock_id,
+        "current_price": current_price,
+        "bias": bias,
+        "ma_deduction": ma_deduction,
+        "composite_score": composite_score,
+    }
+
+
 from app.models.stock_revenue import StockMonthlyRevenue
 from app.models.stock_eps import StockQuarterlyEPS
 

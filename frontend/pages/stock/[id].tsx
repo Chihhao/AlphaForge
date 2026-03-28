@@ -4,6 +4,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import api from '../../lib/api'
 import KDIndicator from '../../components/KDIndicator'
+import AdvancedTechCard from '../../components/AdvancedTechCard'
 import EducationalHint from '../../components/EducationalHint'
 import { formatPrice } from '../../lib/formatters'
 import { useWatchlist } from '../../lib/useWatchlist'
@@ -642,6 +643,9 @@ export default function StockDetail() {
             </div>
           )
         })()}
+        {/* 進階技術分析 */}
+        {id && <AdvancedTechCard stockId={id as string} />}
+
         {/* Alpha Miner 歷史訊號 */}
         {alphaSignals.length > 0 && (() => {
           const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
