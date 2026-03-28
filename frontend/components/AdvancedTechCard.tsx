@@ -98,57 +98,46 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
         </svg>
       </button>
 
-      {/* ── 乖離率 + 均線扣抵（收合） ── */}
+      {/* ── 明細（收合） ── */}
       {showDetail && (
-        <div className="mt-3 pt-3 border-t border-zinc-800/40">
-          <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">乖離率</p>
-          <div className="grid grid-cols-2 gap-x-4 mb-4 pb-4 border-b border-zinc-800/40">
+        <div className="mt-2 pt-2 border-t border-zinc-800/40 space-y-1.5">
+          {/* BIAS 四期：一行 4 chips */}
+          <div className="flex gap-2">
             {(['bias5', 'bias10', 'bias20', 'bias60'] as const).map(key => {
               const val = bias[key]
               const warn = biasWarning(key, val)
               return (
-                <div key={key} className="flex justify-between items-center py-1.5">
-                  <span className="text-sm text-zinc-500">{BIAS_LABELS[key]}</span>
-                  <div className="text-right">
-                    <span className={`font-mono text-sm font-semibold ${biasColor(key, val)}`}>
-                      {val !== null ? `${val > 0 ? '+' : ''}${val.toFixed(2)}%` : '---'}
-                    </span>
-                    {warn && <span className="block text-[10px] text-amber-500">{warn}</span>}
-                  </div>
+                <div key={key} className="flex-1 bg-zinc-800/50 rounded-lg px-2 py-1.5 text-center">
+                  <p className="text-[10px] text-zinc-600 mb-0.5">{BIAS_LABELS[key]}</p>
+                  <p className={`font-mono text-xs font-semibold ${biasColor(key, val)}`}>
+                    {val !== null ? `${val > 0 ? '+' : ''}${val.toFixed(1)}%` : '---'}
+                  </p>
+                  {warn && <p className="text-[9px] text-amber-500 leading-none mt-0.5">{warn}</p>}
                 </div>
               )
             })}
           </div>
 
-          <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">均線扣抵</p>
-          <div>
-            {(['ma5', 'ma20'] as const).map(key => {
-              const item = ma_deduction[key]
-              const label = key === 'ma5' ? 'MA5 扣抵' : 'MA20 扣抵'
-              const trendText = item.trend === 'up' ? '均線預期上揚' : item.trend === 'down' ? '均線預期下降' : null
-              const trendColor = item.trend === 'up' ? 'text-emerald-400' : 'text-rose-400'
-              return (
-                <div key={key} className="flex justify-between items-center py-2.5 border-b border-zinc-800/40 last:border-0">
-                  <span className="text-base text-zinc-400">{label}</span>
-                  {item.deduction_price !== null ? (
-                    <div className="text-right">
-                      <p className={`font-mono text-base font-semibold ${trendColor}`}>
-                        {item.deviation_pct !== null
-                          ? `${item.deviation_pct > 0 ? '+' : ''}${item.deviation_pct.toFixed(1)}%`
-                          : '---'}
-                      </p>
-                      <p className="text-xs text-zinc-500">
-                        扣抵價 {item.deduction_price?.toFixed(1)}
-                        {trendText && <span className={`ml-1 ${trendColor}`}>· {trendText}</span>}
-                      </p>
-                    </div>
-                  ) : (
-                    <span className="text-zinc-600">---</span>
+          {/* MA 扣抵：2 行緊湊 */}
+          {(['ma5', 'ma20'] as const).map(key => {
+            const item = ma_deduction[key]
+            const label = key === 'ma5' ? 'MA5' : 'MA20'
+            const trendArrow = item.trend === 'up' ? '↑' : item.trend === 'down' ? '↓' : ''
+            const trendColor = item.trend === 'up' ? 'text-emerald-400' : 'text-rose-400'
+            return (
+              <div key={key} className="flex items-center justify-between bg-zinc-800/50 rounded-lg px-2 py-1.5">
+                <span className="text-xs text-zinc-500">{label} 扣抵</span>
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  <span className="text-zinc-600">扣抵 {item.deduction_price?.toFixed(0) ?? '---'}</span>
+                  {item.deviation_pct !== null && (
+                    <span className={`font-semibold ${trendColor}`}>
+                      {item.deviation_pct > 0 ? '+' : ''}{item.deviation_pct.toFixed(1)}% {trendArrow}
+                    </span>
                   )}
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
