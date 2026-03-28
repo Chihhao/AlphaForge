@@ -64,13 +64,19 @@ class StrategyMinerService:
     @classmethod
     def run_all(cls, db: Session) -> None:
         """對所有維度執行參數尋優，結果存 strategy_backtest_params + strategy_miner_trades。
-        若訊號不足（< 20）則跳過該維度。
+        若訊號不足（< 20）則跳過該維度。做多和放空各自獨立尋優。
         """
         for dim in DIMENSIONS:
+            # 做多
             try:
-                cls._optimize_dimension(db, dim)
+                cls._optimize_dimension(db, dim, direction='long')
             except Exception as e:
-                logger.error(f"[StrategyMiner] {dim} 尋優失敗: {e}", exc_info=True)
+                logger.error(f"[StrategyMiner] {dim}/long 尋優失敗: {e}", exc_info=True)
+            # 放空
+            try:
+                cls._optimize_dimension(db, dim, direction='short')
+            except Exception as e:
+                logger.error(f"[StrategyMiner] {dim}/short 尋優失敗: {e}", exc_info=True)
 
     @classmethod
     def run_daily(cls, db: Session) -> int:
@@ -266,8 +272,95 @@ class StrategyMinerService:
             ))
             count += 1
 
+        # ─── 放空推薦 ──────────────────────────────────────────────────────────
+        short_count = cls._generate_short_picks(db, latest_date, pick_date, price_map)
+        count += short_count
+
         db.commit()
-        logger.info(f"[StrategyMiner] 今日推薦清單已生成 {count} 筆（{pick_date}）")
+        logger.info(f"[StrategyMiner] 今日推薦清單已生成 {count} 筆（做多+放空，{pick_date}）")
+        return count
+
+    @classmethod
+    def _generate_short_picks(
+        cls, db: Session, latest_date, pick_date, price_map: Dict[str, float],
+    ) -> int:
+        """生成放空推薦，從 alpha_signal_history 的 short 訊號中取出。"""
+        short_rows = (
+            db.query(AlphaSignalHistory)
+            .filter(
+                AlphaSignalHistory.signal_date == latest_date,
+                AlphaSignalHistory.direction == 'short',
+            )
+            .all()
+        )
+        if not short_rows:
+            # 沒有歷史放空訊號時，直接從 Alpha Miner 即時產生
+            from app.services.alpha_miner_service import AlphaMinerService
+            short_signals = []
+            for dim in DIMENSIONS:
+                sigs = AlphaMinerService.get_today_signals(db, dimension=dim, direction='short')
+                short_signals.extend(sigs)
+            if not short_signals:
+                return 0
+            # 去重（同股票保留分數最高者）
+            best: Dict[str, dict] = {}
+            for s in short_signals:
+                if s.stock_id not in best or s.trigger_count > best[s.stock_id]['score']:
+                    best[s.stock_id] = {
+                        'stock_id': s.stock_id,
+                        'stock_name': s.stock_name,
+                        'score': s.trigger_count,
+                        'reasons': s.strategies,
+                        'time_dimension': s.time_dimension,
+                    }
+            sorted_shorts = sorted(best.values(), key=lambda x: x['score'], reverse=True)
+        else:
+            # 從歷史訊號中取
+            best = {}
+            for r in short_rows:
+                if r.stock_id not in best or r.trigger_count > best[r.stock_id].trigger_count:
+                    best[r.stock_id] = r
+            sorted_shorts = sorted(
+                [{'stock_id': r.stock_id, 'stock_name': r.stock_name,
+                  'score': r.trigger_count, 'reasons': [],
+                  'time_dimension': r.time_dimension}
+                 for r in best.values()],
+                key=lambda x: x['score'], reverse=True,
+            )
+
+        sorted_shorts = sorted_shorts[:MAX_PICKS_PER_DIRECTION]
+
+        # 刪除今日已有的放空 picks
+        db.execute(
+            delete(StrategyMinerPick).where(
+                StrategyMinerPick.pick_date == pick_date,
+                StrategyMinerPick.direction == 'short',
+            )
+        )
+
+        count = 0
+        for item in sorted_shorts:
+            entry_price = price_map.get(item['stock_id'], 0.0)
+            # 放空用較保守的預設參數
+            tp, sl, hd = cls._default_params(item.get('time_dimension', '10d'))
+
+            db.add(StrategyMinerPick(
+                pick_date=pick_date,
+                stock_id=item['stock_id'],
+                stock_name=item['stock_name'],
+                strategy_ids=json.dumps([item.get('time_dimension', '10d')]),
+                weighted_score=round(item['score'], 4),
+                entry_price=entry_price,
+                take_profit_pct=tp,
+                stop_loss_pct=sl,
+                hold_days_max=hd,
+                time_dimension=item.get('time_dimension', '10d'),
+                direction='short',
+                buy_reasons=json.dumps(item.get('reasons', []), ensure_ascii=False) or None,
+            ))
+            count += 1
+
+        logger.info(f"[StrategyMiner] 放空推薦 {count} 筆")
         return count
 
     # ─── 查詢介面 ──────────────────────────────────────────────────────────────
@@ -343,22 +436,24 @@ class StrategyMinerService:
 
     # ─── 核心回測引擎 ──────────────────────────────────────────────────────────
     @classmethod
-    def _optimize_dimension(cls, db: Session, dimension: str) -> None:
-        logger.info(f"[StrategyMiner] 開始 {dimension} 維度參數尋優")
+    def _optimize_dimension(cls, db: Session, dimension: str, direction: str = 'long') -> None:
+        strategy_key = f"{dimension}_{direction}" if direction == 'short' else dimension
+        logger.info(f"[StrategyMiner] 開始 {strategy_key} 維度參數尋優")
 
-        # 載入歷史訊號
+        # 載入歷史訊號（按 direction 過濾）
         cutoff = date.today() - timedelta(days=365 * 2)
         signal_rows = (
             db.query(AlphaSignalHistory)
             .filter(
                 AlphaSignalHistory.time_dimension == dimension,
+                AlphaSignalHistory.direction == direction,
                 AlphaSignalHistory.signal_date >= cutoff,
             )
             .order_by(AlphaSignalHistory.signal_date)
             .all()
         )
         if len(signal_rows) < 20:
-            logger.info(f"[StrategyMiner] {dimension} 訊號不足（{len(signal_rows)} 筆），跳過")
+            logger.info(f"[StrategyMiner] {strategy_key} 訊號不足（{len(signal_rows)} 筆），跳過")
             return
 
         signals_df = pd.DataFrame([{
@@ -381,8 +476,10 @@ class StrategyMinerService:
             logger.info(f"[StrategyMiner] {dimension} 訓練/測試集樣本不足，跳過")
             return
 
+        is_short = (direction == 'short')
+
         # 跑 18 組參數（訓練集）
-        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict)
+        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, is_short=is_short)
 
         # 找訓練集 Sharpe 前三
         train_sharpes: List[Tuple[int, float]] = []
@@ -394,7 +491,7 @@ class StrategyMinerService:
 
         # 跑前三（測試集）
         top3_params = [PARAMS_LIST[i] for i in top3_indices]
-        test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params)
+        test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params, is_short=is_short)
 
         # 選測試集最穩定者
         best_idx_in_top3 = 0
@@ -410,7 +507,7 @@ class StrategyMinerService:
         # 儲存 18 組回測結果到 strategy_backtest_params
         today = date.today()
         db.execute(
-            delete(StrategyBacktestParam).where(StrategyBacktestParam.strategy_id == dimension)
+            delete(StrategyBacktestParam).where(StrategyBacktestParam.strategy_id == strategy_key)
         )
         for param_idx, params in enumerate(PARAMS_LIST):
             tr_sharpe = train_sharpes[param_idx][1] if param_idx < len(train_sharpes) else 0.0
@@ -434,7 +531,7 @@ class StrategyMinerService:
             tr_sharpe_val = _sharpe([t['return_pct'] for t in tr_trades])
 
             db.add(StrategyBacktestParam(
-                strategy_id=dimension,
+                strategy_id=strategy_key,
                 take_profit_pct=params['take_profit_pct'],
                 stop_loss_pct=params['stop_loss_pct'],
                 hold_days_max=params['hold_days'],
@@ -449,22 +546,24 @@ class StrategyMinerService:
 
         db.commit()
         logger.info(
-            f"[StrategyMiner] {dimension} 最優參數: "
+            f"[StrategyMiner] {strategy_key} 最優參數: "
             f"TP={optimal_params['take_profit_pct']*100}% "
             f"SL={optimal_params['stop_loss_pct']*100}% "
             f"HD={optimal_params['hold_days']}天"
         )
 
         # 以最優參數跑全部訊號，儲存逐筆交易記錄
-        all_trades_by_param = cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, [optimal_params])
+        all_trades_by_param = cls._simulate_entries(
+            signals_df, price_dict, sorted_dates_dict, [optimal_params], is_short=is_short,
+        )
         optimal_all_trades = all_trades_by_param[0]
 
         db.execute(
-            delete(StrategyMinerTrade).where(StrategyMinerTrade.strategy_id == dimension)
+            delete(StrategyMinerTrade).where(StrategyMinerTrade.strategy_id == strategy_key)
         )
         for t in optimal_all_trades:
             db.add(StrategyMinerTrade(
-                strategy_id=dimension,
+                strategy_id=strategy_key,
                 stock_id=t['stock_id'],
                 entry_date=t['entry_date'],
                 entry_price=t['entry_price'],
@@ -475,7 +574,7 @@ class StrategyMinerService:
                 hold_days=t['hold_days'],
             ))
         db.commit()
-        logger.info(f"[StrategyMiner] {dimension} 逐筆交易已儲存 {len(optimal_all_trades)} 筆")
+        logger.info(f"[StrategyMiner] {strategy_key} 逐筆交易已儲存 {len(optimal_all_trades)} 筆")
 
     @classmethod
     def _simulate_all_params(
@@ -483,9 +582,10 @@ class StrategyMinerService:
         signals_df: pd.DataFrame,
         price_dict: Dict,
         sorted_dates_dict: Dict,
+        is_short: bool = False,
     ) -> List[List[dict]]:
         """對所有 18 組參數進行回測，回傳 list of 18 trade lists"""
-        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, PARAMS_LIST)
+        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, PARAMS_LIST, is_short=is_short)
 
     @classmethod
     def _simulate_entries(
@@ -494,6 +594,7 @@ class StrategyMinerService:
         price_dict: Dict[str, Dict],
         sorted_dates_dict: Dict[str, List],
         params_list: List[dict],
+        is_short: bool = False,
     ) -> List[List[dict]]:
         """對指定參數列表模擬回測，回傳每組參數的交易記錄列表"""
         results: List[List[dict]] = [[] for _ in params_list]
@@ -544,8 +645,13 @@ class StrategyMinerService:
                     continue
                 r = fwd_returns[:n_fwd]
 
-                tp_hits = np.where(r >= tp)[0]
-                sl_hits = np.where(r <= -sl)[0]
+                if is_short:
+                    # 放空：股價下跌 = 獲利，上漲 = 虧損
+                    tp_hits = np.where(r <= -tp)[0]   # 跌到 TP = 停利
+                    sl_hits = np.where(r >= sl)[0]    # 漲到 SL = 停損
+                else:
+                    tp_hits = np.where(r >= tp)[0]
+                    sl_hits = np.where(r <= -sl)[0]
 
                 tp_day = int(tp_hits[0]) if len(tp_hits) > 0 else n_fwd
                 sl_day = int(sl_hits[0]) if len(sl_hits) > 0 else n_fwd
@@ -560,7 +666,9 @@ class StrategyMinerService:
                     exit_idx = n_fwd - 1
                     exit_reason = 'time_limit'
 
-                exit_return = float(r[exit_idx])
+                # 放空報酬反轉
+                raw_return = float(r[exit_idx])
+                exit_return = -raw_return if is_short else raw_return
                 results[param_idx].append({
                     'stock_id': stock_id,
                     'entry_date': signal_date,
