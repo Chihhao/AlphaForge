@@ -67,7 +67,16 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
 
   return (
     <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-      <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">進階技術分析</p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">進階技術分析</p>
+        <button
+          onClick={() => setShowDetail(v => !v)}
+          className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+        >
+          {showDetail ? '收起' : '查看明細'}
+          <span className={`transition-transform inline-block ${showDetail ? 'rotate-90' : ''}`}>›</span>
+        </button>
+      </div>
 
       {/* ── 綜合評等 ── */}
       <div className="flex items-center justify-between mb-2">
@@ -85,17 +94,6 @@ export default function AdvancedTechCard({ stockId }: { stockId: string }) {
       </div>
       <div className="flex justify-between text-xs text-zinc-500 mt-0.5 mb-3">
         <span>弱勢</span><span>中性</span><span>強勢</span>
-      </div>
-
-      {/* ── 明細展開按鈕 ── */}
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowDetail(v => !v)}
-          className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
-        >
-          {showDetail ? '收起' : '查看明細'}
-          <span className={`transition-transform inline-block ${showDetail ? 'rotate-90' : ''}`}>›</span>
-        </button>
       </div>
 
       {/* ── 明細（收合） ── */}
