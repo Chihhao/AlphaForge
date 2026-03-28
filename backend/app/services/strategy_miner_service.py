@@ -42,6 +42,11 @@ PARAMS_LIST = [
 
 DIMENSIONS = ['5d', '10d', '30d']
 
+# ─── 訊號品質門檻 ─────────────────────────────────────────────────────────────
+TRIGGER_COUNT_PERCENTILE = 0.70   # 觸發數需 >= 該維度 P70
+MIN_WIN_RATE = 0.50               # 最優參數回測勝率需 >= 50%
+MAX_PICKS_PER_DIRECTION = 5       # 做多/放空各最多推薦 5 檔
+
 
 def _sharpe(returns: List[float]) -> float:
     if len(returns) < 3:
@@ -81,16 +86,19 @@ class StrategyMinerService:
             return 0
         latest_date = latest_row.signal_date
 
-        # 查當日訊號（所有維度）
+        # 查當日���多訊號
         rows = (
             db.query(AlphaSignalHistory)
-            .filter(AlphaSignalHistory.signal_date == latest_date)
+            .filter(
+                AlphaSignalHistory.signal_date == latest_date,
+                AlphaSignalHistory.direction == 'long',
+            )
             .all()
         )
         if not rows:
             return 0
 
-        # 查各維度最優參數
+        # 查各維度最優參數（僅勝率 >= MIN_WIN_RATE 的維度）
         optimal: Dict[str, Optional[StrategyBacktestParam]] = {}
         for dim in DIMENSIONS:
             opt = (
@@ -101,6 +109,9 @@ class StrategyMinerService:
                 )
                 .first()
             )
+            if opt and opt.win_rate_test is not None and opt.win_rate_test < MIN_WIN_RATE:
+                logger.info(f"[StrategyMiner] {dim} 勝率 {opt.win_rate_test:.1%} < {MIN_WIN_RATE:.0%}，跳過")
+                opt = None
             optimal[dim] = opt
 
         # 查最新收盤價（每檔股票各取自己最後一個有成交的收盤價）
@@ -135,12 +146,26 @@ class StrategyMinerService:
         # 分維度去重，同股票同維度保留 trigger_count 最高者
         by_dim: Dict[str, Dict[str, AlphaSignalHistory]] = {}
         for r in rows:
+            if optimal.get(r.time_dimension) is None and not cls._default_params(r.time_dimension):
+                continue  # 該維度被勝率門檻淘汰
             dim_map = by_dim.setdefault(r.time_dimension, {})
             existing = dim_map.get(r.stock_id)
             if existing is None or r.trigger_count > existing.trigger_count:
                 dim_map[r.stock_id] = r
 
-        # 合併：收集每檔股票出現的所有維度（多維共鳴加分 10%/維度）
+        # 訊號強度過濾：每個維度只保留 trigger_count >= P70 的訊號
+        for dim, dim_map in by_dim.items():
+            if not dim_map:
+                continue
+            counts = sorted([r.trigger_count for r in dim_map.values()])
+            p70_idx = int(len(counts) * TRIGGER_COUNT_PERCENTILE)
+            p70_val = counts[min(p70_idx, len(counts) - 1)]
+            before = len(dim_map)
+            by_dim[dim] = {sid: r for sid, r in dim_map.items() if r.trigger_count >= p70_val}
+            after = len(by_dim[dim])
+            logger.info(f"[StrategyMiner] {dim} 觸發數門檻 >= {p70_val}: {before} → {after} 筆")
+
+        # 合併：收集每檔股票出現的所有維度��多維共鳴加分 10%/維度）
         combined: Dict[str, dict] = {}
         for dim, dim_map in by_dim.items():
             for stock_id, r in dim_map.items():
@@ -159,12 +184,12 @@ class StrategyMinerService:
                     # 多維共鳴加分：每額外維度 +10%
                     combined[stock_id]['score'] *= 1.10
 
-        # 計算最終分數，排序，取前 10
+        # 計算最終分數，排序，取前 MAX_PICKS_PER_DIRECTION
         sorted_combined = sorted(
             combined.values(),
             key=lambda x: x['score'],
             reverse=True,
-        )[:10]
+        )[:MAX_PICKS_PER_DIRECTION]
 
         pick_date = date.today()
 
@@ -200,9 +225,12 @@ class StrategyMinerService:
         except Exception as e:
             logger.warning(f"[StrategyMiner] 買入理由建立失敗: {e}")
 
-        # 刪除今日已有的 picks（idempotent）
+        # 刪除今日已有的做多 picks（idempotent）
         db.execute(
-            delete(StrategyMinerPick).where(StrategyMinerPick.pick_date == pick_date)
+            delete(StrategyMinerPick).where(
+                StrategyMinerPick.pick_date == pick_date,
+                StrategyMinerPick.direction == 'long',
+            )
         )
 
         count = 0
@@ -233,6 +261,7 @@ class StrategyMinerService:
                 stop_loss_pct=sl,
                 hold_days_max=hd,
                 time_dimension=r.time_dimension,
+                direction='long',
                 buy_reasons=json.dumps(reasons, ensure_ascii=False) if reasons else None,
             ))
             count += 1
