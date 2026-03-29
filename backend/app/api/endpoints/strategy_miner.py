@@ -347,14 +347,22 @@ def get_live_performance(db: Session = Depends(get_db)):
         if entry <= 0 or current <= 0:
             continue
         days_held = (today - p.pick_date).days
-        float_pct = (current - entry) / entry * 100
+        direction = getattr(p, 'direction', 'long') or 'long'
+        is_short = (direction == 'short')
+        raw_pct = (current - entry) / entry * 100
+        float_pct = -raw_pct if is_short else raw_pct
 
         # 判斷是否已「有定論」
-        if current >= entry * (1 + p.take_profit_pct):
-            # 停利達標：以當前報酬為近似出場報酬
+        if is_short:
+            tp_hit = current <= entry * (1 - p.take_profit_pct)
+            sl_hit = current >= entry * (1 + p.stop_loss_pct)
+        else:
+            tp_hit = current >= entry * (1 + p.take_profit_pct)
+            sl_hit = current <= entry * (1 - p.stop_loss_pct)
+
+        if tp_hit:
             finished.append(float_pct)
-        elif current <= entry * (1 - p.stop_loss_pct):
-            # 停損達標
+        elif sl_hit:
             finished.append(float_pct)
         elif days_held > p.hold_days_max + 7:
             # 已結算（到期超寬限）
@@ -423,11 +431,21 @@ def get_concluded_picks(
         if entry <= 0 or current <= 0:
             continue
         days_held = (today - p.pick_date).days
-        float_pct = round((current - entry) / entry * 100, 2)
+        direction = getattr(p, 'direction', 'long') or 'long'
+        is_short = (direction == 'short')
+        raw_pct = (current - entry) / entry * 100
+        float_pct = round(-raw_pct if is_short else raw_pct, 2)
 
-        if current >= entry * (1 + p.take_profit_pct):
+        if is_short:
+            tp_hit = current <= entry * (1 - p.take_profit_pct)
+            sl_hit = current >= entry * (1 + p.stop_loss_pct)
+        else:
+            tp_hit = current >= entry * (1 + p.take_profit_pct)
+            sl_hit = current <= entry * (1 - p.stop_loss_pct)
+
+        if tp_hit:
             exit_reason = "take_profit"
-        elif current <= entry * (1 - p.stop_loss_pct):
+        elif sl_hit:
             exit_reason = "stop_loss"
         elif days_held > p.hold_days_max + 7:
             exit_reason = "settled"

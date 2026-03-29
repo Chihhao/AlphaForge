@@ -77,11 +77,12 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     const { toggle, has } = useWatchlist()
     const watched = has(pick.stock_id)
 
+    const isShort = pick.direction === 'short'
     const takeProfit = pick.entry_price > 0
-        ? Math.round(pick.entry_price * (1 + pick.take_profit_pct / 100))
+        ? Math.round(pick.entry_price * (1 + (isShort ? -1 : 1) * pick.take_profit_pct / 100))
         : 0
     const stopLoss = pick.entry_price > 0
-        ? Math.round(pick.entry_price * (1 - pick.stop_loss_pct / 100))
+        ? Math.round(pick.entry_price * (1 + (isShort ? 1 : -1) * pick.stop_loss_pct / 100))
         : 0
 
     const handleExpand = () => {
@@ -165,14 +166,14 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             {/* Row 2: entry → take profit / stop loss */}
             {pick.entry_price > 0 && (
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1.5">
-                    <span className="text-zinc-500 text-xs">買入</span>
+                    <span className="text-zinc-500 text-xs">{isShort ? '賣出' : '買入'}</span>
                     <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
                     <span className="text-zinc-600 hidden sm:inline">→</span>
                     <span className="text-zinc-500 text-xs">停利(+{pick.take_profit_pct}%)</span>
-                    <span className="text-rose-400 font-mono font-bold text-lg">▲{takeProfit.toLocaleString()}</span>
+                    <span className={`font-mono font-bold text-lg ${isShort ? 'text-emerald-400' : 'text-rose-400'}`}>{isShort ? '▼' : '▲'}{takeProfit.toLocaleString()}</span>
                     <span className="text-zinc-700">/</span>
                     <span className="text-zinc-500 text-xs">停損(-{pick.stop_loss_pct}%)</span>
-                    <span className="text-emerald-400 font-mono font-bold text-lg">▼{stopLoss.toLocaleString()}</span>
+                    <span className={`font-mono font-bold text-lg ${isShort ? 'text-rose-400' : 'text-emerald-400'}`}>{isShort ? '▲' : '▼'}{stopLoss.toLocaleString()}</span>
                 </div>
             )}
 
