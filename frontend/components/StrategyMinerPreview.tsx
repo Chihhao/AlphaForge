@@ -90,10 +90,10 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   return (
     <Link
       href={`/stock/${pick.stock_id}`}
-      className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
+      className="flex items-center gap-2 py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
     >
       <span className="text-cyan-400 font-mono font-bold text-xs w-4 shrink-0 text-center">{rank}</span>
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {isShort ? (
             <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
