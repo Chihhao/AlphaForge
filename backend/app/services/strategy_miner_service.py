@@ -328,6 +328,28 @@ class StrategyMinerService:
                 key=lambda x: x['score'], reverse=True,
             )
 
+        # 過濾：只保留有歷史訊號資料的股票（無資料 = 無法驗證，不推薦）
+        from datetime import timedelta as _td
+        _cutoff = date.today() - _td(days=180)
+        _short_sids_all = [s['stock_id'] for s in sorted_shorts]
+        if _short_sids_all:
+            _has_history = set(
+                row.stock_id for row in
+                db.query(AlphaSignalHistory.stock_id)
+                .filter(
+                    AlphaSignalHistory.stock_id.in_(_short_sids_all),
+                    AlphaSignalHistory.is_resolved == True,  # noqa: E712
+                    AlphaSignalHistory.actual_return.isnot(None),
+                    AlphaSignalHistory.signal_date >= _cutoff,
+                )
+                .distinct()
+                .all()
+            )
+            before = len(sorted_shorts)
+            sorted_shorts = [s for s in sorted_shorts if s['stock_id'] in _has_history]
+            if len(sorted_shorts) < before:
+                logger.info(f"[StrategyMiner] 放空過濾無歷史資料: {before} → {len(sorted_shorts)} 筆")
+
         sorted_shorts = sorted_shorts[:MAX_PICKS_PER_DIRECTION]
 
         # 為放空股票即時補上看空理由（從 stock_features 判斷）
