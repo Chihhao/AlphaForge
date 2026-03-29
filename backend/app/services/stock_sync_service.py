@@ -78,9 +78,11 @@ class StockSyncService:
             # 將 DataFrame 轉為模型對象並存入
             new_prices = []
             for timestamp, row in df.iterrows():
-                # 轉換為 date 對象，並排除未來日期 (yfinance 有時會有預估數據)
+                # 轉換為 date 對象，並排除未來日期與週末 (yfinance 有時會有預估/週末複製數據)
                 current_date = timestamp.date()
                 if current_date > date.today():
+                    continue
+                if current_date.weekday() >= 5:  # 週六=5, 週日=6
                     continue
                 
                 # 檢查是否已存在（二次確認，避免 start_date 的重疊）

@@ -221,6 +221,12 @@ class MarketDataCrawler:
             else:
                 target_date = now.date()
 
+        # 週末不抓（即使手動觸發也跳過）
+        if target_date.weekday() >= 5:  # 週六=5, 週日=6
+            msg = f"{target_date.strftime('%Y-%m-%d')} 為週末，跳過資料同步。"
+            SystemLogger.info(msg, category="crawler")
+            return {"status": "skipped", "message": msg, "inserted": 0}
+
         target_date_str = target_date.strftime('%Y-%m-%d')
         SystemLogger.info(f"開始同步台股收盤行情數據...", category="crawler")
         
