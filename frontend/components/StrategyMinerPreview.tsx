@@ -92,13 +92,15 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
       href={`/stock/${pick.stock_id}`}
       className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
     >
-      <div className="flex flex-col ml-1">
-        <div className="flex items-center gap-2">
-          {isShort ? (
-            <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
-          ) : (
-            <span className="shrink-0 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1 py-0.5 leading-none">多</span>
-          )}
+      <div className="flex items-start gap-2">
+        <span className="text-cyan-400 font-mono text-sm font-semibold shrink-0 w-5 text-right mt-0.5">{rank}</span>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            {isShort ? (
+              <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
+            ) : (
+              <span className="shrink-0 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1 py-0.5 leading-none">多</span>
+            )}
           <span className="text-sm font-semibold text-zinc-100">{pick.stock_name}</span>
           <span className="text-xs text-zinc-500 font-mono">{pick.stock_id}</span>
           {isMultiDim && (
@@ -116,6 +118,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
               勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
             </span>
           )}
+          </div>
         </div>
       </div>
 
