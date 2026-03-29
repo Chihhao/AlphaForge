@@ -867,12 +867,12 @@ const StrategyPage = () => {
                 {/* ── 歷史推薦成績 ──────────────────────────────────────── */}
                 <PicksTrackRecord />
 
-                {/* ── 明日建議買入 ──────────────────────────────────────── */}
+                {/* ── 明日操作建議 ──────────────────────────────────────── */}
                 <div className="flex items-center gap-2 px-1">
                     <svg viewBox="0 0 24 24" width={14} height={14} className="fill-rose-400 shrink-0">
                         <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                     </svg>
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">明日建議買入</span>
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">明日操作建議</span>
                     {!loading && picks.length > 0 && (
                         <span className="text-[10px] font-mono text-zinc-600">{picks.length} 檔</span>
                     )}
