@@ -330,6 +330,21 @@ class StrategyMinerService:
 
         sorted_shorts = sorted_shorts[:MAX_PICKS_PER_DIRECTION]
 
+        # 為放空股票查詢最新收盤價（做多的 price_map 可能沒有這些股票）
+        short_stock_ids = [s['stock_id'] for s in sorted_shorts if s['stock_id'] not in price_map]
+        if short_stock_ids:
+            from sqlalchemy import func as sa_func, and_
+            sub = (
+                db.query(StockPrice.stock_id, sa_func.max(StockPrice.date).label("max_date"))
+                .filter(StockPrice.stock_id.in_(short_stock_ids), StockPrice.close > 0)
+                .group_by(StockPrice.stock_id).subquery()
+            )
+            for r in db.query(StockPrice.stock_id, StockPrice.close).join(
+                sub, and_(StockPrice.stock_id == sub.c.stock_id, StockPrice.date == sub.c.max_date)
+            ).all():
+                if r.close:
+                    price_map[r.stock_id] = float(r.close)
+
         # 刪除今日已有的放空 picks
         db.execute(
             delete(StrategyMinerPick).where(
