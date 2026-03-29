@@ -134,17 +134,17 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # --- 第四梯次：17:05 計算每日特徵快照 (Alpha Miner 數據基礎) ---
-    # 需在籌碼資料寫入後執行，確保籌碼欄位可以合入
+    # --- 第四梯次：17:20 計算每日特徵快照 (Alpha Miner 數據基礎) ---
+    # 需在基本面最終同步（17:00，含重試最多 15 分鐘）完成後執行
     scheduler.add_job(
         lambda: run_with_db(lambda db: FeatureService.compute_daily(db)),
-        trigger=CronTrigger(hour=17, minute=5),
+        trigger=CronTrigger(hour=17, minute=20),
         id="compute_daily_features",
         name="Daily feature store computation",
         replace_existing=True
     )
 
-    # --- 第五梯次：17:10 Alpha Miner 重訓（特徵計算完成後）---
+    # --- 第五梯次：17:30 Alpha Miner 重訓（特徵計算完成後）---
     def retrain_alpha_miner(db):
         from sqlalchemy import delete as sa_delete
         from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
@@ -155,37 +155,36 @@ def start_scheduler():
 
     scheduler.add_job(
         lambda: run_with_db(retrain_alpha_miner),
-        trigger=CronTrigger(hour=17, minute=10),
+        trigger=CronTrigger(hour=17, minute=30),
         id="retrain_alpha_miner",
         name="Daily Alpha Miner retrain",
         replace_existing=True
     )
 
-    # --- 第六梯次：17:45 儲存今日訊號至歷史記錄（延後確保重訓完成）---
-    # Alpha Miner 重訓於 17:10 啟動，需 20-40 分鐘；save_today_signals 內部亦有等待邏輯
+    # --- 第六梯次：18:10 儲存今日訊號至歷史記錄（確保重訓完成）---
+    # Alpha Miner 重訓於 17:30 啟動，需 12-15 分鐘；save_today_signals 內部亦有等待邏輯
     scheduler.add_job(
         lambda: run_with_db(lambda db: [
             AlphaMinerService.save_today_signals(db, dim, direction)
             for dim in ["5d", "10d", "30d"]
             for direction in ["long", "short"]
         ]),
-        trigger=CronTrigger(hour=17, minute=45),
+        trigger=CronTrigger(hour=18, minute=10),
         id="save_signal_history",
         name="Save today alpha signals to history (long + short)",
         replace_existing=True
     )
 
-    # --- 第七梯次：17:50 回填已到期訊號的實際報酬 ---
+    # --- 第七梯次：18:15 回填已到期訊號的實際報酬 ---
     scheduler.add_job(
         lambda: run_with_db(AlphaMinerService.update_signal_returns),
-        trigger=CronTrigger(hour=17, minute=50),
+        trigger=CronTrigger(hour=18, minute=15),
         id="update_signal_returns",
         name="Backfill actual returns for expired signals",
         replace_existing=True
     )
 
-    # --- 第八梯次：18:00 Strategy Miner 每日參數尋優 + 推薦生成 ---
-    # 每天重新尋優 TP/SL 參數（市場每天在變，參數也要跟著更新）
+    # --- 第八梯次：18:20 Strategy Miner 每日參數尋優 + 推薦生成 ---
     def run_strategy_miner(db):
         from app.services.strategy_miner_service import StrategyMinerService
         logger.info("[Scheduler] 開始每日 Strategy Miner 參數尋優…")
@@ -195,7 +194,7 @@ def start_scheduler():
 
     scheduler.add_job(
         lambda: run_with_db(run_strategy_miner),
-        trigger=CronTrigger(hour=18, minute=0),
+        trigger=CronTrigger(hour=18, minute=20),
         id="strategy_miner_daily",
         name="Strategy Miner daily optimization + picks",
         replace_existing=True
