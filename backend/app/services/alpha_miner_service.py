@@ -233,10 +233,14 @@ class AlphaMinerService:
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
     # 多時間維度設定：各維度獨立訓練，各自做 Bonferroni 校正（N=63）
+    # direction="short" 的維度會反轉 label（預測下跌而非上漲）
     DIMENSIONS = [
-        {"key": "5d",  "forward_days": 5,  "threshold_low": 0.03, "threshold_high": 0.05},
-        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05},
-        {"key": "30d", "forward_days": 30, "threshold_low": 0.05, "threshold_high": 0.10},
+        {"key": "5d",        "forward_days": 5,  "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
+        {"key": "10d",       "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
+        {"key": "30d",       "forward_days": 30, "threshold_low": 0.05, "threshold_high": 0.10, "direction": "long"},
+        {"key": "5d_short",  "forward_days": 5,  "threshold_low": 0.03, "threshold_high": 0.05, "direction": "short"},
+        {"key": "10d_short", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "short"},
+        {"key": "30d_short", "forward_days": 30, "threshold_low": 0.05, "threshold_high": 0.10, "direction": "short"},
     ]
 
     # ─── 公開介面 ──────────────────────────────────────────────────────────────
@@ -290,19 +294,21 @@ class AlphaMinerService:
         direction='long': 找被多個策略同時看多的股票（現有邏輯）
         direction='short': 從 stock_features 找滿足多個看空條件的股票
         """
-        if direction == 'short':
-            return cls._get_short_signals(db, dimension)
-
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
+            if direction == 'short':
+                return cls._get_short_signals(db, dimension)  # fallback
             return []
 
         tlo = 0.05 if dimension == '30d' else 0.03
         thi = 0.10 if dimension == '30d' else 0.05
 
+        # 放空：使用訓練好的 short 模型策略
+        dim_key = f"{dimension}_short" if direction == 'short' else dimension
+
         stock_map: Dict[str, dict] = {}
         for ranking in result.strategies:
-            if not ranking.is_significant or ranking.time_dimension != dimension or ranking.ic <= 0:
+            if not ranking.is_significant or ranking.time_dimension != dim_key or ranking.ic <= 0:
                 continue
             detail = cls._details.get(ranking.strategy_id)
             if not detail or not detail.recent_signals:
@@ -339,10 +345,12 @@ class AlphaMinerService:
                 stock_map[sid]['_w_mkt_loss'] += ranking.market_loss_rate * ic
                 stock_map[sid]['_w_mkt_loss_hi'] += ranking.market_loss_rate_hi * ic
 
-        # 做多訊號：動態門檻
+        # 動態門檻（做多和放空共用同一邏輯）
+        if not stock_map and direction == 'short':
+            return cls._get_short_signals(db, dimension)  # fallback: 模型尚無 short 策略
         valid_strategy_count = sum(
             1 for r in result.strategies
-            if r.is_significant and r.time_dimension == dimension and r.ic > 0
+            if r.is_significant and r.time_dimension == dim_key and r.ic > 0
         )
         min_triggers = max(2, round(valid_strategy_count * 0.4))
 
@@ -534,7 +542,8 @@ class AlphaMinerService:
         completed = 0
         for dim in cls.DIMENSIONS:
             # 每個持有期各自計算 forward_return 與 label
-            df_dim = cls._compute_forward_returns(df_base, dim['forward_days'], dim['threshold_low'])
+            dim_direction = dim.get('direction', 'long')
+            df_dim = cls._compute_forward_returns(df_base, dim['forward_days'], dim['threshold_low'], dim_direction)
             logger.info(f"[AlphaMiner] 開始訓練 {dim['key']} 維度（{n_combos} 組）")
 
             for i, factors in enumerate(FACTOR_COMBINATIONS):
@@ -650,13 +659,20 @@ class AlphaMinerService:
 
     # ─── 特徵工程 ──────────────────────────────────────────────────────────────
     @classmethod
-    def _compute_forward_returns(cls, df: pd.DataFrame, forward_days: int, threshold: float) -> pd.DataFrame:
+    def _compute_forward_returns(
+        cls, df: pd.DataFrame, forward_days: int, threshold: float, direction: str = "long",
+    ) -> pd.DataFrame:
         df = df.sort_values(['stock_id', 'date']).copy()
         df['forward_close'] = df.groupby('stock_id')['close'].shift(-forward_days)
         close = df['close'].replace(0, np.nan)
         df['forward_return'] = (df['forward_close'] - close) / close
-        df['label'] = np.where(df['forward_return'].isna(), np.nan,
-                               (df['forward_return'] > threshold).astype(float))
+        if direction == "short":
+            # 放空：預測會跌（forward_return < -threshold = 1）
+            df['label'] = np.where(df['forward_return'].isna(), np.nan,
+                                   (df['forward_return'] < -threshold).astype(float))
+        else:
+            df['label'] = np.where(df['forward_return'].isna(), np.nan,
+                                   (df['forward_return'] > threshold).astype(float))
         return df
 
     @classmethod
