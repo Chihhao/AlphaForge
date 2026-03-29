@@ -72,62 +72,66 @@ function SkeletonRow() {
   )
 }
 
+function formatPrice(price: number): string {
+  if (price === 0) return '---'
+  if (price < 100) return price.toFixed(2)
+  if (price < 500) return price.toFixed(1)
+  return Math.round(price).toString()
+}
+
 function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
-  const tpPct = Math.round(pick.take_profit_pct * 100)
-  const slPct = Math.round(pick.stop_loss_pct * 100)
   const isMultiDim = pick.dims.length > 1
   const isShort = pick.direction === 'short'
   const topReason = pick.buy_reasons.find(r => !r.includes('個策略')) ?? pick.buy_reasons[0]
+  const price = pick.current_price || pick.entry_price
+  const change = pick.change_pct ?? 0
+  const changeColor = change > 0 ? 'text-rose-400' : (change < 0 ? 'text-emerald-400' : 'text-zinc-400')
 
   return (
-    <div className="py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors border-b border-zinc-800/40 last:border-b-0">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-zinc-600 font-mono text-[10px] shrink-0">{rank}</span>
+    <Link
+      href={`/stock/${pick.stock_id}`}
+      className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
+    >
+      <div className="flex flex-col ml-1">
+        <div className="flex items-center gap-2">
           {isShort ? (
             <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
           ) : (
             <span className="shrink-0 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1 py-0.5 leading-none">多</span>
           )}
-          <Link
-            href={`/stock/${pick.stock_id}`}
-            className="text-sm font-semibold text-zinc-100 hover:text-amber-300 transition-colors truncate"
-          >
-            {pick.stock_name}
-          </Link>
-          <span className="text-xs text-zinc-500 shrink-0">{pick.stock_id}</span>
+          <span className="text-sm font-semibold text-zinc-100">{pick.stock_name}</span>
+          <span className="text-xs text-zinc-500 font-mono">{pick.stock_id}</span>
           {isMultiDim && (
             <span className="shrink-0 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
               多維
             </span>
           )}
         </div>
-        <div className="text-right shrink-0">
-          {pick.current_price ? (
-            <>
-              <div className={`text-sm font-bold tabular-nums ${(pick.change_pct ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {(pick.change_pct ?? 0) >= 0 ? '▲' : '▼'} {pick.current_price.toLocaleString()}
-              </div>
-              <div className={`text-[10px] font-mono tabular-nums ${(pick.change_pct ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {(pick.change_pct ?? 0) >= 0 ? '+' : ''}{(pick.change_pct ?? 0).toFixed(2)}%
-              </div>
-            </>
-          ) : (
-            <div className="text-sm font-mono text-zinc-400 tabular-nums">{pick.entry_price.toFixed(0)}</div>
+        <div className="flex items-center gap-2 mt-0.5">
+          {topReason && (
+            <span className={`text-xs ${isShort ? 'text-zinc-400' : 'text-zinc-400'}`}>{topReason}</span>
           )}
-        </div>
-      </div>
-      {topReason && (
-        <div className="ml-5 mt-0.5 flex items-center gap-2">
-          <span className={`text-[10px] ${isShort ? 'text-rose-400/70' : 'text-amber-400/70'}`}>{topReason}</span>
           {pick.stock_win_rate !== null && (
-            <span className={`text-[10px] font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/70' : 'text-zinc-500'}`}>
-              歷史勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
+            <span className={`text-xs font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
+              勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
             </span>
           )}
         </div>
-      )}
-    </div>
+      </div>
+
+      <div className="flex flex-col items-end">
+        <div className="flex items-center">
+          {change > 0 && <span className="text-rose-400 text-[10px] mr-1">▲</span>}
+          {change < 0 && <span className="text-emerald-400 text-[10px] mr-1">▼</span>}
+          <span className={`${changeColor} font-mono font-bold text-sm`}>
+            {formatPrice(price)}
+          </span>
+        </div>
+        <span className={`${changeColor} text-xs font-bold font-mono`}>
+          {change === 0 ? '0.00' : (change > 0 ? '+' : '') + change.toFixed(2)}%
+        </span>
+      </div>
+    </Link>
   )
 }
 
