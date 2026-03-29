@@ -94,7 +94,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
     >
       <div className="flex flex-col min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-cyan-400 font-mono text-sm font-semibold shrink-0 w-4 text-right">{rank}</span>
+          <span className="text-cyan-400 font-mono font-bold text-xs w-4 shrink-0 text-center">{rank}</span>
           {isShort ? (
             <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
           ) : (
@@ -205,9 +205,9 @@ export default function StrategyMinerPreview() {
   }, [])
 
   return (
-    <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
+    <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-2 py-3">
       {/* Header */}
-      <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-800/40">
+      <div className="flex justify-between items-center mb-2 pb-2 border-b border-zinc-800/40 px-2">
         <span className="text-amber-400 text-sm font-bold flex items-center gap-1.5">
           <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
             <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
