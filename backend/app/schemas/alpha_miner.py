@@ -93,8 +93,21 @@ class SignalHistoryItem(BaseModel):
     stock_id: str
     stock_name: str
     time_dimension: str
+    direction: str = 'long'
     trigger_count: int
     weighted_win_rate: float
     weighted_odds_ratio: float
     actual_return: Optional[float]
+    resolved_date: Optional[str] = None
     is_resolved: bool
+
+
+class TradeHistoryItem(BaseModel):
+    entry_date: str
+    exit_date: str
+    stock_id: str
+    time_dimension: str
+    direction: str = 'long'
+    exit_reason: str          # take_profit / stop_loss / time_limit
+    return_pct: float         # percentage e.g. 7.9
+    hold_days: int

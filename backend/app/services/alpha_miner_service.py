@@ -1104,10 +1104,12 @@ class AlphaMinerService:
                 stock_id=r.stock_id,
                 stock_name=r.stock_name,
                 time_dimension=r.time_dimension,
+                direction=getattr(r, 'direction', 'long') or 'long',
                 trigger_count=r.trigger_count,
                 weighted_win_rate=r.weighted_win_rate,
                 weighted_odds_ratio=r.weighted_odds_ratio,
                 actual_return=r.actual_return,
+                resolved_date=r.resolved_date.isoformat() if r.resolved_date else None,
                 is_resolved=r.is_resolved,
             )
             for r in rows

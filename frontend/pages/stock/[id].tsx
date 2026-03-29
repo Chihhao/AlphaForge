@@ -7,6 +7,7 @@ import AdvancedTechCard from '../../components/AdvancedTechCard'
 import EducationalHint from '../../components/EducationalHint'
 import { formatPrice } from '../../lib/formatters'
 import { useWatchlist } from '../../lib/useWatchlist'
+import TradeHistoryList from '../../components/TradeHistoryList'
 
 const TVChart = dynamic(() => import('../../components/TVChart'), { ssr: false })
 const StockAIAnalysis = dynamic(() => import('../../components/StockAIAnalysis'), { ssr: false })
@@ -64,7 +65,7 @@ export default function StockDetail() {
         setStrategyPick(match ?? null)
       })
       .catch(() => setStrategyPick(null))
-    api.get(`/alpha-miner/signals/stock/${id}?days=180`)
+    api.get(`/alpha-miner/trades/stock/${id}`)
       .then(r => setAlphaSignals(r.data ?? []))
       .catch(() => setAlphaSignals([]))
     api.get(`/stocks/${id}/fundamental/trends`)
@@ -637,82 +638,26 @@ export default function StockDetail() {
         {id && <AdvancedTechCard stockId={id as string} indicators={indicators} displayPrice={displayPrice} quoteDate={quote?.date} />}
 
         {/* Alpha Miner 歷史訊號 */}
-        {alphaSignals.length > 0 && (() => {
-          const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
-          // 只顯示已結算（有 actual_return）的紀錄
-          const resolved = alphaSignals.filter((s: any) => s.actual_return != null)
-          const wins = resolved.filter((s: any) => s.actual_return > 0).length
-          const avgRet = resolved.length > 0
-            ? resolved.reduce((sum: number, s: any) => sum + s.actual_return, 0) / resolved.length
-            : null
-          return (
-            <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-baseline gap-2">
-                  <p className="text-base font-bold text-amber-400">Alpha Miner 歷史訊號（近 180 日）</p>
-                  {alphaSignals.length > 0 && alphaSignals[0]?.signal_date && (
-                    <span className="text-xs text-zinc-500">{alphaSignals[0].signal_date.replace(/-/g, '/')} 更新</span>
-                  )}
-                </div>
-                {resolved.length > 0 && (
-                  <button
-                    onClick={() => setShowAlphaSignals(v => !v)}
-                    className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
-                  >
-                    {showAlphaSignals ? '收起' : '查看明細'}
-                    <span className={`transition-transform inline-block ${showAlphaSignals ? 'rotate-90' : ''}`}>›</span>
-                  </button>
+        {alphaSignals.length > 0 && (
+          <div className="bg-zinc-900/60 backdrop-blur-md rounded-none sm:rounded-2xl border-b border-x-0 sm:border border-zinc-800/60 p-4 sm:p-6 mb-0 sm:mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-baseline gap-2">
+                <p className="text-base font-bold text-amber-400">Alpha Miner 歷史訊號</p>
+                {alphaSignals[0]?.entry_date && (
+                  <span className="text-xs text-zinc-500">{alphaSignals[0].entry_date.replace(/-/g, '/')} 更新</span>
                 )}
               </div>
-
-              {/* ── 總結（預設顯示） ── */}
-              {resolved.length === 0 ? (
-                <p className="text-sm text-zinc-500">尚無已結算訊號</p>
-              ) : (
-                <div className="flex items-center gap-4 text-sm mb-1">
-                  <span className="text-zinc-400">已結算 <span className="text-zinc-200 font-mono font-bold">{resolved.length}</span> 筆</span>
-                  <span className="text-zinc-400">勝率 <span className={`font-mono font-bold ${wins / resolved.length >= 0.5 ? 'text-rose-400' : 'text-emerald-400'}`}>{((wins / resolved.length) * 100).toFixed(0)}%</span></span>
-                  {avgRet != null && (
-                    <span className="text-zinc-400">均報酬 <span className={`font-mono font-bold ${avgRet >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{avgRet >= 0 ? '+' : ''}{(avgRet * 100).toFixed(1)}%</span></span>
-                  )}
-                </div>
-              )}
-
-              {/* ── 明細列表（展開後） ── */}
-              {showAlphaSignals && resolved.length > 0 && (
-                <div className="space-y-1.5 mt-3 pt-3 border-t border-zinc-800/40">
-                  {resolved.map((sig: any, i: number) => {
-                    const ret = sig.actual_return
-                    const retPct = ret * 100
-                    const retColor = ret >= 0 ? 'text-rose-400' : 'text-emerald-400'
-                    const retStr = `${ret >= 0 ? '+' : ''}${retPct.toFixed(1)}%`
-                    const icon = ret > 0 ? '✅' : '❌'
-                    return (
-                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-zinc-800/30 last:border-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-zinc-400 font-mono text-xs shrink-0">{sig.signal_date.slice(5)}</span>
-                          <span className="text-xs text-zinc-200 bg-zinc-700 px-1.5 py-0.5 rounded font-mono shrink-0">
-                            {DIM_LABEL[sig.time_dimension] ?? sig.time_dimension}
-                          </span>
-                          <span className="text-zinc-400 text-xs">
-                            {sig.trigger_count} 策略 · 勝率{' '}
-                            <span className={sig.weighted_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}>
-                              {(sig.weighted_win_rate * 100).toFixed(0)}%
-                            </span>
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                          <span className={`font-mono text-sm font-bold ${retColor}`}>{retStr}</span>
-                          <span className="text-xs">{icon}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+              <button
+                onClick={() => setShowAlphaSignals(v => !v)}
+                className="text-sm text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+              >
+                {showAlphaSignals ? '收起' : '查看明細'}
+                <span className={`transition-transform inline-block ${showAlphaSignals ? 'rotate-90' : ''}`}>›</span>
+              </button>
             </div>
-          )
-        })()}
+            <TradeHistoryList trades={alphaSignals} defaultDim="5d" showList={showAlphaSignals} />
+          </div>
+        )}
 
         {/* AI Analysis Card */}
         {id && <StockAIAnalysis stockId={id as string} stockName={displayName} />}

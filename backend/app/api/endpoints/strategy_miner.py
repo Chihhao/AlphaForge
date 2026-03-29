@@ -21,31 +21,37 @@ router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
 def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
-    """載入指定股票的已結算訊號績效（與個股頁 Alpha Miner 歷史訊號同源），
-    回傳 {stock_id: {win_rate, avg_return, trade_count}}"""
+    """載入指定股票的回測交易績效（strategy_miner_trades），
+    按維度(5d/10d/30d)分別計算勝率，回傳最高勝率維度的績效。
+    回傳 {stock_id: {win_rate, avg_return, trade_count, best_dim}}"""
     if not stock_ids:
         return {}
-    cutoff = date.today() - timedelta(days=180)
     rows = (
-        db.query(AlphaSignalHistory)
-        .filter(
-            AlphaSignalHistory.stock_id.in_(stock_ids),
-            AlphaSignalHistory.is_resolved == True,  # noqa: E712
-            AlphaSignalHistory.actual_return.isnot(None),
-            AlphaSignalHistory.signal_date >= cutoff,
-        )
+        db.query(StrategyMinerTrade)
+        .filter(StrategyMinerTrade.stock_id.in_(stock_ids))
         .all()
     )
-    by_stock: dict = defaultdict(list)
+    # {stock_id: {dim: [return_pct, ...]}}
+    by_stock_dim: dict = defaultdict(lambda: defaultdict(list))
     for r in rows:
-        by_stock[r.stock_id].append(r.actual_return)
+        dim = r.strategy_id.replace('_short', '')
+        by_stock_dim[r.stock_id][dim].append(r.return_pct)
     result = {}
-    for sid, rets in by_stock.items():
+    for sid, dims in by_stock_dim.items():
+        best_dim = None
+        best_wr = -1
+        for dim, rets in dims.items():
+            wr = sum(1 for x in rets if x > 0) / len(rets) if rets else 0
+            if wr > best_wr or (wr == best_wr and len(rets) > len(dims.get(best_dim, []))):
+                best_wr = wr
+                best_dim = dim
+        rets = dims[best_dim]
         wins = sum(1 for x in rets if x > 0)
         result[sid] = {
             "stock_win_rate": round(wins / len(rets), 4),
-            "stock_avg_return": round(sum(rets) / len(rets) * 100, 1),
+            "stock_avg_return": round(sum(rets) / len(rets), 1),
             "stock_trade_count": len(rets),
+            "stock_best_dim": best_dim,
         }
     return result
 
@@ -170,14 +176,8 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
+            "stock_best_dim": None,
         })
-        # 放空：勝率反轉（做多勝率 36% → 放空勝率 64%）
-        if direction == 'short' and perf.get("stock_win_rate") is not None:
-            perf = {
-                **perf,
-                "stock_win_rate": round(1 - perf["stock_win_rate"], 4),
-                "stock_avg_return": round(-perf["stock_avg_return"], 1) if perf.get("stock_avg_return") is not None else None,
-            }
         result.append({
             "pick_date": p.pick_date.isoformat(),
             "stock_id": p.stock_id,

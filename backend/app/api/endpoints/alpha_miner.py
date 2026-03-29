@@ -84,11 +84,42 @@ def get_stock_signals(
             "stock_id": r.stock_id,
             "stock_name": r.stock_name,
             "time_dimension": r.time_dimension,
+            "direction": getattr(r, 'direction', 'long') or 'long',
             "trigger_count": r.trigger_count,
             "weighted_win_rate": r.weighted_win_rate,
             "weighted_odds_ratio": r.weighted_odds_ratio,
             "actual_return": r.actual_return,
+            "resolved_date": r.resolved_date.isoformat() if r.resolved_date else None,
             "is_resolved": r.is_resolved,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/trades/stock/{stock_id}")
+def get_stock_trades(
+    stock_id: str,
+    days: int = 180,
+    db: Session = Depends(get_db),
+):
+    """回傳指定股票的 Strategy Miner 交易記錄（含停利停損），依進場日倒序"""
+    from app.models.strategy_miner_trade import StrategyMinerTrade
+    rows = (
+        db.query(StrategyMinerTrade)
+        .filter(StrategyMinerTrade.stock_id == stock_id)
+        .order_by(StrategyMinerTrade.entry_date.desc())
+        .all()
+    )
+    return [
+        {
+            "entry_date": r.entry_date.isoformat(),
+            "exit_date": r.exit_date.isoformat() if r.exit_date else None,
+            "stock_id": r.stock_id,
+            "time_dimension": r.strategy_id.replace('_short', ''),
+            "direction": 'short' if '_short' in r.strategy_id else 'long',
+            "exit_reason": r.exit_reason,
+            "return_pct": r.return_pct,
+            "hold_days": r.hold_days,
         }
         for r in rows
     ]

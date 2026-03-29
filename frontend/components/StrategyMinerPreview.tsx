@@ -96,9 +96,9 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
       <div className="flex flex-col min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {isShort ? (
-            <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">空</span>
+            <span className="shrink-0 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1 py-0.5 leading-none">空</span>
           ) : (
-            <span className="shrink-0 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1 py-0.5 leading-none">多</span>
+            <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">多</span>
           )}
           <span className="text-sm font-semibold text-zinc-100">{pick.stock_name}</span>
           <span className="text-xs text-zinc-500 font-mono">{pick.stock_id}</span>

@@ -8,6 +8,7 @@ import {
     ResponsiveContainer, CartesianGrid, ReferenceLine
 } from 'recharts'
 import PicksTrackRecord from '../components/PicksTrackRecord'
+import TradeHistoryList, { TradeItem } from '../components/TradeHistoryList'
 
 // ─── Strategy Miner API 回傳型別 ──────────────────────────────────────────────
 interface StrategyMinerPick {
@@ -26,6 +27,7 @@ interface StrategyMinerPick {
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
+    stock_best_dim?: string | null    // 最佳勝率維度
 }
 
 
@@ -57,7 +59,10 @@ interface StrategyPick {
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
+    stock_best_dim?: string | null    // 最佳勝率維度
 }
+
+const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
 
 const toStars = (score: number) => {
     const n = score >= 20 ? 5 : score >= 15 ? 4 : score >= 10 ? 3 : score >= 5 ? 2 : 1
@@ -65,12 +70,6 @@ const toStars = (score: number) => {
 }
 
 // ─── PickCard ─────────────────────────────────────────────────────────────────
-const EXIT_LABEL: Record<string, string> = {
-    take_profit: '停利',
-    stop_loss: '停損',
-    time_limit: '到期',
-}
-
 const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     const [expanded, setExpanded] = useState(false)
     const [trades, setTrades] = useState<TradeRecord[]>([])
@@ -92,22 +91,12 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             setTradesLoading(true)
             api.get(`/strategy-miner/trades/${pick.stock_id}`)
                 .then(r => {
-                    setTrades((r.data ?? []).slice(0, 15))
+                    setTrades(r.data ?? [])
                     setTradesLoading(false)
                 })
                 .catch(() => setTradesLoading(false))
         }
     }
-
-    // Summary stats
-    const winCount = trades.filter(t => t.return_pct > 0).length
-    const winRate = trades.length > 0 ? (winCount / trades.length * 100).toFixed(0) : null
-    const avgRet = trades.length > 0
-        ? (trades.reduce((s, t) => s + t.return_pct, 0) / trades.length).toFixed(1)
-        : null
-    const avgHold = trades.length > 0
-        ? (trades.reduce((s, t) => s + t.hold_days, 0) / trades.length).toFixed(1)
-        : null
 
     return (
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
@@ -116,9 +105,9 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
                 <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     {pick.direction === 'short' ? (
-                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none">空</span>
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1.5 py-0.5 leading-none">空</span>
                     ) : (
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1.5 py-0.5 leading-none">多</span>
+                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none">多</span>
                     )}
                     <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
                         {pick.stock_name}
@@ -179,10 +168,10 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                     <span className="text-zinc-500 text-xs">買入</span>
                     <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
                     <span className="text-zinc-600 hidden sm:inline">→</span>
-                    <span className="text-zinc-500 text-xs">停利</span>
+                    <span className="text-zinc-500 text-xs">停利(+{pick.take_profit_pct}%)</span>
                     <span className="text-rose-400 font-mono font-bold text-lg">▲{takeProfit.toLocaleString()}</span>
                     <span className="text-zinc-700">/</span>
-                    <span className="text-zinc-500 text-xs">停損</span>
+                    <span className="text-zinc-500 text-xs">停損(-{pick.stop_loss_pct}%)</span>
                     <span className="text-emerald-400 font-mono font-bold text-lg">▼{stopLoss.toLocaleString()}</span>
                 </div>
             )}
@@ -192,33 +181,23 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                 className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 cursor-pointer select-none"
                 onClick={handleExpand}
             >
-                <span>持有上限 {pick.hold_days_max} 天</span>
-                <span className="text-zinc-700">·</span>
-                <span>停利 +{pick.take_profit_pct}%</span>
-                <span className="text-zinc-700">/</span>
-                <span>停損 -{pick.stop_loss_pct}%</span>
-                {/* 個股回測績效（來自 strategy_miner_trades，比維度級更精準） */}
-                {pick.stock_win_rate != null ? (
+                {pick.stock_win_rate != null && pick.stock_best_dim && (
                     <>
-                        <span className="text-zinc-700">·</span>
+                        <span>持有 {DIM_LABEL[pick.stock_best_dim] ?? pick.stock_best_dim}</span>
+                        <span className="text-zinc-700">|</span>
                         <span className={`font-mono text-xs ${pick.stock_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
                             勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
                         </span>
                         {pick.stock_avg_return != null && (
-                            <span className={`font-mono text-xs ${pick.stock_avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                均{pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
-                            </span>
-                        )}
-                        {(pick.stock_trade_count ?? 0) > 0 && (
-                            <span className="font-mono text-xs text-zinc-600">{pick.stock_trade_count}筆</span>
+                            <>
+                                <span className="text-zinc-700">|</span>
+                                <span className={`font-mono text-xs ${pick.stock_avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                    預計報酬 {pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
+                                </span>
+                            </>
                         )}
                     </>
-                ) : winRate !== null ? (
-                    <>
-                        <span className="text-zinc-700">·</span>
-                        <span className={`font-mono ${parseFloat(winRate) >= 50 ? 'text-rose-400' : 'text-zinc-400'}`}>勝率 {winRate}%</span>
-                    </>
-                ) : null}
+                )}
                 <span className="ml-auto text-zinc-600 text-xs">{expanded ? '▲' : '▼'}</span>
             </div>
 
@@ -232,42 +211,17 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                     )}
 
                     {!tradesLoading && trades.length > 0 && (
-                        <>
-                            <div className="grid grid-cols-4 text-xs text-zinc-600 uppercase tracking-widest mb-1.5 px-1">
-                                <span>進場日</span>
-                                <span className="text-right">出場日</span>
-                                <span className="text-right">原因</span>
-                                <span className="text-right">報酬</span>
-                            </div>
-                            {trades.map((t, i) => (
-                                <div key={i} className="grid grid-cols-4 text-xs py-1.5 px-1 border-t border-zinc-800/50">
-                                    <span className="text-zinc-500 font-mono">{t.entry_date.slice(5)}</span>
-                                    <span className="text-zinc-500 font-mono text-right">
-                                        {t.exit_date ? t.exit_date.slice(5) : '—'}
-                                    </span>
-                                    <span className={`text-right text-xs font-medium ${
-                                        t.exit_reason === 'take_profit' ? 'text-rose-400'
-                                        : t.exit_reason === 'stop_loss' ? 'text-emerald-400'
-                                        : 'text-zinc-500'
-                                    }`}>
-                                        {EXIT_LABEL[t.exit_reason] ?? t.exit_reason}
-                                    </span>
-                                    <span className={`text-right font-mono font-bold ${
-                                        t.return_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'
-                                    }`}>
-                                        {t.return_pct >= 0 ? '+' : ''}{t.return_pct.toFixed(1)}%
-                                    </span>
-                                </div>
-                            ))}
-
-                            {/* Summary */}
-                            <div className="mt-2 pt-2 border-t border-zinc-800 text-xs text-zinc-500">
-                                {trades.length} 筆交易
-                                {winRate !== null && ` | 勝率 ${winRate}%`}
-                                {avgRet !== null && ` | 平均報酬 ${parseFloat(avgRet) >= 0 ? '+' : ''}${avgRet}%`}
-                                {avgHold !== null && ` | 平均持有 ${avgHold} 天`}
-                            </div>
-                        </>
+                        <TradeHistoryList
+                            trades={trades.map(t => ({
+                                entry_date: t.entry_date,
+                                exit_date: t.exit_date,
+                                return_pct: t.return_pct,
+                                exit_reason: t.exit_reason,
+                                direction: t.strategy_id.includes('_short') ? 'short' : 'long',
+                                time_dimension: t.strategy_id.replace('_short', ''),
+                            }))}
+                            defaultDim={pick.stock_best_dim || pick.time_dimension?.replace('_short', '') || '5d'}
+                        />
                     )}
                 </div>
             )}
@@ -737,6 +691,7 @@ const StrategyPage = () => {
                         stock_win_rate: p.stock_win_rate ?? null,
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
                         stock_trade_count: p.stock_trade_count ?? 0,
+                        stock_best_dim: p.stock_best_dim ?? null,
                     })))
                     setLoading(false)
                     return
