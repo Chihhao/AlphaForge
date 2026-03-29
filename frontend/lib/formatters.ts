@@ -4,6 +4,19 @@
  * 2. 當股價 > 999 時，不顯示小數點
  * 3. 當股價 <= 999 時，預設顯示兩位小數
  */
+/** 返回 M/D 格式的今日日期，如 "3/29" */
+export const todayLabel = (): string => {
+    const d = new Date();
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+};
+
+/** 返回 M/D 格式的明日日期，如 "3/30" */
+export const tomorrowLabel = (): string => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+};
+
 export const formatPrice = (price: number | undefined | null): string => {
     if (price === undefined || price === null || isNaN(price)) return '---';
 

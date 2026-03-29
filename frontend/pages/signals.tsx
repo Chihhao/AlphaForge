@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import api from '../lib/api'
+import { todayLabel, tomorrowLabel } from '../lib/formatters'
 import { useWatchlist } from '../lib/useWatchlist'
 
 interface TodaySignal {
@@ -252,7 +253,7 @@ export default function SignalsPage() {
 
     return (
         <>
-            <Head><title>今日最強訊號 | AlphaForge</title></Head>
+            <Head><title>{todayLabel()} 最強訊號 | AlphaForge</title></Head>
             <div className="min-h-[calc(100vh-64px)] flex flex-col gap-4 sm:gap-6 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
 
                 {/* ── Header ──────────────────────────────────────────── */}
@@ -265,7 +266,7 @@ export default function SignalsPage() {
                                     <path d="M7,2V13H10V22L17,11H13L17,2H7Z" />
                                 </svg>
                                 <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
-                                    今日最強訊號
+                                    {todayLabel()} 最強訊號
                                 </h1>
                             </div>
                             <p className="text-zinc-500 text-sm sm:text-base mt-1.5 leading-relaxed">
@@ -281,7 +282,7 @@ export default function SignalsPage() {
                             <svg viewBox="0 0 24 24" width={16} height={16} className="fill-current">
                                 <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                             </svg>
-                            明日操作建議
+                            {tomorrowLabel()} 操作建議
                         </Link>
 
                     </div>
@@ -352,7 +353,7 @@ export default function SignalsPage() {
                             <svg viewBox="0 0 24 24" width={32} height={32} className="fill-zinc-700">
                                 <path d="M7,2V13H10V22L17,11H13L17,2H7Z" />
                             </svg>
-                            今日暫無訊號（Alpha Miner 模型訓練後自動產生）
+                            {todayLabel()} 暫無訊號（Alpha Miner 模型訓練後自動產生）
                         </div>
                     )}
 

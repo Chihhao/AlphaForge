@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import api from '../lib/api';
+import { todayLabel } from '../lib/formatters';
 import EducationalHint from './EducationalHint';
 
 interface ScreenerStock {
@@ -111,7 +112,7 @@ export default function StrategyScreener() {
                             <div className="p-2 flex-grow overflow-y-auto max-h-[400px]">
                                 {strategy.stocks.length === 0 ? (
                                     <div className="p-8 text-center text-zinc-500 font-mono text-sm border-2 border-dashed border-white/5 rounded-xl m-2 bg-black/20">
-                                        此參數條件下今日無符合標的
+                                        此參數條件下 {todayLabel()} 無符合標的
                                     </div>
                                 ) : (
                                     strategy.stocks.map((stock, index) => {

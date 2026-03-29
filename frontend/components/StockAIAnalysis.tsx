@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import api from '../lib/api'
+import { todayLabel } from '../lib/formatters'
 
 interface Props {
   stockId: string
@@ -174,7 +175,7 @@ export default function StockAIAnalysis({ stockId, stockName }: Props) {
           <div className="mt-4 flex items-center justify-between text-xs text-zinc-600">
             <span>
               {result.from_cache
-                ? `資料來自今日快取・${result.cached_at}`
+                ? `資料來自 ${todayLabel()} 快取・${result.cached_at}`
                 : `剛剛生成・${result.date}`}
             </span>
             <span>{result.model}</span>
