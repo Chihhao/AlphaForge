@@ -31,6 +31,8 @@ interface PickPreview {
   dims: string[]
   buy_reasons: string[]
   stock_win_rate: number | null
+  current_price?: number
+  change_pct?: number
 }
 
 interface PerfStats {
@@ -100,21 +102,18 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 text-xs font-mono whitespace-nowrap shrink-0">
-          <span className="text-zinc-300">{pick.entry_price.toFixed(0)}</span>
-          <span className="text-zinc-600">→</span>
-          {isShort ? (
+        <div className="text-right shrink-0">
+          {pick.current_price ? (
             <>
-              <span className="text-emerald-400">-{tpPct}%</span>
-              <span className="text-zinc-700">/</span>
-              <span className="text-rose-400">+{slPct}%</span>
+              <div className={`text-sm font-bold tabular-nums ${(pick.change_pct ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {(pick.change_pct ?? 0) >= 0 ? '▲' : '▼'} {pick.current_price.toLocaleString()}
+              </div>
+              <div className={`text-[10px] font-mono tabular-nums ${(pick.change_pct ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {(pick.change_pct ?? 0) >= 0 ? '+' : ''}{(pick.change_pct ?? 0).toFixed(2)}%
+              </div>
             </>
           ) : (
-            <>
-              <span className="text-rose-400">+{tpPct}%</span>
-              <span className="text-zinc-700">/</span>
-              <span className="text-emerald-400">-{slPct}%</span>
-            </>
+            <div className="text-sm font-mono text-zinc-400 tabular-nums">{pick.entry_price.toFixed(0)}</div>
           )}
         </div>
       </div>
@@ -171,7 +170,23 @@ export default function StrategyMinerPreview() {
         // 做多前 3 + 放空前 3（首頁預覽精簡版）
         const longs = all.filter(p => p.direction === 'long').slice(0, 3)
         const shorts = all.filter(p => p.direction === 'short').slice(0, 3)
-        setPicks([...longs, ...shorts])
+        const combined = [...longs, ...shorts]
+
+        // 批次查報價
+        Promise.allSettled(
+          combined.map(p => api.get(`/stocks/${p.stock_id}/quote`))
+        ).then(results => {
+          const withQuotes = combined.map((p, i) => {
+            const r = results[i]
+            if (r.status === 'fulfilled' && r.value.data) {
+              return { ...p, current_price: r.value.data.current_price, change_pct: r.value.data.change_percent }
+            }
+            return p
+          })
+          setPicks(withQuotes)
+        })
+
+        setPicks(combined)  // 先顯示，報價到了再更新
         setPerf(perfRes.data || {})
       })
       .catch(() => {
