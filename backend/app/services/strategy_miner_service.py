@@ -330,6 +330,37 @@ class StrategyMinerService:
 
         sorted_shorts = sorted_shorts[:MAX_PICKS_PER_DIRECTION]
 
+        # 為放空股票即時補上看空理由（從 stock_features 判斷）
+        short_sids = [s['stock_id'] for s in sorted_shorts]
+        if short_sids:
+            from app.models.stock_feature import StockFeature
+            from sqlalchemy import func as sa_func_r
+            feat_date = db.query(sa_func_r.max(StockFeature.date)).scalar()
+            if feat_date:
+                feats = db.query(StockFeature).filter(
+                    StockFeature.date == feat_date,
+                    StockFeature.stock_id.in_(short_sids),
+                ).all()
+                feat_map = {f.stock_id: f for f in feats}
+                for item in sorted_shorts:
+                    f = feat_map.get(item['stock_id'])
+                    if not f:
+                        continue
+                    reasons = []
+                    if f.rsi14 is not None and f.rsi14 > 70:
+                        reasons.append('RSI 超買')
+                    if f.k is not None and f.d is not None and f.k > 80 and f.k < f.d:
+                        reasons.append('KD 高檔死叉')
+                    if f.macd_osc is not None and f.macd_osc < 0:
+                        reasons.append('MACD 空頭')
+                    if f.bias20 is not None and f.bias20 > 5:
+                        reasons.append('乖離率偏高')
+                    if hasattr(f, 'foreign_buy_5d') and f.foreign_buy_5d is not None and f.foreign_buy_5d < 0:
+                        reasons.append('外資賣超')
+                    if hasattr(f, 'trust_buy_5d') and f.trust_buy_5d is not None and f.trust_buy_5d < 0:
+                        reasons.append('投信賣超')
+                    item['reasons'] = reasons[:3]
+
         # 為放空股票查詢最新收盤價（做多的 price_map 可能沒有這些股票）
         short_stock_ids = [s['stock_id'] for s in sorted_shorts if s['stock_id'] not in price_map]
         if short_stock_ids:
