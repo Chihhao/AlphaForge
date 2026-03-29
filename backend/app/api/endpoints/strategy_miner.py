@@ -163,8 +163,22 @@ def get_today_picks(db: Session = Depends(get_db)):
     any_missing = any(p.buy_reasons is None for p in picks)
     live_reasons: dict = _load_buy_reasons_fallback(db, picks) if any_missing else {}
 
-    return [
-        {
+    result = []
+    for p in picks:
+        direction = getattr(p, 'direction', 'long') or 'long'
+        perf = stock_perf.get(p.stock_id, {
+            "stock_win_rate": None,
+            "stock_avg_return": None,
+            "stock_trade_count": 0,
+        })
+        # 放空：勝率反轉（做多勝率 36% → 放空勝率 64%）
+        if direction == 'short' and perf.get("stock_win_rate") is not None:
+            perf = {
+                **perf,
+                "stock_win_rate": round(1 - perf["stock_win_rate"], 4),
+                "stock_avg_return": round(-perf["stock_avg_return"], 1) if perf.get("stock_avg_return") is not None else None,
+            }
+        result.append({
             "pick_date": p.pick_date.isoformat(),
             "stock_id": p.stock_id,
             "stock_name": p.stock_name,
@@ -175,19 +189,14 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
-            "direction": getattr(p, 'direction', 'long') or 'long',
+            "direction": direction,
             "buy_reasons": (
                 _json.loads(p.buy_reasons) if p.buy_reasons
                 else live_reasons.get(p.stock_id, [])
             ),
-            **stock_perf.get(p.stock_id, {
-                "stock_win_rate": None,
-                "stock_avg_return": None,
-                "stock_trade_count": 0,
-            }),
-        }
-        for p in picks
-    ]
+            **perf,
+        })
+    return result
 
 
 @router.get("/picks/active")
