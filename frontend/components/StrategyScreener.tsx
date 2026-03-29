@@ -123,9 +123,10 @@ export default function StrategyScreener() {
                                             <React.Fragment key={stock.symbol}>
                                                 <Link
                                                     href={`/stock/${stock.symbol}`}
-                                                    className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
+                                                    className="flex items-center gap-2 py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer border-b border-zinc-800/40 last:border-b-0"
                                                 >
-                                                    <div className="flex flex-col ml-1">
+                                                    <span className={`font-mono font-bold text-xs w-4 shrink-0 text-center ${index < 3 ? 'text-cyan-400' : 'text-zinc-600'}`}>{index + 1}</span>
+                                                    <div className="flex flex-col flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-sm font-semibold text-zinc-100">{stock.name}</span>
                                                             <span className="text-xs text-zinc-500 font-mono">{stock.symbol}</span>
