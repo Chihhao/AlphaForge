@@ -74,13 +74,16 @@ export default function MarketSentimentWidget() {
   return (
     <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
       {/* 標題 + 副標題 */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between">
-          <span className="text-zinc-200 text-sm font-bold">市場情緒</span>
-          {sentiment.text && (
-            <span className={`text-xs font-medium ${sentiment.color}`}>{sentiment.text}</span>
-          )}
-        </div>
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-800/40">
+        <span className="text-amber-400 text-sm font-bold flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+            <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12H12V6Z" />
+          </svg>
+          市場情緒
+        </span>
+        {sentiment.text && (
+          <span className="text-zinc-400 text-xs">{sentiment.text}</span>
+        )}
       </div>
 
       <div className="flex gap-4">
