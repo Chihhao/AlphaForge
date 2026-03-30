@@ -12,20 +12,69 @@ interface PCRData {
   history: Array<{ date: string; pcr: number }>
 }
 
+interface VIXData {
+  latest_close: number | null
+  latest_date: string | null
+  prev_close: number | null
+  history: Array<{ date: string; close: number }>
+}
+
+function TrendArrow({ current, previous }: { current: number; previous: number | null }) {
+  if (previous == null) return null
+  const diff = current - previous
+  if (Math.abs(diff) < 0.01) return <span className="text-zinc-500">→</span>
+  return diff > 0
+    ? <span className="text-rose-400">↑</span>
+    : <span className="text-emerald-400">↓</span>
+}
+
+function SentimentLabel({ pcr, vix }: { pcr: number | null; vix: number | null }) {
+  // 綜合 PCR + VIX 給出一句話結論
+  const pcrLevel = pcr == null ? 0 : pcr >= 1.5 ? 2 : pcr >= 1.0 ? 1 : 0
+  const vixLevel = vix == null ? 0 : vix >= 30 ? 2 : vix >= 20 ? 1 : 0
+  const score = pcrLevel + vixLevel
+
+  if (pcr == null && vix == null) return null
+
+  let text: string
+  let color: string
+  if (score >= 3) {
+    text = '市場恐慌，留意反彈機會'
+    color = 'text-emerald-400'
+  } else if (score >= 2) {
+    text = '避險情緒升溫，謹慎操作'
+    color = 'text-amber-400'
+  } else if (score >= 1) {
+    text = '市場情緒中性'
+    color = 'text-zinc-400'
+  } else {
+    text = '市場樂觀，留意追高風險'
+    color = 'text-rose-400'
+  }
+
+  return (
+    <div className={`text-xs font-medium ${color} mt-1`}>
+      {text}
+    </div>
+  )
+}
+
 export default function MarketSentimentWidget() {
   const [etfRows, setEtfRows] = useState<ETFRow[]>([])
   const [etf878Rows, setEtf878Rows] = useState<ETFRow[]>([])
   const [etf6208Rows, setEtf6208Rows] = useState<ETFRow[]>([])
   const [pcrData, setPcrData] = useState<PCRData | null>(null)
+  const [vixData, setVixData] = useState<VIXData | null>(null)
 
   useEffect(() => {
     api.get('/market/etf-flows?etf_id=0050&days=14').then(r => setEtfRows(r.data ?? [])).catch(() => {})
     api.get('/market/etf-flows?etf_id=00878&days=14').then(r => setEtf878Rows(r.data ?? [])).catch(() => {})
     api.get('/market/etf-flows?etf_id=006208&days=14').then(r => setEtf6208Rows(r.data ?? [])).catch(() => {})
     api.get('/market/pcr?days=30').then(r => setPcrData(r.data)).catch(() => {})
+    api.get('/market/vix?days=30').then(r => setVixData(r.data)).catch(() => {})
   }, [])
 
-  if (etfRows.length === 0 && etf878Rows.length === 0 && etf6208Rows.length === 0 && !pcrData?.latest_pcr) return null
+  if (etfRows.length === 0 && etf878Rows.length === 0 && etf6208Rows.length === 0 && !pcrData?.latest_pcr && !vixData?.latest_close) return null
 
   const etfRecent5 = etfRows.slice(-5)
   const etfNetSum = etfRecent5.reduce((s, r) => s + (r.net_flow ?? 0), 0)
@@ -33,6 +82,10 @@ export default function MarketSentimentWidget() {
 
   const etf878Recent5 = etf878Rows.slice(-5)
   const etf878NetSum = etf878Recent5.reduce((s, r) => s + (r.net_flow ?? 0), 0)
+
+  // PCR 趨勢：取最近 2 筆比較
+  const pcrHistory = pcrData?.history ?? []
+  const pcrPrev = pcrHistory.length >= 2 ? pcrHistory[pcrHistory.length - 2].pcr : null
 
   return (
     <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
@@ -121,27 +174,59 @@ export default function MarketSentimentWidget() {
           })()}
         </div>
 
-        {/* PCR 區塊 */}
-        {pcrData?.latest_pcr != null && (
-          <div className="shrink-0 w-20 flex flex-col items-center justify-center gap-1">
-            <span className="text-zinc-400 text-sm uppercase tracking-widest font-bold">PCR</span>
-            <span className={`text-3xl font-bold font-mono leading-none ${
-              pcrData.latest_pcr >= 1.3 ? 'text-emerald-400' :
-              pcrData.latest_pcr >= 1.0 ? 'text-amber-400' :
-              'text-rose-400'
-            }`}>
-              {pcrData.latest_pcr.toFixed(2)}
-            </span>
-            <span className={`text-sm font-semibold ${
-              pcrData.latest_pcr >= 1.3 ? 'text-emerald-500/70' :
-              pcrData.latest_pcr >= 1.0 ? 'text-amber-500/70' :
-              'text-rose-500/70'
-            }`}>
-              {pcrData.latest_pcr >= 1.3 ? '恐慌偏高' : pcrData.latest_pcr >= 1.0 ? '中性偏空' : '樂觀偏多'}
-            </span>
-            {pcrData.latest_date && (
-              <span className="text-zinc-400 text-[10px] font-mono">{pcrData.latest_date}</span>
+        {/* PCR + VIX 區塊 */}
+        {(pcrData?.latest_pcr != null || vixData?.latest_close != null) && (
+          <div className="shrink-0 w-28 flex flex-col items-center justify-center gap-2">
+            {/* PCR */}
+            {pcrData?.latest_pcr != null && (
+              <div className="text-center">
+                <div className="text-zinc-400 text-xs font-bold tracking-wider">PCR</div>
+                <div className="flex items-center justify-center gap-1">
+                  <span className={`text-2xl font-bold font-mono leading-none ${
+                    pcrData.latest_pcr >= 1.3 ? 'text-emerald-400' :
+                    pcrData.latest_pcr >= 1.0 ? 'text-amber-400' :
+                    'text-rose-400'
+                  }`}>
+                    {pcrData.latest_pcr.toFixed(2)}
+                  </span>
+                  <TrendArrow current={pcrData.latest_pcr} previous={pcrPrev} />
+                </div>
+                <div className={`text-xs ${
+                  pcrData.latest_pcr >= 1.3 ? 'text-emerald-500/70' :
+                  pcrData.latest_pcr >= 1.0 ? 'text-amber-500/70' :
+                  'text-rose-500/70'
+                }`}>
+                  {pcrData.latest_pcr >= 1.5 ? '恐慌' : pcrData.latest_pcr >= 1.3 ? '偏空' : pcrData.latest_pcr >= 1.0 ? '中性' : '偏多'}
+                </div>
+              </div>
             )}
+
+            {/* VIX */}
+            {vixData?.latest_close != null && (
+              <div className="text-center">
+                <div className="text-zinc-400 text-xs font-bold tracking-wider">VIX</div>
+                <div className="flex items-center justify-center gap-1">
+                  <span className={`text-2xl font-bold font-mono leading-none ${
+                    vixData.latest_close >= 30 ? 'text-emerald-400' :
+                    vixData.latest_close >= 20 ? 'text-amber-400' :
+                    'text-rose-400'
+                  }`}>
+                    {vixData.latest_close.toFixed(1)}
+                  </span>
+                  <TrendArrow current={vixData.latest_close} previous={vixData.prev_close} />
+                </div>
+                <div className={`text-xs ${
+                  vixData.latest_close >= 30 ? 'text-emerald-500/70' :
+                  vixData.latest_close >= 20 ? 'text-amber-500/70' :
+                  'text-rose-500/70'
+                }`}>
+                  {vixData.latest_close >= 30 ? '恐慌' : vixData.latest_close >= 20 ? '波動' : '平靜'}
+                </div>
+              </div>
+            )}
+
+            {/* 綜合結論 */}
+            <SentimentLabel pcr={pcrData?.latest_pcr ?? null} vix={vixData?.latest_close ?? null} />
           </div>
         )}
       </div>

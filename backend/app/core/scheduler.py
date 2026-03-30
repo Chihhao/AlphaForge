@@ -134,6 +134,17 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 16:55 抓取 CBOE VIX 恐慌指數 ---
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: __import__(
+            'app.services.vix_crawler', fromlist=['sync_vix']
+        ).sync_vix(db, days_back=7)),
+        trigger=CronTrigger(hour=16, minute=55),
+        id="sync_vix_daily",
+        name="Daily CBOE VIX sync",
+        replace_existing=True
+    )
+
     # --- 第四梯次：17:20 計算每日特徵快照 (Alpha Miner 數據基礎) ---
     # 需在基本面最終同步（17:00，含重試最多 15 分鐘）完成後執行
     scheduler.add_job(

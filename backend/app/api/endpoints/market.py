@@ -333,6 +333,33 @@ def get_pcr(days: int = 30):
         db.close()
 
 
+@router.get("/vix")
+def get_vix(days: int = 30):
+    """CBOE VIX 恐慌指數歷史資料（近 N 天）"""
+    from app.models.market_vix import MarketVIX
+    db = SessionLocal()
+    try:
+        from datetime import date, timedelta
+        cutoff = date.today() - timedelta(days=days)
+        rows = (
+            db.query(MarketVIX)
+            .filter(MarketVIX.date >= cutoff)
+            .order_by(MarketVIX.date.asc())
+            .all()
+        )
+        history = [{"date": r.date.isoformat(), "close": r.close, "high": r.high, "low": r.low} for r in rows]
+        latest = rows[-1] if rows else None
+        prev = rows[-2] if len(rows) >= 2 else None
+        return {
+            "latest_close": latest.close if latest else None,
+            "latest_date": latest.date.isoformat() if latest else None,
+            "prev_close": prev.close if prev else None,
+            "history": history,
+        }
+    finally:
+        db.close()
+
+
 @router.get("/sector-strength", response_model=SectorStrengthResponse)
 def get_sector_strength():
     """各產業 sector_rs 強弱排行（前 5 強 / 後 5 弱）"""
