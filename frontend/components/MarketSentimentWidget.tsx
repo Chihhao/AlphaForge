@@ -173,7 +173,7 @@ export default function MarketSentimentWidget() {
 
         {/* PCR + VIX 區塊 */}
         {(pcrData?.latest_pcr != null || vixData?.latest_close != null) && (
-          <div className="shrink-0 w-28 flex flex-col items-center justify-center gap-2">
+          <div className="shrink-0 w-20 flex flex-col items-center justify-center gap-2">
             {/* PCR */}
             {pcrData?.latest_pcr != null && (
               <div className="text-center">
