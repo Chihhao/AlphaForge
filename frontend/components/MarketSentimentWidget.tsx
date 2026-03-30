@@ -28,35 +28,17 @@ function TrendArrow({ current, previous }: { current: number; previous: number |
     : <span className="text-emerald-400">↓</span>
 }
 
-function SentimentLabel({ pcr, vix }: { pcr: number | null; vix: number | null }) {
-  // 綜合 PCR + VIX 給出一句話結論
+function useSentimentLabel(pcr: number | null, vix: number | null) {
   const pcrLevel = pcr == null ? 0 : pcr >= 1.5 ? 2 : pcr >= 1.0 ? 1 : 0
   const vixLevel = vix == null ? 0 : vix >= 30 ? 2 : vix >= 20 ? 1 : 0
   const score = pcrLevel + vixLevel
 
-  if (pcr == null && vix == null) return null
+  if (pcr == null && vix == null) return { text: '', color: '' }
 
-  let text: string
-  let color: string
-  if (score >= 3) {
-    text = '市場恐慌，留意反彈機會'
-    color = 'text-emerald-400'
-  } else if (score >= 2) {
-    text = '避險情緒升溫，謹慎操作'
-    color = 'text-amber-400'
-  } else if (score >= 1) {
-    text = '市場情緒中性'
-    color = 'text-zinc-400'
-  } else {
-    text = '市場樂觀，留意追高風險'
-    color = 'text-rose-400'
-  }
-
-  return (
-    <div className={`text-xs font-medium ${color} mt-1`}>
-      {text}
-    </div>
-  )
+  if (score >= 3) return { text: '市場恐慌，留意反彈機會', color: 'text-emerald-400' }
+  if (score >= 2) return { text: '避險情緒升溫，謹慎操作', color: 'text-amber-400' }
+  if (score >= 1) return { text: '市場情緒中性', color: 'text-zinc-400' }
+  return { text: '市場樂觀，留意追高風險', color: 'text-rose-400' }
 }
 
 export default function MarketSentimentWidget() {
@@ -87,8 +69,20 @@ export default function MarketSentimentWidget() {
   const pcrHistory = pcrData?.history ?? []
   const pcrPrev = pcrHistory.length >= 2 ? pcrHistory[pcrHistory.length - 2].pcr : null
 
+  const sentiment = useSentimentLabel(pcrData?.latest_pcr ?? null, vixData?.latest_close ?? null)
+
   return (
     <div className="bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3">
+      {/* 標題 + 副標題 */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-200 text-sm font-bold">市場情緒</span>
+          {sentiment.text && (
+            <span className={`text-xs font-medium ${sentiment.color}`}>{sentiment.text}</span>
+          )}
+        </div>
+      </div>
+
       <div className="flex gap-4">
         {/* 外資買賣 ETF 區塊 */}
         <div className="flex-1 min-w-0 space-y-2">
@@ -225,8 +219,6 @@ export default function MarketSentimentWidget() {
               </div>
             )}
 
-            {/* 綜合結論 */}
-            <SentimentLabel pcr={pcrData?.latest_pcr ?? null} vix={vixData?.latest_close ?? null} />
           </div>
         )}
       </div>
