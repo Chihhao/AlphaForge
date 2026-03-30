@@ -159,12 +159,12 @@ class FundamentalService:
                 try:
                     rev_raw = item.get('營業收入-當月營收', '0')
                     rev_val = float(str(rev_raw).replace(',', '')) / 100000.0 # 仟元 -> 億
-                    
-                    yoy_raw = item.get('營業收入-去年同月增減(%)', '0')
-                    yoy_val = float(str(yoy_raw).replace(',', ''))
-                    
-                    mom_raw = item.get('營業收入-上月增減(%)', '0')
-                    mom_val = float(str(mom_raw).replace(',', ''))
+
+                    yoy_raw = item.get('營業收入-去年同月增減(%)')
+                    yoy_val = float(str(yoy_raw).replace(',', '')) if yoy_raw not in (None, '', 'N/A') else None
+
+                    mom_raw = item.get('營業收入-上月增減(%)')
+                    mom_val = float(str(mom_raw).replace(',', '')) if mom_raw not in (None, '', 'N/A') else None
                 except:
                     continue
 
@@ -172,11 +172,10 @@ class FundamentalService:
                 fundamental = db.query(StockFundamental).filter(StockFundamental.stock_id == stock_id).first()
                 if fundamental:
                     fundamental.last_revenue = round(rev_val, 2)
-                    fundamental.revenue_growth_yoy = round(yoy_val, 2)
-                    # 關鍵對齊點：Livan 的邏輯通常是用單月營收年增率 (YoY) 來判定成長與加速度
-                    # 修復：將月營收 YoY 同步更新至快速篩選欄位
-                    fundamental.is_growth_2yr = 1 if yoy_val > 5.0 else 0
-                    fundamental.is_accelerated = 1 if yoy_val > 10.0 else 0 # 加速度暫定 > 10%
+                    fundamental.revenue_growth_yoy = round(yoy_val, 2) if yoy_val is not None else None
+                    if yoy_val is not None:
+                        fundamental.is_growth_2yr = 1 if yoy_val > 5.0 else 0
+                        fundamental.is_accelerated = 1 if yoy_val > 10.0 else 0
                     fundamental.updated_at = date.today()
                 
                 # 2. 存入歷史表 (趨勢圖用)
@@ -195,8 +194,8 @@ class FundamentalService:
                     db.add(rev_history)
                 
                 rev_history.revenue = round(rev_val, 2)
-                rev_history.revenue_yoy = round(yoy_val, 2)
-                rev_history.revenue_mom = round(mom_val, 2)
+                rev_history.revenue_yoy = round(yoy_val, 2) if yoy_val is not None else None
+                rev_history.revenue_mom = round(mom_val, 2) if mom_val is not None else None
                 rev_history.updated_at = date.today()
                 
                 count += 1
