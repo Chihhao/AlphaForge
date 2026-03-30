@@ -25,7 +25,6 @@ class User(UserBase):
     """用戶響應信息"""
     id: int
     is_active: bool
-    virtual_balance: float
     created_at: datetime
     updated_at: datetime
 
