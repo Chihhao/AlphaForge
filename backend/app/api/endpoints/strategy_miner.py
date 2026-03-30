@@ -178,6 +178,11 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stock_trade_count": 0,
             "stock_best_dim": None,
         })
+        # 過濾掉預計報酬為負或勝率 <= 50% 的標的
+        if perf.get("stock_avg_return") is not None and perf["stock_avg_return"] < 0:
+            continue
+        if perf.get("stock_win_rate") is not None and perf["stock_win_rate"] <= 0.5:
+            continue
         result.append({
             "pick_date": p.pick_date.isoformat(),
             "stock_id": p.stock_id,

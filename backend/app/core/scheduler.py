@@ -238,6 +238,60 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 第九梯次：19:30 驗證今日推薦是否已產生，若缺漏則重跑 ---
+    def verify_and_retry_picks(db):
+        from app.services.strategy_miner_service import StrategyMinerService
+        from app.models.strategy_miner_pick import StrategyMinerPick
+        from datetime import date as dt_date
+        today = dt_date.today()
+        count = db.query(StrategyMinerPick).filter(
+            StrategyMinerPick.pick_date == today
+        ).count()
+        if count > 0:
+            logger.info(f"[Scheduler] 今日推薦已存在 ({count} 筆)，跳過重跑")
+            return
+        logger.warning("[Scheduler] 今日推薦缺漏，啟動補救流程…")
+        # 重跑完整流程：特徵 → Alpha Miner → 訊號 → Strategy Miner
+        try:
+            FeatureService.compute_daily(db)
+            logger.info("[Scheduler][Retry] 特徵計算完成")
+        except Exception as e:
+            logger.error(f"[Scheduler][Retry] 特徵計算失敗: {e}")
+        try:
+            from sqlalchemy import delete as sa_delete
+            from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+            db.execute(sa_delete(AlphaMinerSnapshot))
+            db.commit()
+            AlphaMinerService.invalidate_cache()
+            AlphaMinerService.get_strategies(db)
+            logger.info("[Scheduler][Retry] Alpha Miner 重訓完成")
+        except Exception as e:
+            logger.error(f"[Scheduler][Retry] Alpha Miner 重訓失敗: {e}")
+        try:
+            for dim in ["5d", "10d", "30d"]:
+                for direction in ["long", "short"]:
+                    AlphaMinerService.save_today_signals(db, dim, direction)
+            logger.info("[Scheduler][Retry] 訊號儲存完成")
+        except Exception as e:
+            logger.error(f"[Scheduler][Retry] 訊號儲存失敗: {e}")
+        try:
+            StrategyMinerService.run_all(db)
+            StrategyMinerService.run_daily(db)
+            new_count = db.query(StrategyMinerPick).filter(
+                StrategyMinerPick.pick_date == today
+            ).count()
+            logger.info(f"[Scheduler][Retry] Strategy Miner 補救完成，產生 {new_count} 筆推薦")
+        except Exception as e:
+            logger.error(f"[Scheduler][Retry] Strategy Miner 補救失敗: {e}")
+
+    scheduler.add_job(
+        lambda: run_on_trading_day(verify_and_retry_picks),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=19, minute=30),
+        id="strategy_miner_verify_retry",
+        name="Verify today picks exist, retry if missing",
+        replace_existing=True
+    )
+
     scheduler.start()
     logger.info("Scheduler started and daily sync job added.")
 
