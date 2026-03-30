@@ -955,18 +955,20 @@ class AlphaMinerService:
             logger.error(f"[SignalHistory] {dimension}/{direction} 等待訓練逾時（{max_wait_minutes} 分鐘），放棄本日儲存")
             return 0
 
-        today = date.today()
         signals = cls.get_today_signals(db, dimension=dimension, direction=direction)
         if not signals:
             logger.info(f"[SignalHistory] {dimension}/{direction} 無訊號，跳過儲存")
             return 0
 
-        # 查出今日已存在的 stock_id 集合（避免重複）
+        # 使用訊號中的實際資料日期（stock_features 最新交易日），而非 date.today()
+        sig_date = date.fromisoformat(signals[0].signal_date)
+
+        # 查出該日已存在的 stock_id 集合（避免重複）
         existing = {
             row.stock_id
             for row in db.query(AlphaSignalHistory.stock_id)
             .filter(
-                AlphaSignalHistory.signal_date == today,
+                AlphaSignalHistory.signal_date == sig_date,
                 AlphaSignalHistory.time_dimension == dimension,
                 AlphaSignalHistory.direction == direction,
             )
@@ -978,7 +980,7 @@ class AlphaMinerService:
             if s.stock_id in existing:
                 continue
             rows.append(AlphaSignalHistory(
-                signal_date=today,
+                signal_date=sig_date,
                 stock_id=s.stock_id,
                 stock_name=s.stock_name,
                 time_dimension=dimension,
@@ -991,7 +993,7 @@ class AlphaMinerService:
         if rows:
             db.add_all(rows)
             db.commit()
-            logger.info(f"[SignalHistory] 儲存 {dimension}/{direction} 訊號 {len(rows)} 筆（{today}）")
+            logger.info(f"[SignalHistory] 儲存 {dimension}/{direction} 訊號 {len(rows)} 筆（{sig_date}）")
         return len(rows)
 
     @classmethod
