@@ -63,6 +63,8 @@ class FundamentalService:
                 # 計算 ROE (ROE = PB / PE * 100)
                 if pe_ratio > 0:
                     fundamental.roe_latest = round((pb_ratio / pe_ratio) * 100, 2)
+                else:
+                    fundamental.roe_latest = None
 
                 fundamental.updated_at = datetime.strptime(target_date, '%Y%m%d').date()
                 count += 1
@@ -117,6 +119,8 @@ class FundamentalService:
                 
                 if pe_ratio > 0:
                     fundamental.roe_latest = round((pb_ratio / pe_ratio) * 100, 2)
+                else:
+                    fundamental.roe_latest = None
 
                 fundamental.updated_at = date.today()
                 count += 1
@@ -434,6 +438,8 @@ class FundamentalService:
                 stock.pe_ratio = round(info.get('trailingPE') or 0.0, 2)
                 if stock.pe_ratio > 0:
                     stock.roe_latest = round((stock.pb_ratio / stock.pe_ratio) * 100, 2)
+                else:
+                    stock.roe_latest = None
                 stock.last_revenue = round((info.get('totalRevenue') or 0.0) / 100000000.0, 2) # 轉億
             
             # 3. 歷史 EPS 與 營收
