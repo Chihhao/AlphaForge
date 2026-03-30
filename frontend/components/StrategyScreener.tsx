@@ -48,10 +48,10 @@ export default function StrategyScreener() {
 
         // 盤中自動輪詢邏輯 (每 60 秒一次)
         const intervalId = setInterval(() => {
-            const now = new Date();
-            const day = now.getDay(); // 0 是週日, 6 是週六
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
+            const twNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+            const day = twNow.getDay(); // 0 是週日, 6 是週六
+            const hours = twNow.getHours();
+            const minutes = twNow.getMinutes();
             const timeValue = hours * 100 + minutes;
 
             // 判斷是否為週一至週五的交易時段 (09:00 - 14:30)

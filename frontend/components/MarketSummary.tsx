@@ -59,9 +59,9 @@ export default function MarketSummary() {
         fetchSummary();
 
         // 台灣時區處理：只有在交易時間 (平日 09:00 - 15:00) 才啟動輪詢
-        const now = new Date();
-        const day = now.getDay();
-        const hour = now.getHours();
+        const twNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+        const day = twNow.getDay();
+        const hour = twNow.getHours();
         const isTradingDay = day >= 1 && day <= 5;
         const isTradingHour = hour >= 9 && hour < 15;
 
