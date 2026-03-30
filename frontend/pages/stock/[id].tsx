@@ -256,7 +256,9 @@ export default function StockDetail() {
                       : <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                     }
                   </svg>
-                  {isShort ? `${todayLabel()} 建議放空` : `${todayLabel()} 建議買入`}
+                  {isShort
+                    ? `${strategyPick.pick_date?.slice(5).replace('-', '/') ?? todayLabel()} 建議放空`
+                    : `${strategyPick.pick_date?.slice(5).replace('-', '/') ?? todayLabel()} 建議買入`}
                 </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   {isShort ? '參考放空' : '參考買入'} <span className="text-zinc-300">{strategyPick.entry_price?.toLocaleString()}</span>
