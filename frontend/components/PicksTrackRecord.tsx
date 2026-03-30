@@ -69,16 +69,16 @@ export default function PicksTrackRecord() {
     }
 
     const returnColor = (item: ConcludedPick) => {
-        if (item.return_pct > 0) return 'text-emerald-400'
-        if (item.exit_reason === 'stop_loss') return 'text-rose-400'
+        if (item.return_pct > 0) return 'text-rose-400'
+        if (item.return_pct < 0) return 'text-emerald-400'
         return 'text-zinc-400'
     }
 
     const exitBadgeStyle = (reason: string) => {
         if (reason === 'take_profit')
-            return 'bg-emerald-900/40 text-emerald-400 border-emerald-800/50'
-        if (reason === 'stop_loss')
             return 'bg-rose-900/40 text-rose-400 border-rose-800/50'
+        if (reason === 'stop_loss')
+            return 'bg-emerald-900/40 text-emerald-400 border-emerald-800/50'
         return 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50'
     }
 
