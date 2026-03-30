@@ -149,10 +149,11 @@ export default function StrategyMinerPreview() {
   const [pickDate, setPickDate] = useState<string | null>(null)
 
   useEffect(() => {
-    // 即時績效
+    let cancelled = false
 
+    // 即時績效
     api.get('/strategy-miner/picks/live-performance')
-      .then(r => setLivePerf(r.data))
+      .then(r => { if (!cancelled) setLivePerf(r.data) })
       .catch(() => {})
 
     Promise.all([
@@ -160,6 +161,7 @@ export default function StrategyMinerPreview() {
       api.get<Record<string, PerfStats>>('/strategy-miner/performance'),
     ])
       .then(([picksRes, perfRes]) => {
+        if (cancelled) return
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
         const all = (picksRes.data || []).map(p => ({
           stock_id: p.stock_id,
@@ -180,10 +182,14 @@ export default function StrategyMinerPreview() {
         const shorts = all.filter(p => p.direction === 'short').slice(0, 3)
         const combined = [...longs, ...shorts]
 
+        setPicks(combined)  // 先顯示，報價到了再更新
+        setPerf(perfRes.data || {})
+
         // 批次查報價
         Promise.allSettled(
           combined.map(p => api.get(`/stocks/${p.stock_id}/quote`))
         ).then(results => {
+          if (cancelled) return
           const withQuotes = combined.map((p, i) => {
             const r = results[i]
             if (r.status === 'fulfilled' && r.value.data) {
@@ -192,17 +198,15 @@ export default function StrategyMinerPreview() {
             return p
           })
           setPicks(withQuotes)
+        }).finally(() => {
+          if (!cancelled) setLoading(false)
         })
-
-        setPicks(combined)  // 先顯示，報價到了再更新
-        setPerf(perfRes.data || {})
       })
       .catch(() => {
-        setPicks([])
+        if (!cancelled) { setPicks([]); setLoading(false) }
       })
-      .finally(() => {
-        setLoading(false)
-      })
+
+    return () => { cancelled = true }
   }, [])
 
   return (
