@@ -16,7 +16,10 @@ from app.db.database import SessionLocal
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(
+    job_defaults={'max_instances': 1, 'coalesce': True},
+    executors={'default': {'type': 'threadpool', 'max_workers': 4}},
+)
 
 def run_with_db(task_func):
     """輔助函數：執行任務並正確關閉資料庫會話"""
@@ -92,8 +95,10 @@ def start_scheduler():
     )
 
     # --- 第二梯次：17:00 最終確認更新 (確保所有官方統計已入庫) ---
-    def _sync_with_retry(func, db, name: str, max_retries: int = 3, retry_delay: int = 300):
-        """執行單一同步任務，失敗時最多重試 max_retries 次，間隔 retry_delay 秒。"""
+    def _sync_with_retry(func, db, name: str, max_retries: int = 3, retry_delay: int = 30):
+        """執行單一同步任務，失敗時最多重試 max_retries 次，間隔 retry_delay 秒。
+        注意：retry_delay 不可過長，否則會阻塞 BackgroundScheduler 執行緒，
+        延遲後續所有排程任務。"""
         for attempt in range(1, max_retries + 1):
             try:
                 func(db)
