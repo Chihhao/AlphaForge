@@ -321,10 +321,12 @@ class FeatureService:
             .all()
         )
         etf_net_by_date: dict = {}
-        etf_all_sorted = [(r.date, r.net_flow) for r in etf_rows_all]
-        for d in [r.date for r in etf_rows_all]:
-            window = [nf for dt, nf in etf_all_sorted if dt <= d][-5:]
-            etf_net_by_date[d] = sum(window) / 10000 if window else None
+        if etf_rows_all:
+            import pandas as _pd
+            _etf_df = _pd.DataFrame([(r.date, r.net_flow) for r in etf_rows_all], columns=['date', 'nf'])
+            _etf_df = _etf_df.drop_duplicates(subset='date', keep='last')
+            _etf_df['net5d'] = _etf_df['nf'].rolling(5, min_periods=1).sum() / 10000
+            etf_net_by_date = dict(zip(_etf_df['date'], _etf_df['net5d']))
 
         # 逐日 UPSERT（先刪當日再寫入），避免整批刪除後中途失敗造成資料永久消失
         total_written = 0
