@@ -60,6 +60,8 @@ interface StrategyPick {
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
     stock_best_dim?: string | null    // 最佳勝率維度
+    current_price?: number | null     // 即時/收盤價
+    change_percent?: number | null    // 漲跌幅 (%)
 }
 
 const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
@@ -77,14 +79,6 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     const { toggle, has } = useWatchlist()
     const watched = has(pick.stock_id)
 
-    const isShort = pick.direction === 'short'
-    const takeProfit = pick.entry_price > 0
-        ? Math.round(pick.entry_price * (1 + (isShort ? -1 : 1) * pick.take_profit_pct / 100))
-        : 0
-    const stopLoss = pick.entry_price > 0
-        ? Math.round(pick.entry_price * (1 + (isShort ? 1 : -1) * pick.stop_loss_pct / 100))
-        : 0
-
     const handleExpand = () => {
         const next = !expanded
         setExpanded(next)
@@ -100,9 +94,9 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
     }
 
     return (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
-            {/* Row 1: rank + name + id + badges | stars + watchlist */}
-            <div className="flex items-start gap-1.5 mb-1.5">
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3 cursor-pointer select-none" onClick={handleExpand}>
+            {/* Row 1: rank + name + id + badges | price */}
+            <div className="flex items-start gap-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
                 <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     {pick.direction === 'short' ? (
@@ -114,6 +108,18 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                         {pick.stock_name}
                     </Link>
                     <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
+                    <button
+                        onClick={e => { e.stopPropagation(); toggle(pick.stock_id, pick.stock_name) }}
+                        title={watched ? '從觀察清單移除' : '加入觀察清單'}
+                        className={`p-0.5 transition-colors ${watched ? 'text-amber-400' : 'text-zinc-600 hover:text-amber-400'}`}
+                    >
+                        <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
+                            <path d={watched
+                                ? "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
+                                : "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z"
+                            } />
+                        </svg>
+                    </button>
                     {pick.dims && pick.dims.length > 1 && (
                         <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
                             多維
@@ -124,87 +130,57 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                             ⚠ 績效偏弱
                         </span>
                     )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-amber-400 text-base tracking-tight">{toStars(pick.weighted_score)}</span>
-                    <button
-                        onClick={e => { e.stopPropagation(); toggle(pick.stock_id, pick.stock_name) }}
-                        title={watched ? '從觀察清單移除' : '加入觀察清單'}
-                        className={`p-0.5 transition-colors ${watched ? 'text-amber-400' : 'text-zinc-600 hover:text-amber-400'}`}
-                    >
-                        <svg viewBox="0 0 24 24" width={16} height={16} className="fill-current">
-                            <path d={watched
-                                ? "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"
-                                : "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z"
-                            } />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            {/* 買入理由 tagline（策略名稱，跳過純計數文字） */}
-            {pick.buy_reasons && pick.buy_reasons.length > 0 && (() => {
-                const factorTags = pick.buy_reasons.filter(r => !r.includes('個策略共同'))
-                const countTag = pick.buy_reasons.find(r => r.includes('個策略共同'))
-                return (
-                    <div className="flex flex-wrap items-center gap-1 mb-1.5 -mt-0.5">
-                        {countTag && (() => {
-                            const m = countTag.match(/(\d+)\s*個策略/)
-                            return m ? (
-                                <span className="text-[10px] font-semibold text-zinc-500 shrink-0">{m[1]} 個策略共振</span>
-                            ) : null
-                        })()}
-                        {factorTags.map((r, i) => (
-                            <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
-                                {r}
+                    {pick.stock_win_rate != null && pick.stock_best_dim && (
+                        <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5">
+                            <span className={`font-mono text-xs ${pick.stock_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                                {DIM_LABEL[pick.stock_best_dim] ?? pick.stock_best_dim}勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
                             </span>
-                        ))}
-                    </div>
-                )
-            })()}
-
-            {/* Row 2: entry → take profit / stop loss */}
-            {pick.entry_price > 0 && (
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1.5">
-                    <span className="text-zinc-500 text-xs">{isShort ? '賣出' : '買入'}</span>
-                    <span className="text-zinc-300 font-mono font-bold text-lg">{pick.entry_price.toLocaleString()}</span>
-                    <span className="text-zinc-600 hidden sm:inline">→</span>
-                    <span className="text-zinc-500 text-xs">停利(+{pick.take_profit_pct}%)</span>
-                    <span className={`font-mono font-bold text-lg ${isShort ? 'text-emerald-400' : 'text-rose-400'}`}>{isShort ? '▼' : '▲'}{takeProfit.toLocaleString()}</span>
-                    <span className="text-zinc-700">/</span>
-                    <span className="text-zinc-500 text-xs">停損(-{pick.stop_loss_pct}%)</span>
-                    <span className={`font-mono font-bold text-lg ${isShort ? 'text-rose-400' : 'text-emerald-400'}`}>{isShort ? '▲' : '▼'}{stopLoss.toLocaleString()}</span>
+                            {pick.stock_avg_return != null && (
+                                <>
+                                    <span className="text-zinc-700">|</span>
+                                    <span className={`font-mono text-xs ${pick.stock_avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                        預計報酬 {pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
-            )}
-
-            {/* Row 3: meta + expand toggle */}
-            <div
-                className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 cursor-pointer select-none"
-                onClick={handleExpand}
-            >
-                {pick.stock_win_rate != null && pick.stock_best_dim && (
-                    <>
-                        <span>持有 {DIM_LABEL[pick.stock_best_dim] ?? pick.stock_best_dim}</span>
-                        <span className="text-zinc-700">|</span>
-                        <span className={`font-mono text-xs ${pick.stock_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
-                            勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
-                        </span>
-                        {pick.stock_avg_return != null && (
-                            <>
-                                <span className="text-zinc-700">|</span>
-                                <span className={`font-mono text-xs ${pick.stock_avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                    預計報酬 {pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
-                                </span>
-                            </>
+                {pick.current_price != null && pick.current_price > 0 && (
+                    <div className="flex flex-col items-end shrink-0">
+                        <span className="text-white font-mono font-bold text-lg leading-tight">{pick.current_price.toLocaleString()}</span>
+                        {pick.change_percent != null && (
+                            <span className={`font-mono text-xs font-bold leading-tight ${pick.change_percent >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {pick.change_percent >= 0 ? '▲' : '▼'} {pick.change_percent >= 0 ? '+' : ''}{pick.change_percent.toFixed(2)}%
+                            </span>
                         )}
-                    </>
+                    </div>
                 )}
-                <span className="ml-auto text-zinc-600 text-xs">{expanded ? '▲' : '▼'}</span>
             </div>
 
-            {/* Expanded: 逐筆交易記錄 */}
+            {/* Expanded */}
             {expanded && (
-                <div className="mt-3 border-t border-zinc-800 pt-3">
+                <div className="mt-3 border-t border-zinc-800 pt-3" onClick={e => e.stopPropagation()}>
+                    {/* 買入理由 tagline */}
+                    {pick.buy_reasons && pick.buy_reasons.length > 0 && (() => {
+                        const factorTags = pick.buy_reasons.filter(r => !r.includes('個策略共同'))
+                        const countTag = pick.buy_reasons.find(r => r.includes('個策略共同'))
+                        return (
+                            <div className="flex flex-wrap items-center gap-1 mb-3">
+                                {countTag && (() => {
+                                    const m = countTag.match(/(\d+)\s*個策略/)
+                                    return m ? (
+                                        <span className="text-[10px] font-semibold text-zinc-500 shrink-0">{m[1]} 個策略共振</span>
+                                    ) : null
+                                })()}
+                                {factorTags.map((r, i) => (
+                                    <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
+                                        {r}
+                                    </span>
+                                ))}
+                            </div>
+                        )
+                    })()}
                     {tradesLoading && <p className="text-zinc-600 text-xs">載入中…</p>}
 
                     {!tradesLoading && trades.length === 0 && (
@@ -668,6 +644,25 @@ const StrategyPage = () => {
             .catch(() => setAlphaLoading(false))
     }
 
+    const enrichWithQuotes = async (stockIds: string[]) => {
+        const results = await Promise.allSettled(
+            stockIds.map(id => api.get(`/stocks/${id}/quote`))
+        )
+        const quoteMap = new Map<string, { price: number; change: number }>()
+        results.forEach((r, i) => {
+            if (r.status === 'fulfilled' && r.value.data) {
+                quoteMap.set(stockIds[i], {
+                    price: r.value.data.current_price ?? 0,
+                    change: r.value.data.change_percent ?? 0,
+                })
+            }
+        })
+        setPicks(prev => prev.map(p => {
+            const q = quoteMap.get(p.stock_id)
+            return q ? { ...p, current_price: q.price, change_percent: q.change } : p
+        }))
+    }
+
     useEffect(() => {
         const loadPicks = async () => {
             try {
@@ -695,6 +690,8 @@ const StrategyPage = () => {
                         stock_best_dim: p.stock_best_dim ?? null,
                     })))
                     setLoading(false)
+                    // 非同步載入即時報價
+                    enrichWithQuotes(data.map(p => p.stock_id))
                     return
                 }
 
@@ -742,7 +739,8 @@ const StrategyPage = () => {
             )
             const combined: StrategyPick[] = signals.map((s: any, i: number) => {
                 const pr = priceResults[i]
-                const price: number = pr.status === 'fulfilled' ? (pr.value.data?.current_price ?? 0) : 0
+                const quoteData = pr.status === 'fulfilled' ? pr.value.data : null
+                const price: number = quoteData?.current_price ?? 0
                 const { lo, hi } = THRESHOLDS[s.time_dimension] ?? { lo: 3, hi: 5 }
                 return {
                     stock_id: s.stock_id,
@@ -754,6 +752,8 @@ const StrategyPage = () => {
                     weighted_score: s.trigger_count * (s.weighted_odds_ratio ?? 1),
                     time_dimension: s.time_dimension,
                     direction: 'long',
+                    current_price: price || null,
+                    change_percent: quoteData?.change_percent ?? null,
                 }
             })
             setPicks(combined)

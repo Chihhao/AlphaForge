@@ -60,7 +60,7 @@ export default function TradeHistoryList({ trades, defaultDim = '5d', maxVisible
         <p className="text-sm text-zinc-500">尚無交易紀錄</p>
       ) : (
         <div className="flex items-center gap-4 text-sm mb-1">
-          <span className="text-zinc-400">已結算 <span className="text-zinc-200 font-mono font-bold">{filtered.length}</span> 筆</span>
+          <span className="text-zinc-400">歷史紀錄 <span className="text-zinc-200 font-mono font-bold">{filtered.length}</span> 筆</span>
           <span className="text-zinc-400">勝率 <span className={`font-mono font-bold ${wins / filtered.length >= 0.5 ? 'text-rose-400' : 'text-emerald-400'}`}>{((wins / filtered.length) * 100).toFixed(0)}%</span></span>
           {avgRet != null && (
             <span className="text-zinc-400">均報酬 <span className={`font-mono font-bold ${avgRet >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{avgRet >= 0 ? '+' : ''}{avgRet.toFixed(1)}%</span></span>

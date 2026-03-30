@@ -17,6 +17,8 @@ interface TodayPick {
   direction?: string
   buy_reasons?: string[]
   stock_win_rate?: number | null
+  stock_avg_return?: number | null
+  stock_best_dim?: string | null
 }
 
 interface PickPreview {
@@ -32,14 +34,10 @@ interface PickPreview {
   dims: string[]
   buy_reasons: string[]
   stock_win_rate: number | null
+  stock_avg_return: number | null
+  stock_best_dim: string | null
   current_price?: number
   change_pct?: number
-}
-
-interface PerfStats {
-  win_rate_test: number
-  avg_return_test: number
-  trade_count_test: number
 }
 
 
@@ -83,8 +81,8 @@ function formatPrice(price: number): string {
 function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   const isMultiDim = pick.dims.length > 1
   const isShort = pick.direction === 'short'
-  const topReason = pick.buy_reasons.find(r => !r.includes('個策略')) ?? pick.buy_reasons[0]
   const price = pick.current_price || pick.entry_price
+  const dimLabel = pick.stock_best_dim ? (DIM_LABEL[pick.stock_best_dim] ?? pick.stock_best_dim) : ''
   const change = pick.change_pct ?? 0
   const changeColor = change > 0 ? 'text-rose-400' : (change < 0 ? 'text-emerald-400' : 'text-zinc-400')
 
@@ -109,15 +107,18 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
             </span>
           )}
         </div>
-        {(topReason || pick.stock_win_rate !== null) && (
+        {pick.stock_win_rate !== null && (
           <div className="flex items-center gap-2 mt-0.5">
-            {topReason && (
-              <span className="text-xs text-zinc-400">{topReason}</span>
-            )}
-            {pick.stock_win_rate !== null && (
-              <span className={`text-xs font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
-                勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
-              </span>
+            <span className={`text-xs font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
+              {dimLabel}勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
+            </span>
+            {pick.stock_avg_return != null && (
+              <>
+                <span className="text-zinc-700">|</span>
+                <span className={`text-xs font-mono ${pick.stock_avg_return >= 0 ? 'text-rose-400/80' : 'text-emerald-400'}`}>
+                  預計報酬 {pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
+                </span>
+              </>
             )}
           </div>
         )}
@@ -143,24 +144,14 @@ const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d':
 
 export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
-  const [perf, setPerf] = useState<Record<string, PerfStats>>({})
   const [loading, setLoading] = useState(true)
-  const [livePerf, setLivePerf] = useState<{ trade_count: number; win_rate: number | null; avg_return: number | null } | null>(null)
   const [pickDate, setPickDate] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    // 即時績效
-    api.get('/strategy-miner/picks/live-performance')
-      .then(r => { if (!cancelled) setLivePerf(r.data) })
-      .catch(() => {})
-
-    Promise.all([
-      api.get<TodayPick[]>('/strategy-miner/picks/today'),
-      api.get<Record<string, PerfStats>>('/strategy-miner/performance'),
-    ])
-      .then(([picksRes, perfRes]) => {
+    api.get<TodayPick[]>('/strategy-miner/picks/today')
+      .then(picksRes => {
         if (cancelled) return
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
         const all = (picksRes.data || []).map(p => ({
@@ -176,6 +167,8 @@ export default function StrategyMinerPreview() {
           dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
           buy_reasons: p.buy_reasons ?? [],
           stock_win_rate: p.stock_win_rate ?? null,
+          stock_avg_return: (p as any).stock_avg_return ?? null,
+          stock_best_dim: (p as any).stock_best_dim ?? null,
         }))
         // 做多前 3 + 放空前 3（首頁預覽精簡版）
         const longs = all.filter(p => p.direction === 'long').slice(0, 3)
@@ -183,7 +176,6 @@ export default function StrategyMinerPreview() {
         const combined = [...longs, ...shorts]
 
         setPicks(combined)  // 先顯示，報價到了再更新
-        setPerf(perfRes.data || {})
 
         // 批次查報價
         Promise.allSettled(
@@ -251,50 +243,6 @@ export default function StrategyMinerPreview() {
         ))
       )}
 
-      {/* 即時追蹤績效（優先）或回測績效（備用）*/}
-      {!loading && picks.length > 0 && (() => {
-        // 優先顯示即時績效
-        if (livePerf && livePerf.trade_count > 0 && livePerf.win_rate !== null) {
-          const winRate = Math.round(livePerf.win_rate * 100)
-          return (
-            <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
-              <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">即時追蹤</span>
-              <span className="text-[10px] font-mono text-zinc-500">{livePerf.trade_count} 筆已出場</span>
-              <span className={`text-[10px] font-mono font-semibold ${winRate >= 60 ? 'text-rose-400' : winRate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
-                勝率 {winRate}%
-              </span>
-              {livePerf.avg_return !== null && (
-                <>
-                  <span className="text-zinc-700 text-[10px]">·</span>
-                  <span className={`text-[10px] font-mono font-semibold ${livePerf.avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    均{livePerf.avg_return >= 0 ? '+' : ''}{livePerf.avg_return.toFixed(1)}%
-                  </span>
-                </>
-              )}
-            </div>
-          )
-        }
-        // 備用：回測績效
-        const dim = picks[0].time_dimension
-        const stats = perf[dim]
-        if (!stats) return null
-        const winRate = Math.round(stats.win_rate_test * 100)
-        const avgRet = stats.avg_return_test.toFixed(1)
-        const dimLabel = DIM_LABEL[dim] ?? dim
-        return (
-          <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">回測績效</span>
-            <span className="text-[10px] font-mono text-zinc-500">{dimLabel}策略</span>
-            <span className={`text-[10px] font-mono font-semibold ${winRate >= 55 ? 'text-rose-400' : winRate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
-              勝率 {winRate}%
-            </span>
-            <span className="text-zinc-700 text-[10px]">·</span>
-            <span className={`text-[10px] font-mono font-semibold ${stats.avg_return_test >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-              均報酬 {stats.avg_return_test >= 0 ? '+' : ''}{avgRet}%
-            </span>
-          </div>
-        )
-      })()}
     </div>
   )
 }
