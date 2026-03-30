@@ -82,7 +82,9 @@ def _parse_pcr(html: str, target_date: date) -> Optional[dict]:
             continue
 
         try:
-            # 轉為字串方便搜尋；去除逗號數字後轉回數值
+            # 找「未平倉」相關欄位的索引位置（用欄位名稱定位，比 max(nums) 可靠）
+            oi_col_indices = [i for i, c in enumerate(df.columns) if "未平倉" in str(c)]
+            # 若找不到未平倉欄位，fallback 用最後一個數值欄
             df_str = df.astype(str)
 
             call_oi = 0
@@ -100,20 +102,32 @@ def _parse_pcr(html: str, target_date: date) -> Optional[dict]:
 
                 if not is_call and not is_put:
                     continue
-
-                # 找出所有可能的數字欄，取最後一個足夠大的整數（未平倉口數通常是最大值）
-                nums = []
-                for v in row_values:
-                    cleaned = v.replace(",", "").strip()
-                    try:
-                        nums.append(int(float(cleaned)))
-                    except (ValueError, TypeError):
-                        pass
-
-                # 取最大的整數作為 OI（通常是合計欄）
-                if not nums:
+                # 同時含「買權」和「賣權」的列（如標頭/合計）跳過
+                if is_call and is_put:
                     continue
-                oi_val = max(nums)
+
+                # 從「未平倉」欄位取 OI 值
+                oi_val = 0
+                if oi_col_indices:
+                    for ci in oi_col_indices:
+                        try:
+                            oi_val = int(float(row_values[ci].replace(",", "").strip()))
+                            if oi_val > 0:
+                                break
+                        except (ValueError, TypeError, IndexError):
+                            pass
+                # fallback：若欄位定位失敗，取最大整數
+                if oi_val == 0:
+                    nums = []
+                    for v in row_values:
+                        try:
+                            nums.append(int(float(v.replace(",", "").strip())))
+                        except (ValueError, TypeError):
+                            pass
+                    oi_val = max(nums) if nums else 0
+
+                if oi_val == 0:
+                    continue
 
                 if is_call:
                     call_oi += oi_val
