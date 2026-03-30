@@ -109,17 +109,20 @@ def _maybe_catchup_sync():
         finally:
             db3.close()
 
-        if needs_price:
-            # 補同步籌碼資料
-            db4 = SessionLocal()
-            try:
-                from app.services.chip_data_crawler import sync_daily_chip_data
+        # 獨立檢查籌碼資料是否需要補同步（不依賴 needs_price）
+        db4 = SessionLocal()
+        try:
+            from app.services.chip_data_crawler import sync_daily_chip_data
+            from app.models.stock_chip_data import StockChipData
+            latest_chip = db4.query(func.max(StockChipData.date)).scalar()
+            needs_chip = (latest_chip is None or latest_chip < today)
+            if needs_chip:
                 sync_daily_chip_data(db4)
                 logger.info("[Startup] 籌碼資料補同步完成。")
-            except Exception as e:
-                logger.error(f"[Startup] 籌碼資料補同步失敗: {e}")
-            finally:
-                db4.close()
+        except Exception as e:
+            logger.error(f"[Startup] 籌碼資料補同步失敗: {e}")
+        finally:
+            db4.close()
 
         if needs_features or needs_price:
             # 計算每日特徵快照
