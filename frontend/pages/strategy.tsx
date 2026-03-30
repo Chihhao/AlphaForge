@@ -8,7 +8,6 @@ import {
     LineChart, Line, XAxis, YAxis, Tooltip,
     ResponsiveContainer, CartesianGrid, ReferenceLine
 } from 'recharts'
-import PicksTrackRecord from '../components/PicksTrackRecord'
 import TradeHistoryList, { TradeItem } from '../components/TradeHistoryList'
 
 // ─── Strategy Miner API 回傳型別 ──────────────────────────────────────────────
@@ -778,14 +777,16 @@ const StrategyPage = () => {
                 <div className="relative overflow-hidden bg-zinc-900/40 border border-zinc-800/60 rounded-2xl sm:rounded-3xl px-4 py-4 sm:px-8 sm:py-6">
                     <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-amber-500/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
                     <div className="relative">
-                        <div className="flex items-center gap-3 mb-1">
-                            <svg viewBox="0 0 24 24" width="22" height="22" className="fill-amber-400 shrink-0">
-                                <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
-                            </svg>
-                            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                                {todayLabel()} 操作建議
-                            </h1>
-                            <span className="text-zinc-600 text-xs font-mono self-center">{displayDate}</span>
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-3">
+                                <svg viewBox="0 0 24 24" width="22" height="22" className="fill-amber-400 shrink-0">
+                                    <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                                </svg>
+                                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                                    {todayLabel()} 操作建議
+                                </h1>
+                            </div>
+                            <span className="text-zinc-500 text-xs font-mono">更新於{displayDate}</span>
                         </div>
                         <p className="text-zinc-500 text-sm leading-relaxed">
                             量化模型篩選 · 每日收盤後自動更新 · 不構成投資建議
@@ -821,39 +822,58 @@ const StrategyPage = () => {
                     </div>
                 )}
 
-                {/* ── 歷史推薦成績 ──────────────────────────────────────── */}
-                <PicksTrackRecord />
 
-                {/* ── 明日操作建議 ──────────────────────────────────────── */}
-                <div className="flex items-center gap-2 px-1">
-                    <svg viewBox="0 0 24 24" width={14} height={14} className="fill-rose-400 shrink-0">
-                        <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
-                    </svg>
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{todayLabel()} 操作建議</span>
-                    {!loading && picks.length > 0 && (
-                        <span className="text-[10px] font-mono text-zinc-600">{picks.length} 檔</span>
-                    )}
-                </div>
-                <div className="flex flex-col gap-2">
-                    {loading && (
-                        [1, 2, 3].map(i => (
+                {loading && (
+                    <div className="flex flex-col gap-2">
+                        {[1, 2, 3].map(i => (
                             <div key={i} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3 animate-pulse">
                                 <div className="h-6 bg-zinc-800 rounded w-1/3 mb-2" />
                                 <div className="h-4 bg-zinc-800 rounded w-2/3 mb-2" />
                                 <div className="h-4 bg-zinc-800 rounded w-1/2" />
                             </div>
-                        ))
-                    )}
-                    {!loading && picks.length === 0 && !error && (
-                        <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
-                            <p className="text-zinc-500 text-sm">{todayLabel()} 暫無訊號</p>
-                            <p className="text-zinc-400 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
+                        ))}
+                    </div>
+                )}
+                {!loading && picks.length === 0 && !error && (
+                    <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
+                        <p className="text-zinc-500 text-sm">{todayLabel()} 暫無訊號</p>
+                        <p className="text-zinc-400 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
+                    </div>
+                )}
+                {!loading && picks.filter(p => p.direction === 'long').length > 0 && (
+                    <>
+                        <div className="flex items-center gap-3 px-1">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                <span className="text-sm font-semibold text-zinc-300">做多</span>
+                            </div>
+                            <span className="text-xs font-mono text-zinc-500">{picks.filter(p => p.direction === 'long').length} 檔</span>
+                            <div className="flex-1 h-px bg-zinc-800" />
                         </div>
-                    )}
-                    {picks.map((pick, i) => (
-                        <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
-                    ))}
-                </div>
+                        <div className="flex flex-col gap-2">
+                            {picks.filter(p => p.direction === 'long').map((pick, i) => (
+                                <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
+                            ))}
+                        </div>
+                    </>
+                )}
+                {!loading && picks.filter(p => p.direction === 'short').length > 0 && (
+                    <>
+                        <div className="flex items-center gap-3 px-1">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                <span className="text-sm font-semibold text-zinc-300">做空</span>
+                            </div>
+                            <span className="text-xs font-mono text-zinc-500">{picks.filter(p => p.direction === 'short').length} 檔</span>
+                            <div className="flex-1 h-px bg-zinc-800" />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            {picks.filter(p => p.direction === 'short').map((pick, i) => (
+                                <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
+                            ))}
+                        </div>
+                    </>
+                )}
 
                 {/* ── 近期精選歷史（折疊）─────────────────────────────── */}
                 <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
