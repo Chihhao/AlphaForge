@@ -1,4 +1,5 @@
 import os
+import secrets
 from typing import Optional
 from pydantic_settings import BaseSettings
 
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     SQLALCHEMY_ECHO: bool = DEBUG
     
     # JWT 配置
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", secrets.token_hex(32))
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
