@@ -555,6 +555,7 @@ class StrategyMinerService:
             s = _sharpe([t['return_pct'] for t in trades])
             train_sharpes.append((param_idx, s))
         train_sharpes.sort(key=lambda x: x[1], reverse=True)
+        sharpe_by_param = {idx: s for idx, s in train_sharpes}
         top3_indices = [x[0] for x in train_sharpes[:3]]
 
         # 跑前三（測試集）
@@ -578,7 +579,7 @@ class StrategyMinerService:
             delete(StrategyBacktestParam).where(StrategyBacktestParam.strategy_id == strategy_key)
         )
         for param_idx, params in enumerate(PARAMS_LIST):
-            tr_sharpe = train_sharpes[param_idx][1] if param_idx < len(train_sharpes) else 0.0
+            tr_sharpe = sharpe_by_param.get(param_idx, 0.0)
             # find test sharpe for this param (if in top3)
             te_sharpe = 0.0
             te_win = 0.0
