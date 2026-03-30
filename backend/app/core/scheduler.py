@@ -28,6 +28,26 @@ def run_with_db(task_func):
     finally:
         db.close()
 
+def run_on_trading_day(task_func):
+    """只在交易日執行（檢查今日 stock_prices 是否 >= 500 筆）。
+    國定假日、颱風假等非交易日自動跳過，避免產生幽靈資料。"""
+    from datetime import date
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        count = db.execute(
+            text("SELECT COUNT(*) FROM stock_prices WHERE date = :d"),
+            {"d": date.today()},
+        ).scalar()
+        if count < 500:
+            logger.info(f"[Scheduler] 今日 stock_prices={count} 筆，判定為非交易日，跳過任務")
+            return
+        task_func(db)
+    except Exception as e:
+        logger.error(f"Error executing scheduled task: {e}")
+    finally:
+        db.close()
+
 def start_scheduler():
     """啟動定時任務並設定任務"""
     # --- 第一梯次：15:00 初步同步 (收盤後第一時間) ---
@@ -147,8 +167,9 @@ def start_scheduler():
 
     # --- 第四梯次：17:20 計算每日特徵快照 (Alpha Miner 數據基礎) ---
     # 需在基本面最終同步（17:00，含重試最多 15 分鐘）完成後執行
+    # ⚠️ 使用 run_on_trading_day：國定假日無交易資料時自動跳過
     scheduler.add_job(
-        lambda: run_with_db(lambda db: FeatureService.compute_daily(db)),
+        lambda: run_on_trading_day(lambda db: FeatureService.compute_daily(db)),
         trigger=CronTrigger(day_of_week='mon-fri', hour=17, minute=20),
         id="compute_daily_features",
         name="Daily feature store computation",
@@ -165,7 +186,7 @@ def start_scheduler():
         AlphaMinerService.get_strategies(db)  # 觸發背景重訓
 
     scheduler.add_job(
-        lambda: run_with_db(retrain_alpha_miner),
+        lambda: run_on_trading_day(retrain_alpha_miner),
         trigger=CronTrigger(day_of_week='mon-fri', hour=17, minute=30),
         id="retrain_alpha_miner",
         name="Daily Alpha Miner retrain",
@@ -175,7 +196,7 @@ def start_scheduler():
     # --- 第六梯次：18:10 儲存今日訊號至歷史記錄（確保重訓完成）---
     # Alpha Miner 重訓於 17:30 啟動，需 12-15 分鐘；save_today_signals 內部亦有等待邏輯
     scheduler.add_job(
-        lambda: run_with_db(lambda db: [
+        lambda: run_on_trading_day(lambda db: [
             AlphaMinerService.save_today_signals(db, dim, direction)
             for dim in ["5d", "10d", "30d"]
             for direction in ["long", "short"]
@@ -187,6 +208,7 @@ def start_scheduler():
     )
 
     # --- 第七梯次：18:15 回填已到期訊號的實際報酬 ---
+    # update_signal_returns 不產生新資料，只回填舊訊號報酬，交易日與否皆可執行
     scheduler.add_job(
         lambda: run_with_db(AlphaMinerService.update_signal_returns),
         trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=15),
@@ -204,7 +226,7 @@ def start_scheduler():
         logger.info("[Scheduler] Strategy Miner 參數尋優 + 推薦生成完成")
 
     scheduler.add_job(
-        lambda: run_with_db(run_strategy_miner),
+        lambda: run_on_trading_day(run_strategy_miner),
         trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=20),
         id="strategy_miner_daily",
         name="Strategy Miner daily optimization + picks",
