@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import api from '../lib/api'
-import { todayLabel, tomorrowLabel } from '../lib/formatters'
+import { todayLabel } from '../lib/formatters'
 import { useWatchlist } from '../lib/useWatchlist'
 
 interface TodaySignal {
@@ -282,7 +282,7 @@ export default function SignalsPage() {
                             <svg viewBox="0 0 24 24" width={16} height={16} className="fill-current">
                                 <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                             </svg>
-                            {tomorrowLabel()} 操作建議
+                            {todayLabel()} 操作建議
                         </Link>
 
                     </div>

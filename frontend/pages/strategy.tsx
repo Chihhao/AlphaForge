@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import api from '../lib/api'
-import { tomorrowLabel } from '../lib/formatters'
+import { todayLabel } from '../lib/formatters'
 import { useWatchlist } from '../lib/useWatchlist'
 import {
     LineChart, Line, XAxis, YAxis, Tooltip,
@@ -783,7 +783,7 @@ const StrategyPage = () => {
                                 <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                             </svg>
                             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                                {tomorrowLabel()} 操作建議
+                                {todayLabel()} 操作建議
                             </h1>
                             <span className="text-zinc-600 text-xs font-mono self-center">{displayDate}</span>
                         </div>
@@ -799,7 +799,7 @@ const StrategyPage = () => {
                         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-400">
                             <span className="flex items-center gap-1.5">
                                 <span className="text-amber-500 font-bold">1</span>
-                                <span>{tomorrowLabel()} 開盤後以參考價附近買入</span>
+                                <span>{todayLabel()} 開盤後以參考價附近買入</span>
                             </span>
                             <span className="text-zinc-800">·</span>
                             <span className="flex items-center gap-1.5">
@@ -829,7 +829,7 @@ const StrategyPage = () => {
                     <svg viewBox="0 0 24 24" width={14} height={14} className="fill-rose-400 shrink-0">
                         <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                     </svg>
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{tomorrowLabel()} 操作建議</span>
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{todayLabel()} 操作建議</span>
                     {!loading && picks.length > 0 && (
                         <span className="text-[10px] font-mono text-zinc-600">{picks.length} 檔</span>
                     )}
@@ -846,7 +846,7 @@ const StrategyPage = () => {
                     )}
                     {!loading && picks.length === 0 && !error && (
                         <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
-                            <p className="text-zinc-500 text-sm">{tomorrowLabel()} 暫無訊號</p>
+                            <p className="text-zinc-500 text-sm">{todayLabel()} 暫無訊號</p>
                             <p className="text-zinc-400 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
                         </div>
                     )}

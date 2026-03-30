@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import api from '../lib/api'
-import { tomorrowLabel } from '../lib/formatters'
+import { todayLabel } from '../lib/formatters'
 
 interface TodayPick {
   pick_date: string
@@ -213,9 +213,11 @@ export default function StrategyMinerPreview() {
           <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
             <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
           </svg>
-          {tomorrowLabel()} 操作建議
+          {todayLabel()} 操作建議
           {pickDate && (
-            <span className="text-zinc-400 text-[10px] font-mono font-normal ml-1">{pickDate}</span>
+            <span className="text-zinc-400 text-xs font-mono font-normal ml-1">
+              資料 {pickDate.split('-').slice(1).map(Number).join('/')}
+            </span>
           )}
         </span>
         <Link
@@ -238,7 +240,7 @@ export default function StrategyMinerPreview() {
           <SkeletonRow />
         </>
       ) : picks.length === 0 ? (
-        <div className="py-4 text-center text-xs text-zinc-400">{tomorrowLabel()} 暫無推薦</div>
+        <div className="py-4 text-center text-xs text-zinc-400">{todayLabel()} 暫無推薦</div>
       ) : (
         picks.map((pick, i) => (
           <PickRow key={pick.stock_id} pick={pick} rank={i + 1} />

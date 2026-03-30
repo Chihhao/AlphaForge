@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import api from '../../lib/api'
 import AdvancedTechCard from '../../components/AdvancedTechCard'
 import EducationalHint from '../../components/EducationalHint'
-import { formatPrice, tomorrowLabel } from '../../lib/formatters'
+import { formatPrice, todayLabel } from '../../lib/formatters'
 import { useWatchlist } from '../../lib/useWatchlist'
 import TradeHistoryList from '../../components/TradeHistoryList'
 
@@ -256,7 +256,7 @@ export default function StockDetail() {
                       : <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                     }
                   </svg>
-                  {isShort ? `${tomorrowLabel()} 建議放空` : `${tomorrowLabel()} 建議買入`}
+                  {isShort ? `${todayLabel()} 建議放空` : `${todayLabel()} 建議買入`}
                 </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   {isShort ? '參考放空' : '參考買入'} <span className="text-zinc-300">{strategyPick.entry_price?.toLocaleString()}</span>

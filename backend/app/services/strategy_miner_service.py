@@ -197,7 +197,7 @@ class StrategyMinerService:
             reverse=True,
         )[:MAX_PICKS_PER_DIRECTION]
 
-        pick_date = date.today()
+        pick_date = latest_date
 
         # 從 AlphaMinerSnapshot 的 details_json 建立買入理由 map
         # 找出哪些顯著策略（is_significant=True）在 recent_signals 裡有這支股票
