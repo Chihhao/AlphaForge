@@ -648,10 +648,11 @@ class AlphaMinerService:
     # ─── 資料載入 ──────────────────────────────────────────────────────────────
     @classmethod
     def _load_features(cls, db: Session) -> pd.DataFrame:
+        from sqlalchemy import text
         cutoff = (date.today() - timedelta(days=365 * 2)).isoformat()
         cols = ", ".join(_LOAD_COLS)
-        sql = f"SELECT {cols} FROM stock_features WHERE date >= '{cutoff}'"
-        df = pd.read_sql(sql, engine)
+        sql = text(f"SELECT {cols} FROM stock_features WHERE date >= :cutoff")
+        df = pd.read_sql(sql, engine, params={"cutoff": cutoff})
         if df.empty:
             return df
         df['date'] = pd.to_datetime(df['date'])
