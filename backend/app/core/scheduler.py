@@ -33,21 +33,21 @@ def start_scheduler():
     # --- 第一梯次：15:00 初步同步 (收盤後第一時間) ---
     scheduler.add_job(
         lambda: run_with_db(FundamentalService.sync_twse_valuation),
-        trigger=CronTrigger(hour=15, minute=0),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=15, minute=0),
         id="sync_valuation_preliminary",
         name="Preliminary fundamental valuation sync",
         replace_existing=True
     )
     scheduler.add_job(
         lambda: run_with_db(FundamentalService.sync_mops_revenue),
-        trigger=CronTrigger(hour=15, minute=0),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=15, minute=0),
         id="sync_revenue_preliminary",
         name="Preliminary monthly revenue sync",
         replace_existing=True
     )
     scheduler.add_job(
         lambda: run_with_db(FundamentalService.sync_mops_performance),
-        trigger=CronTrigger(hour=15, minute=0),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=15, minute=0),
         id="sync_performance_preliminary",
         name="Preliminary performance sync",
         replace_existing=True
@@ -56,7 +56,7 @@ def start_scheduler():
     # 每日下午 3:30 執行市場行情
     scheduler.add_job(
         lambda: run_with_db(lambda _: MarketDataCrawler.sync_daily_market_data()),
-        trigger=CronTrigger(hour=15, minute=30),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=15, minute=30),
         id="sync_market_data_daily",
         name="Daily market data synchronization from TWSE/TPEx",
         replace_existing=True
@@ -65,7 +65,7 @@ def start_scheduler():
     # 每日下午 3:35 同步加權指數 (^TWII) — MarketDataCrawler 只同步個股，^TWII 需獨立從 yfinance 更新
     scheduler.add_job(
         lambda: run_with_db(lambda db: StockSyncService.sync_stock_data(db, "^TWII", days=5)),
-        trigger=CronTrigger(hour=15, minute=35),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=15, minute=35),
         id="sync_taiex_daily",
         name="Daily TAIEX (^TWII) sync via yfinance",
         replace_existing=True
@@ -98,7 +98,7 @@ def start_scheduler():
 
     scheduler.add_job(
         lambda: run_with_db(final_sync_task),
-        trigger=CronTrigger(hour=17, minute=0),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=17, minute=0),
         id="sync_final_batch",
         name="Final daily fundamental sync batch",
         replace_existing=True
@@ -108,7 +108,7 @@ def start_scheduler():
     # 籌碼資料通常在 16:00~16:30 後才發佈
     scheduler.add_job(
         lambda: run_with_db(lambda db: sync_daily_chip_data(db)),
-        trigger=CronTrigger(hour=16, minute=30),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=16, minute=30),
         id="sync_chip_data_daily",
         name="Daily chip data sync (institutional + margin)",
         replace_existing=True
@@ -117,7 +117,7 @@ def start_scheduler():
     # --- 16:45 抓取 ETF 申贖張數 ---
     scheduler.add_job(
         lambda: run_with_db(lambda db: __import__('app.services.etf_flow_crawler', fromlist=['sync_etf_flows']).sync_etf_flows(db, days_back=3)),
-        trigger=CronTrigger(hour=16, minute=45),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=16, minute=45),
         id="sync_etf_flows_daily",
         name="Daily ETF creation/redemption sync",
         replace_existing=True
@@ -128,7 +128,7 @@ def start_scheduler():
         lambda: run_with_db(lambda db: __import__(
             'app.services.taifex_pcr_crawler', fromlist=['sync_pcr']
         ).sync_pcr(db, days_back=3)),
-        trigger=CronTrigger(hour=16, minute=50),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=16, minute=50),
         id="sync_pcr_daily",
         name="Daily TAIFEX PCR sync",
         replace_existing=True
@@ -139,7 +139,7 @@ def start_scheduler():
         lambda: run_with_db(lambda db: __import__(
             'app.services.vix_crawler', fromlist=['sync_vix']
         ).sync_vix(db, days_back=7)),
-        trigger=CronTrigger(hour=16, minute=55),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=16, minute=55),
         id="sync_vix_daily",
         name="Daily CBOE VIX sync",
         replace_existing=True
@@ -149,7 +149,7 @@ def start_scheduler():
     # 需在基本面最終同步（17:00，含重試最多 15 分鐘）完成後執行
     scheduler.add_job(
         lambda: run_with_db(lambda db: FeatureService.compute_daily(db)),
-        trigger=CronTrigger(hour=17, minute=20),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=17, minute=20),
         id="compute_daily_features",
         name="Daily feature store computation",
         replace_existing=True
@@ -166,7 +166,7 @@ def start_scheduler():
 
     scheduler.add_job(
         lambda: run_with_db(retrain_alpha_miner),
-        trigger=CronTrigger(hour=17, minute=30),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=17, minute=30),
         id="retrain_alpha_miner",
         name="Daily Alpha Miner retrain",
         replace_existing=True
@@ -180,7 +180,7 @@ def start_scheduler():
             for dim in ["5d", "10d", "30d"]
             for direction in ["long", "short"]
         ]),
-        trigger=CronTrigger(hour=18, minute=10),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=10),
         id="save_signal_history",
         name="Save today alpha signals to history (long + short)",
         replace_existing=True
@@ -189,7 +189,7 @@ def start_scheduler():
     # --- 第七梯次：18:15 回填已到期訊號的實際報酬 ---
     scheduler.add_job(
         lambda: run_with_db(AlphaMinerService.update_signal_returns),
-        trigger=CronTrigger(hour=18, minute=15),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=15),
         id="update_signal_returns",
         name="Backfill actual returns for expired signals",
         replace_existing=True
@@ -205,7 +205,7 @@ def start_scheduler():
 
     scheduler.add_job(
         lambda: run_with_db(run_strategy_miner),
-        trigger=CronTrigger(hour=18, minute=20),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=20),
         id="strategy_miner_daily",
         name="Strategy Miner daily optimization + picks",
         replace_existing=True
