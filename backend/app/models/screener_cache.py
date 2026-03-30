@@ -13,4 +13,4 @@ class ScreenerCache(Base):
     strategy_id = Column(String(50), index=True)  # 例如: af_choice
     cache_date = Column(Date, index=True)       # 快取日期 (YYYY-MM-DD)
     results_json = Column(Text)                  # 序列化後的結果列表 (JSON)
-    last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

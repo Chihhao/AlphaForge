@@ -10,4 +10,4 @@ class SystemEvent(Base):
     level = Column(String(20), index=True)  # INFO, WARNING, ERROR, SUCCESS
     message = Column(Text)
     category = Column(String(50), index=True)  # crawler, screener, system
-    timestamp = Column(DateTime, default=datetime.now, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
