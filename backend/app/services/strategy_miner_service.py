@@ -115,6 +115,38 @@ class StrategyMinerService:
         from sqlalchemy import func as sa_func, and_
         dir_label = '做多' if direction == 'long' else '放空'
 
+        # ─── Regime Filter：根據市場廣度動態調整推薦數量與門檻 ───
+        from app.models.stock_feature import StockFeature as SF
+        regime_row = (
+            db.query(SF.market_breadth)
+            .filter(SF.date == latest_date, SF.market_breadth.isnot(None))
+            .first()
+        )
+        breadth = regime_row.market_breadth if regime_row else 0.5
+
+        if direction == 'long':
+            if breadth < 0.30:
+                max_picks = 2
+                trigger_pct = 0.85
+            elif breadth < 0.45:
+                max_picks = 3
+                trigger_pct = 0.80
+            else:
+                max_picks = MAX_PICKS_PER_DIRECTION
+                trigger_pct = TRIGGER_COUNT_PERCENTILE
+        else:  # short
+            if breadth > 0.70:
+                max_picks = 2
+                trigger_pct = 0.85
+            elif breadth > 0.55:
+                max_picks = 3
+                trigger_pct = 0.80
+            else:
+                max_picks = MAX_PICKS_PER_DIRECTION
+                trigger_pct = TRIGGER_COUNT_PERCENTILE
+
+        logger.info(f"[StrategyMiner] {dir_label} Regime: breadth={breadth:.2f}, max_picks={max_picks}, trigger_pct={trigger_pct}")
+
         # 1. 查當日訊號
         rows = (
             db.query(AlphaSignalHistory)
@@ -181,7 +213,7 @@ class StrategyMinerService:
             if not dim_map:
                 continue
             counts = sorted([r.trigger_count for r in dim_map.values()])
-            p70_idx = int(len(counts) * TRIGGER_COUNT_PERCENTILE)
+            p70_idx = int(len(counts) * trigger_pct)
             p70_val = counts[min(p70_idx, len(counts) - 1)]
             before = len(dim_map)
             by_dim[dim] = {sid: r for sid, r in dim_map.items() if r.trigger_count >= p70_val}
@@ -208,7 +240,7 @@ class StrategyMinerService:
 
         sorted_combined = sorted(
             combined.values(), key=lambda x: x['score'], reverse=True,
-        )[:MAX_PICKS_PER_DIRECTION]
+        )[:max_picks]
 
         # 7. 從 AlphaMinerSnapshot 建立理由 map
         reasons_map: Dict[str, List[str]] = {}
