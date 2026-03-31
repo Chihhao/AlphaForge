@@ -206,8 +206,6 @@ class StrategyMinerService:
         )[:MAX_PICKS_PER_DIRECTION]
 
         # 7. 從 AlphaMinerSnapshot 建立理由 map
-        #    做多：顯著策略且 ic > 0，strategy_id 不含 'short'
-        #    放空：顯著策略且 ic > 0，strategy_id 含 'short'
         reasons_map: Dict[str, List[str]] = {}
         try:
             snap = (
@@ -220,7 +218,7 @@ class StrategyMinerService:
                 details_data = json.loads(snap.details_json)
                 sig_name_map: Dict[str, str] = {}
                 for s in result_data.get('strategies', []):
-                    if not s.get('is_significant') or s.get('ic', 0) <= 0:
+                    if not s.get('is_significant') or abs(s.get('ic', 0)) <= 0:
                         continue
                     sid = s['strategy_id']
                     is_short_strat = 'short' in sid
