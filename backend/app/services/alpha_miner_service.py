@@ -41,6 +41,7 @@ from app.schemas.alpha_miner import (
 # ─── 因子中文標籤 ──────────────────────────────────────────────────────────────
 FACTOR_LABELS: Dict[str, str] = {
     'rsi14':           'RSI',
+    'rsi2':            'RSI(2)',
     'k':               'KD-K',
     'd':               'KD-D',
     'macd_dif':        'MACD DIF',
@@ -160,9 +161,16 @@ FACTOR_COMBINATIONS: List[List[str]] = [
     # Phase 7 — 中期籌碼 + 技術面
     ['foreign_buy_20d', 'rsi14'],
     ['trust_buy_20d', 'sector_rs'],
+    # Phase 8 — RSI(2) 極短期反轉
+    ['rsi2'],
+    ['rsi2', 'vol_ratio'],
+    ['rsi2', 'pb_ratio'],
+    ['rsi2', 'foreign_buy_5d'],
+    ['rsi2', 'bias10'],
+    ['rsi2', 'bias10', 'vol_ratio'],
 ]
 
-_LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())
+_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(FACTOR_LABELS.keys())
 
 # Bonferroni 校正：組合數自動計算
 _BONFERRONI_N = len(FACTOR_COMBINATIONS)
@@ -639,6 +647,16 @@ class AlphaMinerService:
             subset=rank_cols + ['label'])
         test_df = df[df['date'] >= pd.Timestamp(test_start)].dropna(
             subset=rank_cols + ['label', 'forward_return'])
+
+        # 趨勢過濾：做多只用上升趨勢樣本，做空只用下降趨勢樣本
+        dim_direction = dim.get('direction', 'long')
+        if 'ma60' in df.columns:
+            if dim_direction == 'long':
+                train_df = train_df[train_df['close'] > train_df['ma60']].copy()
+                test_df = test_df[test_df['close'] > test_df['ma60']].copy()
+            else:
+                train_df = train_df[train_df['close'] < train_df['ma60']].copy()
+                test_df = test_df[test_df['close'] < test_df['ma60']].copy()
 
         if len(train_df) < 100 or len(test_df) < 30:
             return None, None

@@ -75,6 +75,7 @@ class FeatureService:
         # 4. 額外計算 bias5, bias10, vol_ma5, vol_ratio, bb_pctb, change_pct
         df['bias5'] = IndicatorService.calculate_bias_vec(df, 5)
         df['bias10'] = IndicatorService.calculate_bias_vec(df, 10)
+        df['rsi2'] = IndicatorService.calculate_rsi_vec(df, 2)
         df['vol_ma5'] = IndicatorService.calculate_ma_vec(df, 5, column='volume')
         df['vol_ratio'] = df['volume'] / df['vol_ma5'].replace(0, np.nan)
 
@@ -189,6 +190,7 @@ class FeatureService:
                 bias10=_safe_float(row.get('bias10')),
                 bias20=_safe_float(row.get('bias20')),
                 rsi14=_safe_float(row.get('rsi14')),
+                rsi2=_safe_float(row.get('rsi2')),
                 k=_safe_float(row.get('k')),
                 d=_safe_float(row.get('d')),
                 macd_dif=_safe_float(row.get('macd_dif')),
@@ -270,6 +272,7 @@ class FeatureService:
         df = IndicatorService.attach_indicators(df)
         df['bias5'] = IndicatorService.calculate_bias_vec(df, 5)
         df['bias10'] = IndicatorService.calculate_bias_vec(df, 10)
+        df['rsi2'] = IndicatorService.calculate_rsi_vec(df, 2)
         df['vol_ma5'] = IndicatorService.calculate_ma_vec(df, 5, column='volume')
         df['vol_ratio'] = df['volume'] / df['vol_ma5'].replace(0, np.nan)
         bb_range = df['bb_upper'] - df['bb_lower']
@@ -425,6 +428,7 @@ class FeatureService:
                     bias10=_safe_float(row.get('bias10')),
                     bias20=_safe_float(row.get('bias20')),
                     rsi14=_safe_float(row.get('rsi14')),
+                    rsi2=_safe_float(row.get('rsi2')),
                     k=_safe_float(row.get('k')),
                     d=_safe_float(row.get('d')),
                     macd_dif=_safe_float(row.get('macd_dif')),

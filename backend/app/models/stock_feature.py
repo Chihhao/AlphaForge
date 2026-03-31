@@ -31,6 +31,7 @@ class StockFeature(Base):
 
     # --- RSI ---
     rsi14 = Column(Float)
+    rsi2 = Column(Float, nullable=True)     # 2期 RSI（極短期超賣/超買）
 
     # --- KD ---
     k = Column(Float)
