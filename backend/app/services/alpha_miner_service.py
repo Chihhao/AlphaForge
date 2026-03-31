@@ -905,14 +905,14 @@ class AlphaMinerService:
         """對已到期但尚未結算的歷史訊號回填實際報酬率。
 
         持有期到期判斷（加 buffer 確保收盤資料已入庫）：
-          5d  → signal_date + 7 天前
-          10d → signal_date + 14 天前
-          30d → signal_date + 35 天前
+          5d  → signal_date + 7 天前（5 交易日 + 2 天 buffer）
+          10d → signal_date + 14 天前（10 交易日 + 4 天 buffer）
+          30d → signal_date + 45 天前（30 交易日 + 15 天 buffer）
 
         使用批次查詢避免 N+1。回傳成功結算筆數。
         """
         today = date.today()
-        HOLDING = {"5d": 7, "10d": 14, "30d": 35}
+        HOLDING = {"5d": 7, "10d": 14, "30d": 45}
 
         pending = (
             db.query(AlphaSignalHistory)
@@ -967,7 +967,7 @@ class AlphaMinerService:
 
         resolved_count = 0
         for rec in expired:
-            holding_days = {"5d": 5, "10d": 10, "30d": 30}.get(rec.time_dimension, 10)
+            holding_days = {"5d": 5, "10d": 10, "30d": 30}[rec.time_dimension]
             entry = _find_price(rec.stock_id, rec.signal_date)
             exit_date = rec.signal_date + timedelta(days=holding_days)
             exit_price = _find_price(rec.stock_id, exit_date)

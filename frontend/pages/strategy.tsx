@@ -930,7 +930,7 @@ const StrategyPage = () => {
                                                                     href={`/stock/${p.stock_id}`}
                                                                     className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
                                                                 >
-                                                                    <span className={`font-bold text-[10px] ${isShort ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                                    <span className={`font-bold text-[10px] ${isShort ? 'text-emerald-400' : 'text-rose-400'}`}>
                                                                         {isShort ? '空' : '多'}
                                                                     </span>
                                                                     <span className="text-zinc-300 font-medium">{p.stock_name}</span>

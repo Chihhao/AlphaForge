@@ -28,17 +28,20 @@ from app.models.strategy_miner_pick import StrategyMinerPick
 
 logger = logging.getLogger(__name__)
 
-# ─── 18 種參數組合 ─────────────────────────────────────────────────────────────
+# ─── 參數組合（持有天數與維度對齊）──────────────────────────────────────────────
 TAKE_PROFITS = [0.05, 0.08, 0.12]
 STOP_LOSSES  = [0.03, 0.05, 0.08]
-HOLD_DAYS    = [10, 20]
+DIM_HOLD_DAYS = {'5d': 5, '10d': 10, '30d': 30}
 
-PARAMS_LIST = [
-    {'take_profit_pct': tp, 'stop_loss_pct': sl, 'hold_days': hd}
-    for tp in TAKE_PROFITS
-    for sl in STOP_LOSSES
-    for hd in HOLD_DAYS
-]  # 18 combos
+
+def get_params_list(dimension: str) -> list:
+    """回傳指定維度的參數組合（9 種：3 TP × 3 SL × 1 HD）"""
+    hd = DIM_HOLD_DAYS[dimension]
+    return [
+        {'take_profit_pct': tp, 'stop_loss_pct': sl, 'hold_days': hd}
+        for tp in TAKE_PROFITS
+        for sl in STOP_LOSSES
+    ]  # 9 combos
 
 DIMENSIONS = ['5d', '10d', '30d']
 
@@ -403,8 +406,9 @@ class StrategyMinerService:
 
         is_short = (direction == 'short')
 
-        # 跑 18 組參數（訓練集）
-        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, is_short=is_short, open_dict=open_dict)
+        # 跑 9 組參數（訓練集）
+        params_list = get_params_list(dimension)
+        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, params_list, is_short=is_short, open_dict=open_dict)
 
         # 找訓練集 Sharpe 前三
         train_sharpes: List[Tuple[int, float]] = []
@@ -416,7 +420,7 @@ class StrategyMinerService:
         top3_indices = [x[0] for x in train_sharpes[:3]]
 
         # 跑前三（測試集）
-        top3_params = [PARAMS_LIST[i] for i in top3_indices]
+        top3_params = [params_list[i] for i in top3_indices]
         test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params, is_short=is_short, open_dict=open_dict)
 
         # 選測試集最穩定者
@@ -428,14 +432,14 @@ class StrategyMinerService:
                 best_test_sharpe = s
                 best_idx_in_top3 = i
         optimal_param_idx = top3_indices[best_idx_in_top3]
-        optimal_params = PARAMS_LIST[optimal_param_idx]
+        optimal_params = params_list[optimal_param_idx]
 
         # 儲存 18 組回測結果到 strategy_backtest_params
         today = date.today()
         db.execute(
             delete(StrategyBacktestParam).where(StrategyBacktestParam.strategy_id == strategy_key)
         )
-        for param_idx, params in enumerate(PARAMS_LIST):
+        for param_idx, params in enumerate(params_list):
             tr_sharpe = sharpe_by_param.get(param_idx, 0.0)
             # find test sharpe for this param (if in top3)
             te_sharpe = 0.0
@@ -508,11 +512,12 @@ class StrategyMinerService:
         signals_df: pd.DataFrame,
         price_dict: Dict,
         sorted_dates_dict: Dict,
+        params_list: list,
         is_short: bool = False,
         open_dict: Optional[Dict] = None,
     ) -> List[List[dict]]:
-        """對所有 18 組參數進行回測，回傳 list of 18 trade lists"""
-        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, PARAMS_LIST, is_short=is_short, open_dict=open_dict)
+        """對所有參數組合進行回測，回傳 list of trade lists"""
+        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, params_list, is_short=is_short, open_dict=open_dict)
 
     @classmethod
     def _simulate_entries(
@@ -656,6 +661,7 @@ class StrategyMinerService:
     @staticmethod
     def _default_params(dimension: str) -> Tuple[float, float, int]:
         """當尚無回測結果時的 fallback 參數"""
+        hd = DIM_HOLD_DAYS.get(dimension, 10)
         if dimension == '30d':
-            return 0.08, 0.05, 20
-        return 0.05, 0.03, 10
+            return 0.08, 0.05, hd
+        return 0.05, 0.03, hd

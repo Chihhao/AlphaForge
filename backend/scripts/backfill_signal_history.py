@@ -166,7 +166,7 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
                 factors: List[str] = det["factors"]
                 rank_cols = [f"{f}_rank" for f in factors]
                 fw = {fw_item["factor"]: fw_item["coefficient"] for fw_item in det["factor_weights"]}
-                ic = abs(float(det["ic"]))
+                ic = abs(float(det.get("ic", 0)))
 
                 # 計算分位數排名
                 df_scored = df_day.copy()
