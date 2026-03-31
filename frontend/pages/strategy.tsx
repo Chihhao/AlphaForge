@@ -922,7 +922,7 @@ const StrategyPage = () => {
                                                         {dayPicks.map(p => {
                                                             const isShort = p.direction === 'short'
                                                             const days = p.time_dimension?.replace('d', '') || ''
-                                                            const wr = p.stock_win_rate != null ? `${days}日${Math.round(p.stock_win_rate * 100)}%` : null
+                                                            const wr = p.stock_win_rate != null ? `${days}日勝率${Math.round(p.stock_win_rate * 100)}%` : null
                                                             const avg = p.stock_avg_return != null ? `${p.stock_avg_return > 0 ? '+' : ''}${p.stock_avg_return.toFixed(1)}%` : null
                                                             return (
                                                                 <Link
