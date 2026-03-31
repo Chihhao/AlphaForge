@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 TAKE_PROFITS = [0.05, 0.08, 0.12]
 STOP_LOSSES  = [0.03, 0.05, 0.08]
 DIM_HOLD_DAYS = {'5d': 5, '10d': 10, '30d': 30}
+ROUND_TRIP_COST = 0.006   # 來回交易成本 ~0.6%（手續費 0.1425%×2 + 交易稅 0.3%）
 
 
 def get_params_list(dimension: str) -> list:
@@ -560,8 +561,7 @@ class StrategyMinerService:
             if open_dict and stock_id in open_dict and next_date in open_dict[stock_id]:
                 entry_price = open_dict[stock_id][next_date]
             else:
-                # fallback：隔日收盤（open 不存在時）
-                entry_price = px.get(next_date, 0)
+                continue  # open 不可用時跳過，避免用收盤價造成回測偏差
             if not entry_price or entry_price <= 0:
                 continue
 
@@ -608,13 +608,13 @@ class StrategyMinerService:
 
                 # 放空報酬反轉
                 raw_return = float(r[exit_idx])
-                exit_return = -raw_return if is_short else raw_return
+                exit_return = (-raw_return if is_short else raw_return) - ROUND_TRIP_COST
                 results[param_idx].append({
                     'stock_id': stock_id,
                     'entry_date': signal_date,
                     'entry_price': entry_price,
                     'exit_date': fwd_dates[exit_idx],
-                    'exit_price': round(entry_price * (1 + exit_return), 2),
+                    'exit_price': round(entry_price * (1 + raw_return), 2),
                     'exit_reason': exit_reason,
                     'return_pct': round(exit_return * 100, 4),
                     'hold_days': exit_idx + 1,
