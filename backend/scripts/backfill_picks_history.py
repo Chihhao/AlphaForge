@@ -234,8 +234,15 @@ def main():
                 details_data = json.loads(snap.details_json)
                 sig_name_map: dict = {}
                 for s in result_data.get("strategies", []):
-                    if s.get("is_significant") and abs(s.get("ic", 0)) > 0:
-                        sig_name_map[s["strategy_id"]] = s["strategy_name"]
+                    if not s.get("is_significant"):
+                        continue
+                    s_ic = s.get("ic", 0)
+                    is_short = 'short' in s.get("strategy_id", "")
+                    if is_short and s_ic >= 0:
+                        continue
+                    if not is_short and s_ic <= 0:
+                        continue
+                    sig_name_map[s["strategy_id"]] = s["strategy_name"]
                 stock_strategy_names: dict = {}
                 for strat_id, name in sig_name_map.items():
                     detail = details_data.get(strat_id, {})

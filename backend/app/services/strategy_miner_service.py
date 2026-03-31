@@ -218,7 +218,14 @@ class StrategyMinerService:
                 details_data = json.loads(snap.details_json)
                 sig_name_map: Dict[str, str] = {}
                 for s in result_data.get('strategies', []):
-                    if not s.get('is_significant') or abs(s.get('ic', 0)) <= 0:
+                    if not s.get('is_significant'):
+                        continue
+                    s_ic = s.get('ic', 0)
+                    is_short_strat = 'short' in s.get('strategy_id', '')
+                    # 做多只用 ic > 0，放空只用 ic < 0
+                    if is_short_strat and s_ic >= 0:
+                        continue
+                    if not is_short_strat and s_ic <= 0:
                         continue
                     sid = s['strategy_id']
                     is_short_strat = 'short' in sid

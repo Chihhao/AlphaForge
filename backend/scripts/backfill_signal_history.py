@@ -65,17 +65,23 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
     details: dict = json.loads(snap.details_json)
     logger.info(f"快照日期：{snap.train_date}，共 {len(details)} 個策略")
 
-    # ── 2. 依維度分組顯著策略（做多 ic > 0，放空 ic < 0，統一用 abs）──────────
+    # ── 2. 依維度分組顯著策略（做多 ic > 0，放空 ic < 0）──────────────────────
     DIMENSIONS = ["5d", "10d", "30d", "5d_short", "10d_short", "30d_short"]
     DIM_THR = {"5d": (0.03, 0.05), "10d": (0.03, 0.05), "30d": (0.05, 0.10),
                "5d_short": (0.03, 0.05), "10d_short": (0.03, 0.05), "30d_short": (0.05, 0.10)}
 
     sig_by_dim: Dict[str, List[dict]] = {d: [] for d in DIMENSIONS}
     for sid, det in details.items():
-        if not det.get("is_significant") or abs(det.get("ic", 0)) <= 0:
+        if not det.get("is_significant"):
             continue
         dim = det.get("time_dimension")
         if dim not in sig_by_dim:
+            continue
+        ic_val = det.get("ic", 0)
+        # 做多只用 ic > 0，放空只用 ic < 0
+        if '_short' in dim and ic_val >= 0:
+            continue
+        if '_short' not in dim and ic_val <= 0:
             continue
         sig_by_dim[dim].append(det)
 

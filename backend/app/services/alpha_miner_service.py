@@ -308,14 +308,18 @@ class AlphaMinerService:
         for ranking in result.strategies:
             if not ranking.is_significant or ranking.time_dimension != dim_key:
                 continue
-            # 做多 IC > 0 表示預測準確；放空 IC < 0 表示預測準確（機率高→報酬負）
-            ic_abs = abs(ranking.ic)
-            if ic_abs <= 0:
-                continue
+            # 做多只用 IC > 0（預測漲→實際漲）；放空只用 IC < 0（預測跌→實際跌）
+            if direction == 'short':
+                if ranking.ic >= 0:
+                    continue
+                ic = abs(ranking.ic)
+            else:
+                if ranking.ic <= 0:
+                    continue
+                ic = ranking.ic
             detail = cls._details.get(ranking.strategy_id)
             if not detail or not detail.recent_signals:
                 continue
-            ic = ic_abs
             for sig in detail.recent_signals:
                 sid = sig.stock_id
                 if sid not in stock_map:
@@ -350,7 +354,8 @@ class AlphaMinerService:
         # 動態門檻（做多和放空共用同一邏輯）
         valid_strategy_count = sum(
             1 for r in result.strategies
-            if r.is_significant and r.time_dimension == dim_key and abs(r.ic) > 0
+            if r.is_significant and r.time_dimension == dim_key
+            and (r.ic < 0 if direction == 'short' else r.ic > 0)
         )
         min_triggers = max(2, round(valid_strategy_count * 0.4))
 
