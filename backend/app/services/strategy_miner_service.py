@@ -91,75 +91,87 @@ class StrategyMinerService:
             logger.info("[StrategyMiner] 無歷史訊號，跳過 run_daily")
             return 0
         latest_date = latest_row.signal_date
+        pick_date = latest_date
 
-        # 查當日���多訊號
+        count = 0
+        for direction in ('long', 'short'):
+            n = cls._generate_direction_picks(db, latest_date, pick_date, direction)
+            count += n
+
+        db.commit()
+        logger.info(f"[StrategyMiner] 今日推薦清單已生成 {count} 筆（做多+放空，{pick_date}）")
+        return count
+
+    @classmethod
+    def _generate_direction_picks(
+        cls, db: Session, latest_date, pick_date, direction: str,
+    ) -> int:
+        """生成指定方向（long/short）的推薦，管線與做多完全一致。"""
+        from sqlalchemy import func as sa_func, and_
+        dir_label = '做多' if direction == 'long' else '放空'
+
+        # 1. 查當日訊號
         rows = (
             db.query(AlphaSignalHistory)
             .filter(
                 AlphaSignalHistory.signal_date == latest_date,
-                AlphaSignalHistory.direction == 'long',
+                AlphaSignalHistory.direction == direction,
             )
             .all()
         )
         if not rows:
+            logger.info(f"[StrategyMiner] {dir_label} 無訊號（{latest_date}），跳過")
             return 0
 
-        # 查各維度最優參數（僅勝率 >= MIN_WIN_RATE 的維度）
+        # 2. 查各維度最優參數（strategy_id 放空為 {dim}_short）
         optimal: Dict[str, Optional[StrategyBacktestParam]] = {}
         for dim in DIMENSIONS:
+            strategy_key = f"{dim}_short" if direction == 'short' else dim
             opt = (
                 db.query(StrategyBacktestParam)
                 .filter(
-                    StrategyBacktestParam.strategy_id == dim,
+                    StrategyBacktestParam.strategy_id == strategy_key,
                     StrategyBacktestParam.is_optimal == True,  # noqa: E712
                 )
                 .first()
             )
             if opt and opt.win_rate_test is not None and opt.win_rate_test < MIN_WIN_RATE:
-                logger.info(f"[StrategyMiner] {dim} 勝率 {opt.win_rate_test:.1%} < {MIN_WIN_RATE:.0%}，跳過")
+                logger.info(f"[StrategyMiner] {strategy_key} 勝率 {opt.win_rate_test:.1%} < {MIN_WIN_RATE:.0%}，跳過")
                 opt = None
             optimal[dim] = opt
 
-        # 查最新收盤價（每檔股票各取自己最後一個有成交的收盤價）
+        # 3. 查最新收盤價
         stock_ids = list({r.stock_id for r in rows})
-        from sqlalchemy import func as sa_func, and_
-        # 子查詢：每股最新有收盤的日期
         sub = (
             db.query(
                 StockPrice.stock_id,
                 sa_func.max(StockPrice.date).label("max_date"),
             )
-            .filter(
-                StockPrice.stock_id.in_(stock_ids),
-                StockPrice.close > 0,
-            )
+            .filter(StockPrice.stock_id.in_(stock_ids), StockPrice.close > 0)
             .group_by(StockPrice.stock_id)
             .subquery()
         )
         price_rows = (
             db.query(StockPrice.stock_id, StockPrice.close)
-            .join(
-                sub,
-                and_(
-                    StockPrice.stock_id == sub.c.stock_id,
-                    StockPrice.date == sub.c.max_date,
-                ),
-            )
+            .join(sub, and_(
+                StockPrice.stock_id == sub.c.stock_id,
+                StockPrice.date == sub.c.max_date,
+            ))
             .all()
         )
         price_map: Dict[str, float] = {r.stock_id: float(r.close) for r in price_rows if r.close}
 
-        # 分維度去重，同股票同維度保留 trigger_count 最高者
+        # 4. 分維度去重，同股票同維度保留 trigger_count 最高者
         by_dim: Dict[str, Dict[str, AlphaSignalHistory]] = {}
         for r in rows:
             if optimal.get(r.time_dimension) is None and not cls._default_params(r.time_dimension):
-                continue  # 該維度被勝率門檻淘汰
+                continue
             dim_map = by_dim.setdefault(r.time_dimension, {})
             existing = dim_map.get(r.stock_id)
             if existing is None or r.trigger_count > existing.trigger_count:
                 dim_map[r.stock_id] = r
 
-        # 訊號強度過濾：每個維度只保留 trigger_count >= P70 的訊號
+        # 5. 訊號強度過濾：每個維度只保留 trigger_count >= P70
         for dim, dim_map in by_dim.items():
             if not dim_map:
                 continue
@@ -169,16 +181,16 @@ class StrategyMinerService:
             before = len(dim_map)
             by_dim[dim] = {sid: r for sid, r in dim_map.items() if r.trigger_count >= p70_val}
             after = len(by_dim[dim])
-            logger.info(f"[StrategyMiner] {dim} 觸發數門檻 >= {p70_val}: {before} → {after} 筆")
+            logger.info(f"[StrategyMiner] {dir_label}/{dim} 觸發數門檻 >= {p70_val}: {before} → {after} 筆")
 
-        # 合併：收集每檔股票出現的所有維度��多維共鳴加分 10%/維度）
+        # 6. 合併：多維共鳴加分 10%/維度
         combined: Dict[str, dict] = {}
         for dim, dim_map in by_dim.items():
             for stock_id, r in dim_map.items():
                 base_score = r.trigger_count * (r.weighted_odds_ratio or 1.0)
                 if stock_id not in combined:
                     combined[stock_id] = {
-                        'primary': r,           # 主要維度（得分最高者）
+                        'primary': r,
                         'dims': [dim],
                         'score': base_score,
                     }
@@ -187,21 +199,15 @@ class StrategyMinerService:
                     if base_score > combined[stock_id]['score']:
                         combined[stock_id]['primary'] = r
                         combined[stock_id]['score'] = base_score
-                    # 多維共鳴加分：每額外維度 +10%
                     combined[stock_id]['score'] *= 1.10
 
-        # 計算最終分數，排序，取前 MAX_PICKS_PER_DIRECTION
         sorted_combined = sorted(
-            combined.values(),
-            key=lambda x: x['score'],
-            reverse=True,
+            combined.values(), key=lambda x: x['score'], reverse=True,
         )[:MAX_PICKS_PER_DIRECTION]
 
-        # pick_date 用今天日期（推薦供明日操作），而非 signal_date
-        pick_date = date.today()
-
-        # 從 AlphaMinerSnapshot 的 details_json 建立買入理由 map
-        # 找出哪些顯著策略（is_significant=True）在 recent_signals 裡有這支股票
+        # 7. 從 AlphaMinerSnapshot 建立理由 map
+        #    做多：顯著策略且 ic > 0，strategy_id 不含 'short'
+        #    放空：顯著策略且 ic > 0，strategy_id 含 'short'
         reasons_map: Dict[str, List[str]] = {}
         try:
             snap = (
@@ -212,12 +218,14 @@ class StrategyMinerService:
             if snap:
                 result_data = json.loads(snap.result_json)
                 details_data = json.loads(snap.details_json)
-                # 建立 strategy_id → strategy_name 的映射（僅顯著策略）
                 sig_name_map: Dict[str, str] = {}
                 for s in result_data.get('strategies', []):
-                    if s.get('is_significant') and s.get('ic', 0) > 0:
-                        sig_name_map[s['strategy_id']] = s['strategy_name']
-                # 反向掃描：哪些顯著策略最近觸發了這支股票
+                    if not s.get('is_significant') or s.get('ic', 0) <= 0:
+                        continue
+                    sid = s['strategy_id']
+                    is_short_strat = 'short' in sid
+                    if (direction == 'short') == is_short_strat:
+                        sig_name_map[sid] = s['strategy_name']
                 stock_strategy_names: Dict[str, List[str]] = {}
                 for strat_id, name in sig_name_map.items():
                     detail = details_data.get(strat_id, {})
@@ -227,19 +235,19 @@ class StrategyMinerService:
                             lst = stock_strategy_names.setdefault(sid, [])
                             if name not in lst:
                                 lst.append(name)
-                # 每股最多保留 3 個策略名稱
                 reasons_map = {k: v[:3] for k, v in stock_strategy_names.items()}
         except Exception as e:
-            logger.warning(f"[StrategyMiner] 買入理由建立失敗: {e}")
+            logger.warning(f"[StrategyMiner] {dir_label}理由建立失敗: {e}")
 
-        # 刪除今日已有的做多 picks（idempotent）
+        # 8. 刪除今日已有的同方向 picks（idempotent）
         db.execute(
             delete(StrategyMinerPick).where(
                 StrategyMinerPick.pick_date == pick_date,
-                StrategyMinerPick.direction == 'long',
+                StrategyMinerPick.direction == direction,
             )
         )
 
+        # 9. 寫入 picks
         count = 0
         for item in sorted_combined:
             r = item['primary']
@@ -247,7 +255,6 @@ class StrategyMinerService:
             opt_params = optimal.get(r.time_dimension)
             entry_price = price_map.get(r.stock_id, 0.0)
 
-            # fallback 參數：若尚無回測結果，用維度預設值
             if opt_params:
                 tp = opt_params.take_profit_pct
                 sl = opt_params.stop_loss_pct
@@ -268,168 +275,12 @@ class StrategyMinerService:
                 stop_loss_pct=sl,
                 hold_days_max=hd,
                 time_dimension=r.time_dimension,
-                direction='long',
+                direction=direction,
                 buy_reasons=json.dumps(reasons, ensure_ascii=False) if reasons else None,
             ))
             count += 1
 
-        # ─── 放空推薦 ──────────────────────────────────────────────────────────
-        short_count = cls._generate_short_picks(db, latest_date, pick_date, price_map)
-        count += short_count
-
-        db.commit()
-        logger.info(f"[StrategyMiner] 今日推薦清單已生成 {count} 筆（做多+放空，{pick_date}）")
-        return count
-
-    @classmethod
-    def _generate_short_picks(
-        cls, db: Session, latest_date, pick_date, price_map: Dict[str, float],
-    ) -> int:
-        """生成放空推薦，從 alpha_signal_history 的 short 訊號中取出。"""
-        short_rows = (
-            db.query(AlphaSignalHistory)
-            .filter(
-                AlphaSignalHistory.signal_date == latest_date,
-                AlphaSignalHistory.direction == 'short',
-            )
-            .all()
-        )
-        if not short_rows:
-            # 沒有歷史放空訊號時，直接從 Alpha Miner 即時產生
-            from app.services.alpha_miner_service import AlphaMinerService
-            short_signals = []
-            for dim in DIMENSIONS:
-                sigs = AlphaMinerService.get_today_signals(db, dimension=dim, direction='short')
-                short_signals.extend(sigs)
-            if not short_signals:
-                return 0
-            # 去重（同股票保留分數最高者）
-            best: Dict[str, dict] = {}
-            for s in short_signals:
-                if s.stock_id not in best or s.trigger_count > best[s.stock_id]['score']:
-                    best[s.stock_id] = {
-                        'stock_id': s.stock_id,
-                        'stock_name': s.stock_name,
-                        'score': s.trigger_count,
-                        'reasons': s.strategies,
-                        'time_dimension': s.time_dimension,
-                    }
-            sorted_shorts = sorted(best.values(), key=lambda x: x['score'], reverse=True)
-        else:
-            # 從歷史訊號中取
-            best = {}
-            for r in short_rows:
-                if r.stock_id not in best or r.trigger_count > best[r.stock_id].trigger_count:
-                    best[r.stock_id] = r
-            sorted_shorts = sorted(
-                [{'stock_id': r.stock_id, 'stock_name': r.stock_name,
-                  'score': r.trigger_count, 'reasons': [],
-                  'time_dimension': r.time_dimension}
-                 for r in best.values()],
-                key=lambda x: x['score'], reverse=True,
-            )
-
-        # 過濾：只保留有歷史訊號資料的股票（無資料 = 無法驗證，不推薦）
-        from datetime import timedelta as _td
-        _cutoff = date.today() - _td(days=180)
-        _short_sids_all = [s['stock_id'] for s in sorted_shorts]
-        if _short_sids_all:
-            _has_history = set(
-                row.stock_id for row in
-                db.query(AlphaSignalHistory.stock_id)
-                .filter(
-                    AlphaSignalHistory.stock_id.in_(_short_sids_all),
-                    AlphaSignalHistory.is_resolved == True,  # noqa: E712
-                    AlphaSignalHistory.actual_return.isnot(None),
-                    AlphaSignalHistory.signal_date >= _cutoff,
-                )
-                .distinct()
-                .all()
-            )
-            before = len(sorted_shorts)
-            sorted_shorts = [s for s in sorted_shorts if s['stock_id'] in _has_history]
-            if len(sorted_shorts) < before:
-                logger.info(f"[StrategyMiner] 放空過濾無歷史資料: {before} → {len(sorted_shorts)} 筆")
-
-        sorted_shorts = sorted_shorts[:MAX_PICKS_PER_DIRECTION]
-
-        # 為放空股票即時補上看空理由（從 stock_features 判斷）
-        short_sids = [s['stock_id'] for s in sorted_shorts]
-        if short_sids:
-            from app.models.stock_feature import StockFeature
-            from sqlalchemy import func as sa_func_r
-            feat_date = db.query(sa_func_r.max(StockFeature.date)).scalar()
-            if feat_date:
-                feats = db.query(StockFeature).filter(
-                    StockFeature.date == feat_date,
-                    StockFeature.stock_id.in_(short_sids),
-                ).all()
-                feat_map = {f.stock_id: f for f in feats}
-                for item in sorted_shorts:
-                    f = feat_map.get(item['stock_id'])
-                    if not f:
-                        continue
-                    reasons = []
-                    if f.rsi14 is not None and f.rsi14 > 70:
-                        reasons.append('RSI 超買')
-                    if f.k is not None and f.d is not None and f.k > 80 and f.k < f.d:
-                        reasons.append('KD 高檔死叉')
-                    if f.macd_osc is not None and f.macd_osc < 0:
-                        reasons.append('MACD 空頭')
-                    if f.bias20 is not None and f.bias20 > 5:
-                        reasons.append('乖離率偏高')
-                    if hasattr(f, 'foreign_buy_5d') and f.foreign_buy_5d is not None and f.foreign_buy_5d < 0:
-                        reasons.append('外資賣超')
-                    if hasattr(f, 'trust_buy_5d') and f.trust_buy_5d is not None and f.trust_buy_5d < 0:
-                        reasons.append('投信賣超')
-                    item['reasons'] = reasons[:3]
-
-        # 為放空股票查詢最新收盤價（做多的 price_map 可能沒有這些股票）
-        short_stock_ids = [s['stock_id'] for s in sorted_shorts if s['stock_id'] not in price_map]
-        if short_stock_ids:
-            from sqlalchemy import func as sa_func, and_
-            sub = (
-                db.query(StockPrice.stock_id, sa_func.max(StockPrice.date).label("max_date"))
-                .filter(StockPrice.stock_id.in_(short_stock_ids), StockPrice.close > 0)
-                .group_by(StockPrice.stock_id).subquery()
-            )
-            for r in db.query(StockPrice.stock_id, StockPrice.close).join(
-                sub, and_(StockPrice.stock_id == sub.c.stock_id, StockPrice.date == sub.c.max_date)
-            ).all():
-                if r.close:
-                    price_map[r.stock_id] = float(r.close)
-
-        # 刪除今日已有的放空 picks
-        db.execute(
-            delete(StrategyMinerPick).where(
-                StrategyMinerPick.pick_date == pick_date,
-                StrategyMinerPick.direction == 'short',
-            )
-        )
-
-        count = 0
-        for item in sorted_shorts:
-            entry_price = price_map.get(item['stock_id'], 0.0)
-            # 放空用較保守的預設參數
-            tp, sl, hd = cls._default_params(item.get('time_dimension', '10d'))
-
-            db.add(StrategyMinerPick(
-                pick_date=pick_date,
-                stock_id=item['stock_id'],
-                stock_name=item['stock_name'],
-                strategy_ids=json.dumps([item.get('time_dimension', '10d')]),
-                weighted_score=round(item['score'], 4),
-                entry_price=entry_price,
-                take_profit_pct=tp,
-                stop_loss_pct=sl,
-                hold_days_max=hd,
-                time_dimension=item.get('time_dimension', '10d'),
-                direction='short',
-                buy_reasons=json.dumps(item.get('reasons', []), ensure_ascii=False) or None,
-            ))
-            count += 1
-
-        logger.info(f"[StrategyMiner] 放空推薦 {count} 筆")
+        logger.info(f"[StrategyMiner] {dir_label}推薦 {count} 筆")
         return count
 
     # ─── 查詢介面 ──────────────────────────────────────────────────────────────

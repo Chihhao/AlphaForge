@@ -296,8 +296,6 @@ class AlphaMinerService:
         """
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
-            if direction == 'short':
-                return cls._get_short_signals(db, dimension)  # fallback
             return []
 
         tlo = 0.05 if dimension == '30d' else 0.03
@@ -346,8 +344,6 @@ class AlphaMinerService:
                 stock_map[sid]['_w_mkt_loss_hi'] += ranking.market_loss_rate_hi * ic
 
         # 動態門檻（做多和放空共用同一邏輯）
-        if not stock_map and direction == 'short':
-            return cls._get_short_signals(db, dimension)  # fallback: 模型尚無 short 策略
         valid_strategy_count = sum(
             1 for r in result.strategies
             if r.is_significant and r.time_dimension == dim_key and r.ic > 0
@@ -386,108 +382,6 @@ class AlphaMinerService:
 
         signals.sort(key=lambda x: x.trigger_count, reverse=True)
         return signals[:20]
-
-    @classmethod
-    def _get_short_signals(cls, db: Session, dimension: str) -> List[TodaySignal]:
-        """從 stock_features 找滿足多個看空條件的股票。
-
-        看空條件（每滿足一個 +1 分）：
-        1. RSI > 70（超買）
-        2. KD K > 80 且 K < D（KD 高檔死叉）
-        3. MACD 柱 < 0（空頭動能）
-        4. 乖離率20 > 5%（過度偏離均線）
-        5. 外資連續賣超（foreign_buy_5d < 0）
-        6. 投信連續賣超（trust_buy_5d < 0）
-
-        至少滿足 3 個條件才納入。
-        """
-        from sqlalchemy import func as sa_func
-        from app.models.stock_feature import StockFeature
-        from app.models.user import Stock as StockModel
-
-        # 取最新一天的 features
-        latest_date = db.query(sa_func.max(StockFeature.date)).scalar()
-        if not latest_date:
-            return []
-
-        features = (
-            db.query(StockFeature)
-            .filter(StockFeature.date == latest_date)
-            .all()
-        )
-        if not features:
-            return []
-
-        tlo = 0.05 if dimension == '30d' else 0.03
-        thi = 0.10 if dimension == '30d' else 0.05
-
-        candidates = []
-        for f in features:
-            score = 0
-            reasons = []
-
-            # 1. RSI 超買
-            if f.rsi14 is not None and f.rsi14 > 70:
-                score += 1
-                reasons.append('RSI 超買')
-            # 2. KD 高檔死叉
-            if f.k is not None and f.d is not None and f.k > 80 and f.k < f.d:
-                score += 1
-                reasons.append('KD 高檔死叉')
-            # 3. MACD 空頭
-            if f.macd_osc is not None and f.macd_osc < 0:
-                score += 1
-                reasons.append('MACD 空頭')
-            # 4. 乖離率過高
-            if f.bias20 is not None and f.bias20 > 5:
-                score += 1
-                reasons.append('乖離率偏高')
-            # 5. 外資賣超
-            if hasattr(f, 'foreign_buy_5d') and f.foreign_buy_5d is not None and f.foreign_buy_5d < 0:
-                score += 1
-                reasons.append('外資賣超')
-            # 6. 投信賣超
-            if hasattr(f, 'trust_buy_5d') and f.trust_buy_5d is not None and f.trust_buy_5d < 0:
-                score += 1
-                reasons.append('投信賣超')
-
-            if score >= 3:
-                candidates.append({
-                    'stock_id': f.stock_id,
-                    'score': score,
-                    'reasons': reasons,
-                    'date': latest_date,
-                })
-
-        # 按分數排序
-        candidates.sort(key=lambda x: x['score'], reverse=True)
-        candidates = candidates[:20]
-
-        # 查股票名稱
-        signals = []
-        for c in candidates:
-            name = cls._lookup_name(c['stock_id'])
-            signals.append(TodaySignal(
-                stock_id=c['stock_id'],
-                stock_name=name,
-                trigger_count=c['score'],
-                strategies=c['reasons'],
-                signal_date=str(c['date']),
-                time_dimension=dimension,
-                threshold_low=tlo,
-                threshold_high=thi,
-                weighted_odds_ratio=float(c['score']),
-                weighted_odds_ratio_hi=float(c['score']),
-                weighted_win_rate=0.5,
-                weighted_win_rate_hi=0.5,
-                weighted_loss_rate=0.5,
-                weighted_loss_rate_hi=0.5,
-                weighted_market_win_rate=0,
-                weighted_market_win_rate_hi=0,
-                weighted_market_loss_rate=0,
-                weighted_market_loss_rate_hi=0,
-            ))
-        return signals
 
     @classmethod
     def invalidate_cache(cls) -> None:
