@@ -25,12 +25,13 @@ from app.models.stock_price import StockPrice
 from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
 from app.models.strategy_miner_pick import StrategyMinerPick
+from app.models.stock_feature import StockFeature
 
 logger = logging.getLogger(__name__)
 
 # ─── 參數組合（持有天數與維度對齊）──────────────────────────────────────────────
-TAKE_PROFITS = [0.05, 0.08, 0.12]
-STOP_LOSSES  = [0.03, 0.05, 0.08]
+TP_ATR_MULTIPLIERS = [1.5, 2.5, 3.5]   # 停利 = N × ATR
+SL_ATR_MULTIPLIERS = [1.0, 1.5, 2.0]   # 停損 = M × ATR
 DIM_HOLD_DAYS = {'5d': 5, '10d': 10, '30d': 30}
 ROUND_TRIP_COST = 0.006   # 來回交易成本 ~0.6%（手續費 0.1425%×2 + 交易稅 0.3%）
 
@@ -39,9 +40,9 @@ def get_params_list(dimension: str) -> list:
     """回傳指定維度的參數組合（9 種：3 TP × 3 SL × 1 HD）"""
     hd = DIM_HOLD_DAYS[dimension]
     return [
-        {'take_profit_pct': tp, 'stop_loss_pct': sl, 'hold_days': hd}
-        for tp in TAKE_PROFITS
-        for sl in STOP_LOSSES
+        {'tp_atr_mult': tp, 'sl_atr_mult': sl, 'hold_days': hd}
+        for tp in TP_ATR_MULTIPLIERS
+        for sl in SL_ATR_MULTIPLIERS
     ]  # 9 combos
 
 DIMENSIONS = ['5d', '10d', '30d']
@@ -265,11 +266,24 @@ class StrategyMinerService:
             entry_price = price_map.get(r.stock_id, 0.0)
 
             if opt_params:
-                tp = opt_params.take_profit_pct
-                sl = opt_params.stop_loss_pct
+                tp_mult = opt_params.take_profit_pct
+                sl_mult = opt_params.stop_loss_pct
                 hd = opt_params.hold_days_max
             else:
-                tp, sl, hd = cls._default_params(r.time_dimension)
+                tp_mult, sl_mult, hd = cls._default_params(r.time_dimension)
+
+            # 查個股最新 ATR 轉換為實際百分比
+            atr_row = (
+                db.query(StockFeature.atr20)
+                .filter(StockFeature.stock_id == r.stock_id, StockFeature.date == latest_date)
+                .first()
+            )
+            if atr_row and atr_row.atr20 and entry_price > 0:
+                tp = tp_mult * atr_row.atr20 / entry_price
+                sl = sl_mult * atr_row.atr20 / entry_price
+            else:
+                tp = tp_mult * 0.03   # fallback: 假設 ATR ≈ 3% 股價
+                sl = sl_mult * 0.03
 
             reasons = reasons_map.get(r.stock_id, [])
 
@@ -393,7 +407,7 @@ class StrategyMinerService:
 
         # 載入相關股票價格
         stock_ids = signals_df['stock_id'].unique().tolist()
-        price_dict, sorted_dates_dict, open_dict = cls._load_prices(db, stock_ids, cutoff)
+        price_dict, sorted_dates_dict, open_dict, atr_dict = cls._load_prices(db, stock_ids, cutoff)
 
         # 訓練/測試切割（4/6 訓練、2/6 測試）
         n = len(signals_df)
@@ -409,7 +423,7 @@ class StrategyMinerService:
 
         # 跑 9 組參數（訓練集）
         params_list = get_params_list(dimension)
-        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, params_list, is_short=is_short, open_dict=open_dict)
+        train_trades = cls._simulate_all_params(train_df, price_dict, sorted_dates_dict, params_list, is_short=is_short, open_dict=open_dict, atr_dict=atr_dict)
 
         # 找訓練集 Sharpe 前三
         train_sharpes: List[Tuple[int, float]] = []
@@ -422,7 +436,7 @@ class StrategyMinerService:
 
         # 跑前三（測試集）
         top3_params = [params_list[i] for i in top3_indices]
-        test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params, is_short=is_short, open_dict=open_dict)
+        test_trades_raw = cls._simulate_entries(test_df, price_dict, sorted_dates_dict, top3_params, is_short=is_short, open_dict=open_dict, atr_dict=atr_dict)
 
         # 選測試集最穩定者
         best_idx_in_top3 = 0
@@ -463,8 +477,8 @@ class StrategyMinerService:
 
             db.add(StrategyBacktestParam(
                 strategy_id=strategy_key,
-                take_profit_pct=params['take_profit_pct'],
-                stop_loss_pct=params['stop_loss_pct'],
+                take_profit_pct=params['tp_atr_mult'],    # ATR 倍數
+                stop_loss_pct=params['sl_atr_mult'],      # ATR 倍數
                 hold_days_max=params['hold_days'],
                 sharpe_train=round(tr_sharpe_val, 4),
                 sharpe_test=round(te_sharpe, 4),
@@ -473,19 +487,20 @@ class StrategyMinerService:
                 trade_count_test=te_count,
                 is_optimal=(param_idx == optimal_param_idx),
                 computed_at=today,
+                is_atr_based=True,
             ))
 
         db.commit()
         logger.info(
             f"[StrategyMiner] {strategy_key} 最優參數: "
-            f"TP={optimal_params['take_profit_pct']*100}% "
-            f"SL={optimal_params['stop_loss_pct']*100}% "
+            f"TP={optimal_params['tp_atr_mult']}×ATR "
+            f"SL={optimal_params['sl_atr_mult']}×ATR "
             f"HD={optimal_params['hold_days']}天"
         )
 
         # 以最優參數跑全部訊號，儲存逐筆交易記錄
         all_trades_by_param = cls._simulate_entries(
-            signals_df, price_dict, sorted_dates_dict, [optimal_params], is_short=is_short, open_dict=open_dict,
+            signals_df, price_dict, sorted_dates_dict, [optimal_params], is_short=is_short, open_dict=open_dict, atr_dict=atr_dict,
         )
         optimal_all_trades = all_trades_by_param[0]
 
@@ -516,9 +531,10 @@ class StrategyMinerService:
         params_list: list,
         is_short: bool = False,
         open_dict: Optional[Dict] = None,
+        atr_dict: Optional[Dict] = None,
     ) -> List[List[dict]]:
         """對所有參數組合進行回測，回傳 list of trade lists"""
-        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, params_list, is_short=is_short, open_dict=open_dict)
+        return cls._simulate_entries(signals_df, price_dict, sorted_dates_dict, params_list, is_short=is_short, open_dict=open_dict, atr_dict=atr_dict)
 
     @classmethod
     def _simulate_entries(
@@ -529,6 +545,7 @@ class StrategyMinerService:
         params_list: List[dict],
         is_short: bool = False,
         open_dict: Optional[Dict[str, Dict]] = None,
+        atr_dict: Optional[Dict[str, Dict]] = None,
     ) -> List[List[dict]]:
         """對指定參數列表模擬回測，回傳每組參數的交易記錄列表"""
         results: List[List[dict]] = [[] for _ in params_list]
@@ -565,6 +582,11 @@ class StrategyMinerService:
             if not entry_price or entry_price <= 0:
                 continue
 
+            # ATR-based TP/SL：查詢訊號日 ATR
+            stock_atr = atr_dict.get(stock_id, {}).get(signal_date) if atr_dict else None
+            if stock_atr is None or stock_atr <= 0:
+                continue  # ATR 不可用時跳過
+
             # 取隔日(含)之後 max_hold+5 個交易日的收盤
             fwd_dates = dates[sig_idx + 1 : sig_idx + 1 + max_hold + 5]
             if not fwd_dates:
@@ -576,8 +598,8 @@ class StrategyMinerService:
             )
 
             for param_idx, params in enumerate(params_list):
-                tp = params['take_profit_pct']
-                sl = params['stop_loss_pct']
+                tp_pct = params['tp_atr_mult'] * stock_atr / entry_price
+                sl_pct = params['sl_atr_mult'] * stock_atr / entry_price
                 max_days = params['hold_days']
 
                 n_fwd = min(max_days, len(fwd_returns))
@@ -587,11 +609,11 @@ class StrategyMinerService:
 
                 if is_short:
                     # 放空：股價下跌 = 獲利，上漲 = 虧損
-                    tp_hits = np.where(r <= -tp)[0]   # 跌到 TP = 停利
-                    sl_hits = np.where(r >= sl)[0]    # 漲到 SL = 停損
+                    tp_hits = np.where(r <= -tp_pct)[0]   # 跌到 TP = 停利
+                    sl_hits = np.where(r >= sl_pct)[0]    # 漲到 SL = 停損
                 else:
-                    tp_hits = np.where(r >= tp)[0]
-                    sl_hits = np.where(r <= -sl)[0]
+                    tp_hits = np.where(r >= tp_pct)[0]
+                    sl_hits = np.where(r <= -sl_pct)[0]
 
                 tp_day = int(tp_hits[0]) if len(tp_hits) > 0 else n_fwd
                 sl_day = int(sl_hits[0]) if len(sl_hits) > 0 else n_fwd
@@ -628,8 +650,8 @@ class StrategyMinerService:
         db: Session,
         stock_ids: List[str],
         cutoff: date,
-    ) -> Tuple[Dict[str, Dict], Dict[str, List]]:
-        """批次載入股票歷史 open + close 價格"""
+    ) -> Tuple[Dict[str, Dict], Dict[str, List], Dict[str, Dict], Dict[str, Dict]]:
+        """批次載入股票歷史 open + close 價格 + ATR"""
         rows = (
             db.query(StockPrice.stock_id, StockPrice.date, StockPrice.open, StockPrice.close)
             .filter(
@@ -656,12 +678,27 @@ class StrategyMinerService:
                 open_dict[sid][r.date] = float(r.open)
             sorted_dates_dict[sid].append(r.date)
 
-        return price_dict, sorted_dates_dict, open_dict
+        # 載入 ATR（新增）
+        atr_rows = (
+            db.query(StockFeature.stock_id, StockFeature.date, StockFeature.atr20)
+            .filter(
+                StockFeature.stock_id.in_(stock_ids),
+                StockFeature.date >= cutoff,
+                StockFeature.atr20.isnot(None),
+            )
+            .all()
+        )
+        atr_dict: Dict[str, Dict] = {}
+        for r in atr_rows:
+            sid = str(r.stock_id)
+            atr_dict.setdefault(sid, {})[r.date] = float(r.atr20)
+
+        return price_dict, sorted_dates_dict, open_dict, atr_dict
 
     @staticmethod
     def _default_params(dimension: str) -> Tuple[float, float, int]:
-        """當尚無回測結果時的 fallback 參數"""
+        """當尚無回測結果時的 fallback ATR 倍數"""
         hd = DIM_HOLD_DAYS.get(dimension, 10)
         if dimension == '30d':
-            return 0.08, 0.05, hd
-        return 0.05, 0.03, hd
+            return 2.5, 1.5, hd   # TP=2.5×ATR, SL=1.5×ATR
+        return 1.5, 1.0, hd      # TP=1.5×ATR, SL=1.0×ATR
