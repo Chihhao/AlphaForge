@@ -15,3 +15,4 @@ class StrategyBacktestParam(Base):
     trade_count_test = Column(Integer)
     is_optimal       = Column(Boolean, default=False)
     computed_at      = Column(Date)
+    is_atr_based     = Column(Boolean, default=True)  # True=ATR倍數, False=舊版固定百分比

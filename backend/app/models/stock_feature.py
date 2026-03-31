@@ -83,6 +83,22 @@ class StockFeature(Base):
     # --- 市場指標（Phase 3B）---
     etf_net_flow_5d = Column(Float, nullable=True)  # 0050 近5日累計淨申購（萬張，正=資金流入）
 
+    # --- 籌碼面中長期（Phase 7）---
+    foreign_buy_10d = Column(Float, nullable=True)   # 外資10日累積淨買超（張）
+    foreign_buy_20d = Column(Float, nullable=True)   # 外資20日累積淨買超（張）
+    trust_buy_10d   = Column(Float, nullable=True)   # 投信10日累積淨買超（張）
+    trust_buy_20d   = Column(Float, nullable=True)   # 投信20日累積淨買超（張）
+    dealer_buy_10d  = Column(Float, nullable=True)   # 自營商10日累積淨買超（張）
+    dealer_buy_20d  = Column(Float, nullable=True)   # 自營商20日累積淨買超（張）
+
+    # --- 波動率（Phase 7）---
+    atr20   = Column(Float, nullable=True)    # 20日 Average True Range
+    atr_pct = Column(Float, nullable=True)    # ATR / close × 100（波動率百分比）
+
+    # --- 市場狀態（Phase 7）---
+    market_breadth = Column(Float, nullable=True)  # 全市場站上 MA20 的股票比例 (0~1)
+    market_trend   = Column(Float, nullable=True)  # 全市場中位數 20 日報酬 > 0 為 1，否則 0
+
     # 複合唯一索引：每支股票每天只有一筆
     __table_args__ = (
         Index('ix_sf_sid_date', 'stock_id', 'date', unique=True),
