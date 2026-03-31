@@ -504,8 +504,18 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
     short_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'short']
     stock_perf = {**_load_stock_perf_map(db, long_ids, direction='long'),
                   **_load_stock_perf_map(db, short_ids, direction='short')}
-    return [
-        {
+    result = []
+    for p in picks:
+        perf = stock_perf.get(p.stock_id, {
+            "stock_win_rate": None,
+            "stock_avg_return": None,
+            "stock_trade_count": 0,
+        })
+        if perf.get("stock_avg_return") is not None and perf["stock_avg_return"] < 0:
+            continue
+        if perf.get("stock_win_rate") is not None and perf["stock_win_rate"] <= 0.5:
+            continue
+        result.append({
             "pick_date": p.pick_date.isoformat(),
             "stock_id": p.stock_id,
             "stock_name": p.stock_name,
@@ -514,14 +524,9 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
             "direction": getattr(p, 'direction', 'long') or 'long',
-            **stock_perf.get(p.stock_id, {
-                "stock_win_rate": None,
-                "stock_avg_return": None,
-                "stock_trade_count": 0,
-            }),
-        }
-        for p in picks
-    ]
+            **perf,
+        })
+    return result
 
 
 @router.get("/trades/{stock_id}")
