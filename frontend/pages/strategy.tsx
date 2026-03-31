@@ -919,18 +919,33 @@ const StrategyPage = () => {
                                                         {new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
                                                     </p>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {dayPicks.map(p => (
+                                                        {dayPicks.map(p => {
+                                                            const isShort = p.direction === 'short'
+                                                            const wr = p.stock_win_rate != null ? `${Math.round(p.stock_win_rate * 100)}%` : null
+                                                            const avg = p.stock_avg_return != null ? `${p.stock_avg_return > 0 ? '+' : ''}${p.stock_avg_return.toFixed(1)}%` : null
+                                                            return (
                                                                 <Link
-                                                                    key={p.stock_id}
+                                                                    key={`${p.stock_id}-${p.direction}`}
                                                                     href={`/stock/${p.stock_id}`}
                                                                     className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
                                                                 >
-                                                                    <span className="text-zinc-300 font-medium">{p.stock_name}</span>
-                                                                    <span className="text-amber-500/60 font-mono">
-                                                                        TP+{Math.round(p.take_profit_pct * 100)}%
+                                                                    <span className={`font-bold text-[10px] ${isShort ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                                        {isShort ? '空' : '多'}
                                                                     </span>
+                                                                    <span className="text-zinc-300 font-medium">{p.stock_name}</span>
+                                                                    {wr && (
+                                                                        <span className="text-zinc-500 font-mono">
+                                                                            {wr}
+                                                                        </span>
+                                                                    )}
+                                                                    {avg && (
+                                                                        <span className={`font-mono ${Number(p.stock_avg_return) >= 0 ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
+                                                                            {avg}
+                                                                        </span>
+                                                                    )}
                                                                 </Link>
-                                                            ))}
+                                                            )
+                                                        })}
                                                     </div>
                                                 </div>
                                             ))}

@@ -498,8 +498,12 @@ def get_concluded_picks(
 
 @router.get("/picks/history")
 def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
-    """過去 N 天的推薦記錄"""
+    """過去 N 天的推薦記錄（含個股回測績效）"""
     picks = StrategyMinerService.get_picks_history(db, days=days)
+    long_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
+    short_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'short']
+    stock_perf = {**_load_stock_perf_map(db, long_ids, direction='long'),
+                  **_load_stock_perf_map(db, short_ids, direction='short')}
     return [
         {
             "pick_date": p.pick_date.isoformat(),
@@ -507,11 +511,14 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             "stock_name": p.stock_name,
             "weighted_score": p.weighted_score,
             "entry_price": p.entry_price,
-            "take_profit_pct": p.take_profit_pct,
-            "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
             "direction": getattr(p, 'direction', 'long') or 'long',
+            **stock_perf.get(p.stock_id, {
+                "stock_win_rate": None,
+                "stock_avg_return": None,
+                "stock_trade_count": 0,
+            }),
         }
         for p in picks
     ]
