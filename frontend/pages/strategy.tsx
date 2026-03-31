@@ -936,12 +936,7 @@ const StrategyPage = () => {
                                                                     <span className="text-zinc-300 font-medium">{p.stock_name}</span>
                                                                     {wr && (
                                                                         <span className="text-zinc-500 font-mono">
-                                                                            {wr}
-                                                                        </span>
-                                                                    )}
-                                                                    {avg && (
-                                                                        <span className={`font-mono ${Number(p.stock_avg_return) >= 0 ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
-                                                                            {avg}
+                                                                            {wr}{avg ? ` | 預期報酬 ${avg}` : ''}
                                                                         </span>
                                                                     )}
                                                                 </Link>
