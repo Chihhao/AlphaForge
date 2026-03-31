@@ -87,6 +87,20 @@ class IndicatorService:
         return df.groupby('stock_id', group_keys=False).apply(_bb_logic)
 
     @staticmethod
+    def calculate_atr_vec(df: pd.DataFrame, window: int = 20) -> pd.Series:
+        """向量化計算 Average True Range (ATR)"""
+        df = df.sort_values(['stock_id', 'date'])
+        prev_close = df.groupby('stock_id')['close'].shift(1)
+        high_low = df['high'] - df['low']
+        high_close = (df['high'] - prev_close).abs()
+        low_close = (df['low'] - prev_close).abs()
+        tr = pd.DataFrame({
+            'hl': high_low, 'hc': high_close, 'lc': low_close
+        }).max(axis=1)
+        atr = tr.groupby(df['stock_id']).transform(lambda x: x.rolling(window).mean())
+        return atr
+
+    @staticmethod
     def attach_indicators(df: pd.DataFrame) -> pd.DataFrame:
         """
         為包含多檔股票的原始數據一次性掛載所有常用指標。
