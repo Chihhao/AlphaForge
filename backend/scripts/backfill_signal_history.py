@@ -65,13 +65,14 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
     details: dict = json.loads(snap.details_json)
     logger.info(f"快照日期：{snap.train_date}，共 {len(details)} 個策略")
 
-    # ── 2. 依維度分組顯著策略（ic > 0）────────────────────────────────────────
-    DIMENSIONS = ["5d", "10d", "30d"]
-    DIM_THR = {"5d": (0.03, 0.05), "10d": (0.03, 0.05), "30d": (0.05, 0.10)}
+    # ── 2. 依維度分組顯著策略（做多 ic > 0，放空 ic < 0，統一用 abs）──────────
+    DIMENSIONS = ["5d", "10d", "30d", "5d_short", "10d_short", "30d_short"]
+    DIM_THR = {"5d": (0.03, 0.05), "10d": (0.03, 0.05), "30d": (0.05, 0.10),
+               "5d_short": (0.03, 0.05), "10d_short": (0.03, 0.05), "30d_short": (0.05, 0.10)}
 
     sig_by_dim: Dict[str, List[dict]] = {d: [] for d in DIMENSIONS}
     for sid, det in details.items():
-        if not det.get("is_significant") or det.get("ic", 0) <= 0:
+        if not det.get("is_significant") or abs(det.get("ic", 0)) <= 0:
             continue
         dim = det.get("time_dimension")
         if dim not in sig_by_dim:
@@ -129,11 +130,12 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
 
     # ── 5. 查詢已存在的記錄，避免重複 ──────────────────────────────────────
     existing_keys = {
-        (r.signal_date, r.stock_id, r.time_dimension)
+        (r.signal_date, r.stock_id, r.time_dimension, r.direction)
         for r in db.query(
             AlphaSignalHistory.signal_date,
             AlphaSignalHistory.stock_id,
             AlphaSignalHistory.time_dimension,
+            AlphaSignalHistory.direction,
         ).all()
     }
     logger.info(f"已有 {len(existing_keys)} 筆歷史記錄，將跳過")
@@ -158,7 +160,7 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
                 factors: List[str] = det["factors"]
                 rank_cols = [f"{f}_rank" for f in factors]
                 fw = {fw_item["factor"]: fw_item["coefficient"] for fw_item in det["factor_weights"]}
-                ic = max(float(det["ic"]), 0.0)
+                ic = abs(float(det["ic"]))
 
                 # 計算分位數排名
                 df_scored = df_day.copy()
@@ -204,6 +206,8 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
                     stock_map[sid]["_w_loss"] += loss_rate * ic
 
             # 動態門檻：有效策略數 × 40%（至少 2），最多 20 支（與 get_today_signals 一致）
+            direction = 'short' if '_short' in dim else 'long'
+            base_dim = dim.replace('_short', '')
             min_triggers = max(2, round(len(strats) * 0.4))
             candidates = sorted(
                 [s for s in stock_map.values() if s["trigger_count"] >= min_triggers],
@@ -212,7 +216,7 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
             )[:20]
             rows_to_insert = []
             for s in candidates:
-                key = (target_date, s["stock_id"], dim)
+                key = (target_date, s["stock_id"], base_dim, direction)
                 if key in existing_keys:
                     continue
                 ic_sum = max(s["_ic_sum"], 1e-9)
@@ -223,7 +227,8 @@ def _backfill(db, engine, days: int, start_date: Optional[str] = None) -> None:
                     signal_date=target_date,
                     stock_id=s["stock_id"],
                     stock_name=lookup_name(s["stock_id"]),
-                    time_dimension=dim,
+                    time_dimension=base_dim,
+                    direction=direction,
                     trigger_count=s["trigger_count"],
                     weighted_win_rate=round(w_win, 4),
                     weighted_odds_ratio=odds,

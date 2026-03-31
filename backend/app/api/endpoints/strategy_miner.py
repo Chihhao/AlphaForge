@@ -20,9 +20,10 @@ import json
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
-def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
+def _load_stock_perf_map(db: Session, stock_ids: list[str], direction: str = 'long') -> dict:
     """載入指定股票的回測交易績效（strategy_miner_trades），
     按維度(5d/10d/30d)分別計算勝率，回傳最高勝率維度的績效。
+    direction 決定只取做多或放空的 trades。
     回傳 {stock_id: {win_rate, avg_return, trade_count, best_dim}}"""
     if not stock_ids:
         return {}
@@ -31,6 +32,11 @@ def _load_stock_perf_map(db: Session, stock_ids: list[str]) -> dict:
         .filter(StrategyMinerTrade.stock_id.in_(stock_ids))
         .all()
     )
+    # 依方向過濾：放空的 strategy_id 含 '_short'
+    if direction == 'short':
+        rows = [r for r in rows if '_short' in r.strategy_id]
+    else:
+        rows = [r for r in rows if '_short' not in r.strategy_id]
     # {stock_id: {dim: [return_pct, ...]}}
     by_stock_dim: dict = defaultdict(lambda: defaultdict(list))
     for r in rows:
@@ -162,8 +168,11 @@ def get_today_picks(db: Session = Depends(get_db)):
     """今日推薦清單（含停利停損參數 + 個股回測績效 + 買入理由）"""
     import json as _json
     picks = StrategyMinerService.get_today_picks(db)
-    stock_ids = [p.stock_id for p in picks]
-    stock_perf = _load_stock_perf_map(db, stock_ids)
+    long_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
+    short_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'short']
+    long_perf = _load_stock_perf_map(db, long_ids, direction='long')
+    short_perf = _load_stock_perf_map(db, short_ids, direction='short')
+    stock_perf = {**long_perf, **short_perf}
 
     # 優先使用 DB 儲存的 buy_reasons；若為 null（舊資料），使用 fallback 近似值
     any_missing = any(p.buy_reasons is None for p in picks)
