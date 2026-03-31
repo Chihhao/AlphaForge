@@ -56,17 +56,17 @@ function biasWarning(key: string, val: number | null): string | null {
 }
 
 function scoreLabel(score: number): { text: string; color: string } {
-  if (score >= 76) return { text: '強勢', color: 'text-emerald-400' }
-  if (score >= 56) return { text: '偏強', color: 'text-emerald-300' }
+  if (score >= 76) return { text: '強勢', color: 'text-rose-400' }
+  if (score >= 56) return { text: '偏強', color: 'text-rose-300' }
   if (score >= 46) return { text: '中性', color: 'text-zinc-400' }
   if (score >= 26) return { text: '偏弱', color: 'text-amber-400' }
-  return { text: '弱勢', color: 'text-rose-400' }
+  return { text: '弱勢', color: 'text-emerald-400' }
 }
 
 function scoreBarColor(score: number): string {
-  if (score >= 66) return 'bg-emerald-500'
+  if (score >= 66) return 'bg-rose-500'
   if (score >= 46) return 'bg-zinc-500'
-  return 'bg-rose-500'
+  return 'bg-emerald-500'
 }
 
 function volRatioDisplay(ratio: number | null): { label: string; color: string } | null {
@@ -284,7 +284,7 @@ export default function AdvancedTechCard({ stockId, indicators, displayPrice, qu
             const item = ma_deduction[key]
             const label = key === 'ma5' ? 'MA5' : 'MA20'
             const trendArrow = item.trend === 'up' ? '↑' : item.trend === 'down' ? '↓' : ''
-            const trendColor = item.trend === 'up' ? 'text-emerald-400' : 'text-rose-400'
+            const trendColor = item.trend === 'up' ? 'text-rose-400' : 'text-emerald-400'
             return (
               <div key={key} className="flex items-center justify-between bg-zinc-800/50 rounded-lg px-2 py-1.5">
                 <span className="text-sm text-zinc-300">{label} 扣抵</span>
