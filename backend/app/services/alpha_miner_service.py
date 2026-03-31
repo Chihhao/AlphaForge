@@ -648,9 +648,11 @@ class AlphaMinerService:
         test_df = df[df['date'] >= pd.Timestamp(test_start)].dropna(
             subset=rank_cols + ['label', 'forward_return'])
 
-        # 趨勢過濾：做多只用上升趨勢樣本，做空只用下降趨勢樣本
+        # 趨勢過濾：10d/30d 做多只用上升趨勢、做空只用下降趨勢
+        # 5d 不過濾——短期均值回歸在下跌趨勢中反彈更強（診斷實證）
         dim_direction = dim.get('direction', 'long')
-        if 'ma60' in df.columns:
+        forward_days = dim.get('forward_days', 5)
+        if 'ma60' in df.columns and forward_days >= 10:
             if dim_direction == 'long':
                 train_df = train_df[train_df['close'] > train_df['ma60']].copy()
                 test_df = test_df[test_df['close'] > test_df['ma60']].copy()
