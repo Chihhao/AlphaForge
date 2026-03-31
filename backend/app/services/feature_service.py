@@ -91,6 +91,10 @@ class FeatureService:
         df['ma_trend'] = ((df['ma5'] > df['ma10']) & (df['ma10'] > df['ma20'])).astype(float)
         df.loc[df['ma5'].isna() | df['ma10'].isna() | df['ma20'].isna(), 'ma_trend'] = np.nan
 
+        # ATR（Phase 7）
+        df['atr20'] = IndicatorService.calculate_atr_vec(df, 20)
+        df['atr_pct'] = df['atr20'] / df['close'].replace(0, np.nan) * 100
+
         # 產業相對強度（Phase 6A）：需在全市場 df 上計算再切 target_date
         df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
 
@@ -107,6 +111,17 @@ class FeatureService:
         target_df['sector_median_ret20'] = target_df.groupby('industry')['ret20'].transform('median')
         target_df['sector_rs'] = target_df['ret20'] - target_df['sector_median_ret20']
 
+        # 市場狀態（Phase 7）
+        valid_ma20 = target_df.dropna(subset=['ma20', 'close'])
+        if len(valid_ma20) > 0:
+            breadth = float((valid_ma20['close'] > valid_ma20['ma20']).mean())
+        else:
+            breadth = None
+        target_df['market_breadth'] = breadth
+
+        median_ret20 = target_df['ret20'].median()
+        target_df['market_trend'] = 1.0 if (pd.notna(median_ret20) and median_ret20 > 0) else 0.0
+
         # 6. Left join 基本面快照
         fundamentals = db.query(StockFundamental).all()
         fund_map = {f.stock_id: f for f in fundamentals}
@@ -121,7 +136,7 @@ class FeatureService:
             lambda sid: getattr(fund_map.get(sid), 'revenue_growth_yoy', None))
 
         # 6b. Left join 籌碼面（Phase 4B）
-        chip_start = target_date - timedelta(days=10)
+        chip_start = target_date - timedelta(days=30)
         chip_rows = db.query(StockChipData).filter(
             StockChipData.date >= chip_start,
             StockChipData.date <= target_date
@@ -132,8 +147,12 @@ class FeatureService:
             target_df = target_df.merge(chip_df, on='stock_id', how='left')
         else:
             for col in ('foreign_net_buy', 'foreign_buy_5d',
-                        'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
+                        'foreign_buy_10d', 'foreign_buy_20d',
+                        'trust_net_buy', 'trust_buy_5d',
+                        'trust_buy_10d', 'trust_buy_20d',
+                        'margin_chg_5d',
                         'dealer_net_buy', 'dealer_buy_5d',
+                        'dealer_buy_10d', 'dealer_buy_20d',
                         'foreign_hold_pct', 'foreign_hold_chg_5d'):
                 target_df[col] = None
 
@@ -198,6 +217,16 @@ class FeatureService:
                 foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                 foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
                 etf_net_flow_5d=_safe_float(row.get('etf_net_flow_5d')),
+                foreign_buy_10d=_safe_float(row.get('foreign_buy_10d')),
+                foreign_buy_20d=_safe_float(row.get('foreign_buy_20d')),
+                trust_buy_10d=_safe_float(row.get('trust_buy_10d')),
+                trust_buy_20d=_safe_float(row.get('trust_buy_20d')),
+                dealer_buy_10d=_safe_float(row.get('dealer_buy_10d')),
+                dealer_buy_20d=_safe_float(row.get('dealer_buy_20d')),
+                atr20=_safe_float(row.get('atr20')),
+                atr_pct=_safe_float(row.get('atr_pct')),
+                market_breadth=_safe_float(row.get('market_breadth')),
+                market_trend=_safe_float(row.get('market_trend')),
             ))
 
         if records:
@@ -253,6 +282,10 @@ class FeatureService:
         df['ma_trend'] = ((df['ma5'] > df['ma10']) & (df['ma10'] > df['ma20'])).astype(float)
         df.loc[df['ma5'].isna() | df['ma10'].isna() | df['ma20'].isna(), 'ma_trend'] = np.nan
 
+        # ATR（Phase 7）
+        df['atr20'] = IndicatorService.calculate_atr_vec(df, 20)
+        df['atr_pct'] = df['atr20'] / df['close'].replace(0, np.nan) * 100
+
         # 產業相對強度（Phase 6A）：在全市場 df 上向量化計算
         df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
         industry_map = {r.stock_id: r.industry for r in db.query(Stock.stock_id, Stock.industry).all()}
@@ -277,7 +310,7 @@ class FeatureService:
             lambda sid: getattr(fund_map.get(sid), 'revenue_growth_yoy', None))
 
         # 籌碼面：讀取回補期間 + 前 10 天的籌碼資料
-        chip_warmup = start_date - timedelta(days=10)
+        chip_warmup = start_date - timedelta(days=30)
         chip_rows = db.query(StockChipData).filter(
             StockChipData.date >= chip_warmup,
             StockChipData.date <= end_date
@@ -307,8 +340,12 @@ class FeatureService:
 
         # 初始化籌碼欄位
         for col in ('foreign_net_buy', 'foreign_buy_5d',
-                    'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
+                    'foreign_buy_10d', 'foreign_buy_20d',
+                    'trust_net_buy', 'trust_buy_5d',
+                    'trust_buy_10d', 'trust_buy_20d',
+                    'margin_chg_5d',
                     'dealer_net_buy', 'dealer_buy_5d',
+                    'dealer_buy_10d', 'dealer_buy_20d',
                     'foreign_hold_pct', 'foreign_hold_chg_5d'):
             backfill_df[col] = None
 
@@ -341,8 +378,12 @@ class FeatureService:
             # 合併當日籌碼特徵（若存在）
             # 先移除預先初始化的 None 欄位，避免 merge 後產生 _x/_y 衝突
             chip_cols = ['foreign_net_buy', 'foreign_buy_5d',
-                         'trust_net_buy', 'trust_buy_5d', 'margin_chg_5d',
+                         'foreign_buy_10d', 'foreign_buy_20d',
+                         'trust_net_buy', 'trust_buy_5d',
+                         'trust_buy_10d', 'trust_buy_20d',
+                         'margin_chg_5d',
                          'dealer_net_buy', 'dealer_buy_5d',
+                         'dealer_buy_10d', 'dealer_buy_20d',
                          'foreign_hold_pct', 'foreign_hold_chg_5d']
             day_df = day_df.drop(columns=[c for c in chip_cols if c in day_df.columns])
 
@@ -357,6 +398,17 @@ class FeatureService:
             # ETF 申贖（市場層級指標，全體股票共享）
             _batch_d = batch_date if isinstance(batch_date, date) else batch_date.date()
             day_df['etf_net_flow_5d'] = etf_net_by_date.get(_batch_d)
+
+            # 市場狀態（Phase 7）
+            valid_ma20 = day_df.dropna(subset=['ma20', 'close'])
+            if len(valid_ma20) > 0:
+                breadth = float((valid_ma20['close'] > valid_ma20['ma20']).mean())
+            else:
+                breadth = None
+            day_df['market_breadth'] = breadth
+
+            median_ret20 = day_df['ret20'].median() if 'ret20' in day_df.columns else None
+            day_df['market_trend'] = 1.0 if (pd.notna(median_ret20) and median_ret20 > 0) else 0.0
 
             records = []
             for _, row in day_df.iterrows():
@@ -401,6 +453,16 @@ class FeatureService:
                     foreign_hold_pct=_safe_float(row.get('foreign_hold_pct')),
                     foreign_hold_chg_5d=_safe_float(row.get('foreign_hold_chg_5d')),
                     etf_net_flow_5d=_safe_float(row.get('etf_net_flow_5d')),
+                    foreign_buy_10d=_safe_float(row.get('foreign_buy_10d')),
+                    foreign_buy_20d=_safe_float(row.get('foreign_buy_20d')),
+                    trust_buy_10d=_safe_float(row.get('trust_buy_10d')),
+                    trust_buy_20d=_safe_float(row.get('trust_buy_20d')),
+                    dealer_buy_10d=_safe_float(row.get('dealer_buy_10d')),
+                    dealer_buy_20d=_safe_float(row.get('dealer_buy_20d')),
+                    atr20=_safe_float(row.get('atr20')),
+                    atr_pct=_safe_float(row.get('atr_pct')),
+                    market_breadth=_safe_float(row.get('market_breadth')),
+                    market_trend=_safe_float(row.get('market_trend')),
                 ))
 
             if records:
@@ -459,18 +521,21 @@ class FeatureService:
         raw['date'] = pd.to_datetime(raw['date'])
         raw = raw.sort_values(['stock_id', 'date'])
 
-        # ── 向量化計算 5 日累積淨買超 ──
-        for src_col, dst_col in [
-            ('foreign_net_buy', 'foreign_buy_5d'),
-            ('trust_net_buy', 'trust_buy_5d'),
-            ('dealer_net_buy', 'dealer_buy_5d'),
+        # ── 向量化計算 5/10/20 日累積淨買超 ──
+        for src_col, base_name in [
+            ('foreign_net_buy', 'foreign_buy'),
+            ('trust_net_buy', 'trust_buy'),
+            ('dealer_net_buy', 'dealer_buy'),
         ]:
-            if src_col in raw.columns:
+            if src_col not in raw.columns:
+                for w in [5, 10, 20]:
+                    raw[f'{base_name}_{w}d'] = None
+                continue
+            for w in [5, 10, 20]:
+                dst_col = f'{base_name}_{w}d'
                 raw[dst_col] = raw.groupby('stock_id')[src_col].transform(
-                    lambda x: x.rolling(5, min_periods=1).sum()
+                    lambda x, _w=w: x.rolling(_w, min_periods=1).sum()
                 )
-            else:
-                raw[dst_col] = None
 
         # ── 向量化計算融資 5 日變化率 ──
         if 'margin_balance' in raw.columns:
@@ -496,9 +561,13 @@ class FeatureService:
         result = raw[raw['date'] == target_ts].copy()
 
         keep_cols = [
-            'stock_id', 'foreign_net_buy', 'foreign_buy_5d',
-            'trust_net_buy', 'trust_buy_5d',
-            'margin_chg_5d', 'dealer_net_buy', 'dealer_buy_5d',
+            'stock_id', 'foreign_net_buy',
+            'foreign_buy_5d', 'foreign_buy_10d', 'foreign_buy_20d',
+            'trust_net_buy',
+            'trust_buy_5d', 'trust_buy_10d', 'trust_buy_20d',
+            'margin_chg_5d',
+            'dealer_net_buy',
+            'dealer_buy_5d', 'dealer_buy_10d', 'dealer_buy_20d',
             'foreign_hold_pct', 'foreign_hold_chg_5d',
         ]
         result = result[[c for c in keep_cols if c in result.columns]]
