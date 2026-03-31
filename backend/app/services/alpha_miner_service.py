@@ -71,6 +71,13 @@ FACTOR_LABELS: Dict[str, str] = {
     'foreign_hold_chg_5d':  '外資持股5日變化',
     # Phase 3B ETF 申贖資金流向
     'etf_net_flow_5d':    'ETF資金流入',
+    # Phase 7 籌碼面中長期
+    'foreign_buy_10d':  '外資10日累積',
+    'foreign_buy_20d':  '外資20日累積',
+    'trust_buy_10d':    '投信10日累積',
+    'trust_buy_20d':    '投信20日累積',
+    'dealer_buy_10d':   '自營商10日累積',
+    'dealer_buy_20d':   '自營商20日累積',
 }
 
 # ─── 預定義因子組合（63 組，Bonferroni 校正門檻 = 0.05/63 ≈ 0.00079）─────────
@@ -144,6 +151,15 @@ FACTOR_COMBINATIONS: List[List[str]] = [
     ['etf_net_flow_5d'],
     ['etf_net_flow_5d', 'foreign_buy_5d'],
     ['etf_net_flow_5d', 'rsi14'],
+    # Phase 7 — 中長期籌碼單因子
+    ['foreign_buy_10d'], ['foreign_buy_20d'],
+    ['trust_buy_10d'], ['trust_buy_20d'],
+    # Phase 7 — 跨期籌碼動量（短 vs 中期差異 = 加速度信號）
+    ['foreign_buy_5d', 'foreign_buy_20d'],
+    ['trust_buy_5d', 'trust_buy_20d'],
+    # Phase 7 — 中期籌碼 + 技術面
+    ['foreign_buy_20d', 'rsi14'],
+    ['trust_buy_20d', 'sector_rs'],
 ]
 
 _LOAD_COLS = ['stock_id', 'date', 'close'] + list(FACTOR_LABELS.keys())
