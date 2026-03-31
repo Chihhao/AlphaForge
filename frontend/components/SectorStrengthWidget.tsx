@@ -114,7 +114,7 @@ export default function SectorStrengthWidget() {
                 <span className={`text-xs text-zinc-300 truncate max-w-[100px] ${isExpanded ? 'underline decoration-dotted underline-offset-2' : ''}`}>
                   {item.industry}
                 </span>
-                <span className={`text-xs font-mono ml-1 ${side === 'top' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`text-xs font-mono ml-1 ${side === 'top' ? 'text-rose-400' : 'text-emerald-400'}`}>
                   {formatRs(item.median_rs)}
                 </span>
               </div>
