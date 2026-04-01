@@ -14,6 +14,7 @@ from app.models.strategy_miner_trade import StrategyMinerTrade
 from app.models.strategy_miner_pick import StrategyMinerPick
 from app.models.stock_price import StockPrice
 from app.models.alpha_signal_history import AlphaSignalHistory
+from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from sqlalchemy import func, and_
 import json
 
@@ -60,6 +61,30 @@ def _load_stock_perf_map(db: Session, stock_ids: list[str], direction: str = 'lo
             "stock_best_dim": best_dim,
         }
     return result
+
+
+def _load_market_baselines(db: Session) -> dict:
+    """從 Alpha Miner snapshot 取各維度市場基準勝率。
+    回傳 {'5d': 0.194, '10d': 0.244, '30d': 0.261}"""
+    snap = (
+        db.query(AlphaMinerSnapshot)
+        .order_by(AlphaMinerSnapshot.train_date.desc())
+        .first()
+    )
+    if not snap:
+        return {}
+    result_data = json.loads(snap.result_json)
+    dim_rates: dict = defaultdict(list)
+    for s in result_data.get('strategies', []):
+        dim = s['time_dimension'].replace('_short', '')
+        mwr = s.get('market_win_rate')
+        if mwr is not None:
+            dim_rates[dim].append(mwr)
+    baselines = {}
+    for dim, rates in dim_rates.items():
+        rates.sort()
+        baselines[dim] = rates[len(rates) // 2]
+    return baselines
 
 
 def _load_buy_reasons_fallback(db: Session, picks) -> dict:
@@ -168,11 +193,9 @@ def get_today_picks(db: Session = Depends(get_db)):
     """今日推薦清單（含停利停損參數 + 個股回測績效 + 買入理由）"""
     import json as _json
     picks = StrategyMinerService.get_today_picks(db)
-    long_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
-    short_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'short']
-    long_perf = _load_stock_perf_map(db, long_ids, direction='long')
-    short_perf = _load_stock_perf_map(db, short_ids, direction='short')
-    stock_perf = {**long_perf, **short_perf}
+    stock_ids = [p.stock_id for p in picks]
+    stock_perf = _load_stock_perf_map(db, stock_ids, direction='long')
+    baselines = _load_market_baselines(db)
 
     # 優先使用 DB 儲存的 buy_reasons；若為 null（舊資料），使用 fallback 近似值
     any_missing = any(p.buy_reasons is None for p in picks)
@@ -180,18 +203,27 @@ def get_today_picks(db: Session = Depends(get_db)):
 
     result = []
     for p in picks:
-        direction = getattr(p, 'direction', 'long') or 'long'
         perf = stock_perf.get(p.stock_id, {
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
             "stock_best_dim": None,
         })
-        # 過濾掉預計報酬為負或勝率 <= 50% 的標的
-        if perf.get("stock_avg_return") is not None and perf["stock_avg_return"] < 1.0:
-            continue
-        if perf.get("stock_win_rate") is not None and perf["stock_win_rate"] <= 0.5:
-            continue
+        # 品質過濾：相對門檻 + 最低樣本數
+        trade_count = perf.get("stock_trade_count", 0)
+        if trade_count < 10:
+            perf["stock_win_rate"] = None
+            perf["stock_avg_return"] = None
+        else:
+            dim = (p.time_dimension or '10d').replace('_short', '')
+            baseline = baselines.get(dim, 0.25)
+            wr = perf.get("stock_win_rate")
+            avg = perf.get("stock_avg_return")
+            if wr is not None and wr <= baseline + 0.05:
+                continue
+            if avg is not None and avg < 0:
+                continue
+
         result.append({
             "pick_date": p.pick_date.isoformat(),
             "stock_id": p.stock_id,
@@ -203,7 +235,7 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stop_loss_pct": p.stop_loss_pct,
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
-            "direction": direction,
+            "direction": getattr(p, 'direction', 'long') or 'long',
             "buy_reasons": (
                 _json.loads(p.buy_reasons) if p.buy_reasons
                 else live_reasons.get(p.stock_id, [])
@@ -500,10 +532,10 @@ def get_concluded_picks(
 def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
     """過去 N 天的推薦記錄（含個股回測績效）"""
     picks = StrategyMinerService.get_picks_history(db, days=days)
-    long_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
-    short_ids = [p.stock_id for p in picks if (getattr(p, 'direction', 'long') or 'long') == 'short']
-    stock_perf = {**_load_stock_perf_map(db, long_ids, direction='long'),
-                  **_load_stock_perf_map(db, short_ids, direction='short')}
+    stock_ids = [p.stock_id for p in picks]
+    stock_perf = _load_stock_perf_map(db, stock_ids, direction='long')
+    baselines = _load_market_baselines(db)
+
     result = []
     for p in picks:
         perf = stock_perf.get(p.stock_id, {
@@ -511,10 +543,20 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             "stock_avg_return": None,
             "stock_trade_count": 0,
         })
-        if perf.get("stock_avg_return") is not None and perf["stock_avg_return"] < 1.0:
-            continue
-        if perf.get("stock_win_rate") is not None and perf["stock_win_rate"] <= 0.5:
-            continue
+        trade_count = perf.get("stock_trade_count", 0)
+        if trade_count < 10:
+            perf["stock_win_rate"] = None
+            perf["stock_avg_return"] = None
+        else:
+            dim = (p.time_dimension or '10d').replace('_short', '')
+            baseline = baselines.get(dim, 0.25)
+            wr = perf.get("stock_win_rate")
+            avg = perf.get("stock_avg_return")
+            if wr is not None and wr <= baseline + 0.05:
+                continue
+            if avg is not None and avg < 0:
+                continue
+
         result.append({
             "pick_date": p.pick_date.isoformat(),
             "stock_id": p.stock_id,
