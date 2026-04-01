@@ -108,8 +108,11 @@ def _read_progress() -> dict:
 def _run_training_subprocess() -> None:
     """訓練子程序進入點（multiprocessing.Process 需要 module-level function）"""
     import logging as _log
-    from app.db.database import SessionLocal
+    from app.db.database import SessionLocal, engine as _engine
     _log.basicConfig(level=logging.INFO)
+    # fork 後必須 dispose 父程序的連線池，避免父子共用同一 PostgreSQL 連線
+    # 導致 "lost synchronization with server" 錯誤
+    _engine.dispose()
     db = SessionLocal()
     try:
         AlphaMinerService._train_all(db)

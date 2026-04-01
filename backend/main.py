@@ -147,14 +147,10 @@ def _maybe_catchup_sync():
 
         if (needs_features or needs_price) and not settings.ALPHA_MINER_READONLY:
             # 觸發 Alpha Miner 重訓（READONLY 模式下跳過，只讀 NAS 快照）
+            # 注意：不刪除 snapshot，讓訓練成功後自然覆蓋。
+            # 若訓練失敗，舊 snapshot 仍可恢復，避免卡在 _TRAINING_STUB。
             try:
-                from sqlalchemy import delete as sa_delete
-                from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
                 from app.services.alpha_miner_service import AlphaMinerService
-                db6 = SessionLocal()
-                db6.execute(sa_delete(AlphaMinerSnapshot))
-                db6.commit()
-                db6.close()
                 AlphaMinerService.invalidate_cache()
                 db7 = SessionLocal()
                 AlphaMinerService.get_strategies(db7)  # 觸發背景重訓子程序
