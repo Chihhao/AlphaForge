@@ -109,7 +109,11 @@ TRAINING_FACTORS: Dict[str, str] = {
     'neg_trust_buy_20d':    '投信反向(20日)',
 }
 
-_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(FACTOR_LABELS.keys())
+# 只載入訓練需要的欄位 + 原始 trust 因子（用於計算 neg_trust），減少記憶體消耗
+_TRUST_SRC_COLS = ['trust_net_buy', 'trust_buy_5d', 'trust_buy_10d', 'trust_buy_20d']
+_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + [
+    f for f in TRAINING_FACTORS.keys() if not f.startswith('neg_')
+] + _TRUST_SRC_COLS
 
 # Bonferroni 校正：6 個維度（3 持有期 × 2 方向）
 _BONFERRONI_N = 2  # 只剩 10d + 30d 兩個維度
@@ -296,7 +300,7 @@ class AlphaMinerService:
                 continue
 
             n_positive = len(sig.trigger_factors)
-            top_factors = [FACTOR_LABELS.get(f, f) for f in sig.trigger_factors[:3]]
+            top_factors = [TRAINING_FACTORS.get(f, FACTOR_LABELS.get(f, f)) for f in sig.trigger_factors[:3]]
             prob = sig.predicted_prob
             odds = prob / max(1 - prob, 1e-6)
 
@@ -523,9 +527,8 @@ class AlphaMinerService:
 
     @classmethod
     def _compute_quantile_ranks(cls, df: pd.DataFrame) -> pd.DataFrame:
-        # 計算所有因子的分位數排名（FACTOR_LABELS + TRAINING_FACTORS 的聯集）
-        all_factors = set(FACTOR_LABELS.keys()) | set(TRAINING_FACTORS.keys())
-        for factor in all_factors:
+        # 只計算 TRAINING_FACTORS 的分位數排名（節省記憶體，避免 NAS OOM）
+        for factor in TRAINING_FACTORS.keys():
             if factor in df.columns:
                 df[f'{factor}_rank'] = (
                     df.groupby('date')[factor]
@@ -692,7 +695,7 @@ class AlphaMinerService:
         factor_weights = [
             FactorWeight(
                 factor=factors[i],
-                factor_label=FACTOR_LABELS.get(factors[i], factors[i]),
+                factor_label=TRAINING_FACTORS.get(factors[i], FACTOR_LABELS.get(factors[i], factors[i])),
                 coefficient=float(importances[i]),
                 direction="bullish",  # LightGBM 無法直接判定方向，統一標 bullish
             )
