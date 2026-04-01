@@ -169,12 +169,15 @@ class FeatureService:
         etf_net_5d = sum(r.net_flow for r in etf_rows[-5:]) / 10000 if etf_rows else None
         target_df['etf_net_flow_5d'] = etf_net_5d
 
-        # 7. 刪除當日已存在的記錄（upsert 邏輯）
+        # 7. 去重（同一 stock_id 取最後一筆，避免 UniqueViolation）
+        target_df = target_df.drop_duplicates(subset=['stock_id'], keep='last')
+
+        # 8. 刪除當日已存在的記錄（upsert 邏輯）
         db.execute(
             delete(StockFeature).where(StockFeature.date == target_date)
         )
 
-        # 8. 批量寫入
+        # 9. 批量寫入
         records = []
         for _, row in target_df.iterrows():
             records.append(StockFeature(
