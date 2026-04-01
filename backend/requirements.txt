@@ -19,5 +19,6 @@ httpx
 twstock
 apscheduler
 scikit-learn==1.6.1
+lightgbm
 scipy
 psycopg2-binary

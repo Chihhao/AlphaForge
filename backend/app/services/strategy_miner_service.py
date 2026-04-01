@@ -49,7 +49,7 @@ DIMENSIONS = ['5d', '10d', '30d']
 
 # ─── 訊號品質門檻 ─────────────────────────────────────────────────────────────
 TRIGGER_COUNT_PERCENTILE = 0.70   # 觸發數需 >= 該維度 P70
-MIN_WIN_RATE = 0.50               # 最優參數回測勝率需 >= 50%
+EXCESS_WIN_RATE_THRESHOLD = 0.05  # 超額勝率需 > baseline + 5pp
 MAX_PICKS_PER_DIRECTION = 5       # 做多/放空各最多推薦 5 檔
 
 
@@ -61,6 +61,31 @@ def _sharpe(returns: List[float]) -> float:
     if std < 1e-9:
         return 0.0
     return float(arr.mean() / std)
+
+
+def _load_market_baselines_from_snapshot(db: Session) -> Dict[str, float]:
+    """從 Alpha Miner snapshot 取各維度市場基準勝率。
+    回傳 {'5d': 0.194, '10d': 0.244, '30d': 0.261}"""
+    from collections import defaultdict
+    snap = (
+        db.query(AlphaMinerSnapshot)
+        .order_by(AlphaMinerSnapshot.train_date.desc())
+        .first()
+    )
+    if not snap:
+        return {}
+    result_data = json.loads(snap.result_json)
+    dim_rates: dict = defaultdict(list)
+    for s in result_data.get('strategies', []):
+        dim = s['time_dimension'].replace('_short', '')
+        mwr = s.get('market_win_rate')
+        if mwr is not None:
+            dim_rates[dim].append(mwr)
+    baselines = {}
+    for dim, rates in dim_rates.items():
+        rates.sort()
+        baselines[dim] = rates[len(rates) // 2]
+    return baselines
 
 
 class StrategyMinerService:
@@ -157,7 +182,8 @@ class StrategyMinerService:
             logger.info(f"[StrategyMiner] {dir_label} 無訊號（{latest_date}），跳過")
             return 0
 
-        # 2. 查各維度最優參數（strategy_id 放空為 {dim}_short）
+        # 2. 查各維度最優參數 + 相對品質門檻
+        baselines = _load_market_baselines_from_snapshot(db)
         optimal: Dict[str, Optional[StrategyBacktestParam]] = {}
         for dim in DIMENSIONS:
             strategy_key = f"{dim}_short" if direction == 'short' else dim
@@ -169,9 +195,13 @@ class StrategyMinerService:
                 )
                 .first()
             )
-            if opt and opt.win_rate_test is not None and opt.win_rate_test < MIN_WIN_RATE:
-                logger.info(f"[StrategyMiner] {strategy_key} 勝率 {opt.win_rate_test:.1%} < {MIN_WIN_RATE:.0%}，跳過")
-                opt = None
+            if opt and opt.win_rate_test is not None:
+                baseline = baselines.get(dim, 0.25)
+                if opt.win_rate_test < baseline + EXCESS_WIN_RATE_THRESHOLD:
+                    logger.info(
+                        f"[StrategyMiner] {strategy_key} 勝率 {opt.win_rate_test:.1%} "
+                        f"< baseline {baseline:.1%} + {EXCESS_WIN_RATE_THRESHOLD:.0%}，跳過")
+                    opt = None
             optimal[dim] = opt
 
         # 3. 查最新收盤價

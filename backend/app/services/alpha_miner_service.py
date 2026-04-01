@@ -1,13 +1,15 @@
 """
-AlphaMinerService — 邏輯迴歸多因子模型 (Phase 5A)
+AlphaMinerService — LightGBM 多因子模型
 
 設計原則：
+- 每個時間維度（5d/10d/30d × 做多/做空）訓練一個 LightGBM 模型，使用全部 25 個因子
 - 分位數排名消除跨股票量綱差異
 - 時間衰減權重（近期資料比舊資料重要）
 - 訓練/測試嚴格時間切割，留一個月空白期避免標籤洩漏
-- Bonferroni 多重校正防止 p-hacking（每個持有期各自校正）
+- Bonferroni 多重校正（N=6）防止 p-hacking
 - 多時間維度：5日、10日、30日各自訓練，每維度報告兩個門檻
 - 樣本外 Spearman IC 為排序依據
+- SHAP-style factor contributions（pred_contrib）提取每支股票的 trigger_factors
 - 訓練結果持久化至 DB，後端重啟免重算
 """
 from __future__ import annotations
@@ -81,99 +83,10 @@ FACTOR_LABELS: Dict[str, str] = {
     'dealer_buy_20d':   '自營商20日累積',
 }
 
-# ─── 預定義因子組合（63 組，Bonferroni 校正門檻 = 0.05/63 ≈ 0.00079）─────────
-FACTOR_COMBINATIONS: List[List[str]] = [
-    # 單因子技術面
-    ['rsi14'], ['k'], ['bias20'], ['bb_pctb'], ['vol_ratio'],
-    ['macd_dif'], ['macd_osc'], ['bias5'], ['bias10'], ['d'],
-    # 單因子基本面
-    ['pb_ratio'], ['roe'], ['yield_rate'], ['revenue_yoy'],
-    # 單因子籌碼面（Phase 4B）
-    ['foreign_net_buy'], ['foreign_buy_5d'],
-    ['trust_net_buy'], ['trust_buy_5d'],
-    ['margin_chg_5d'],
-    # 技術面 + 量比
-    ['rsi14', 'vol_ratio'], ['k', 'vol_ratio'],
-    ['bias20', 'vol_ratio'], ['bb_pctb', 'vol_ratio'],
-    ['macd_dif', 'vol_ratio'],
-    # 技術面複合
-    ['rsi14', 'macd_dif'], ['k', 'd'], ['bias20', 'rsi14'],
-    # 技術 + 基本面
-    ['rsi14', 'pb_ratio'], ['rsi14', 'roe'],
-    ['bias20', 'pb_ratio'], ['k', 'revenue_yoy'],
-    ['rsi14', 'yield_rate'],
-    # 基本面複合
-    ['pb_ratio', 'roe'], ['yield_rate', 'roe'],
-    ['revenue_yoy', 'pb_ratio'],
-    # 技術 + 籌碼（Phase 4B）
-    ['rsi14', 'foreign_net_buy'], ['rsi14', 'foreign_buy_5d'],
-    ['k', 'foreign_net_buy'], ['bias20', 'foreign_buy_5d'],
-    ['rsi14', 'trust_net_buy'], ['k', 'trust_buy_5d'],
-    ['vol_ratio', 'foreign_net_buy'], ['vol_ratio', 'foreign_buy_5d'],
-    # 籌碼複合
-    ['foreign_buy_5d', 'trust_buy_5d'],
-    ['foreign_net_buy', 'trust_net_buy'],
-    ['foreign_buy_5d', 'margin_chg_5d'],
-    # 三因子（含籌碼）
-    ['rsi14', 'vol_ratio', 'pb_ratio'],
-    ['k', 'vol_ratio', 'roe'],
-    ['bias20', 'vol_ratio', 'revenue_yoy'],
-    ['rsi14', 'foreign_buy_5d', 'pb_ratio'],
-    ['k', 'trust_buy_5d', 'roe'],
-    ['bias20', 'foreign_buy_5d', 'vol_ratio'],
-    # 單因子（Phase 5B）
-    ['dealer_net_buy'], ['dealer_buy_5d'], ['price_vs_high20'],
-    # 自營商複合
-    ['dealer_buy_5d', 'trust_buy_5d'],
-    ['dealer_buy_5d', 'foreign_buy_5d'],
-    ['foreign_buy_5d', 'trust_buy_5d', 'dealer_buy_5d'],
-    # 技術面新因子複合
-    ['price_vs_high20', 'vol_ratio'],
-    ['price_vs_high20', 'trust_buy_5d'],
-    ['ma_trend', 'vol_ratio'],
-    ['ma_trend', 'trust_buy_5d'],
-    ['ma_trend', 'foreign_buy_5d'],
-    # 單因子（Phase 6）
-    ['sector_rs'],
-    ['foreign_hold_pct'],
-    ['foreign_hold_chg_5d'],
-    # 產業相對強度複合
-    ['sector_rs', 'rsi14'],
-    ['sector_rs', 'vol_ratio'],
-    ['sector_rs', 'foreign_buy_5d'],
-    # 外資持股複合
-    ['foreign_hold_chg_5d', 'foreign_buy_5d'],   # 存量+流量
-    ['foreign_hold_pct', 'pb_ratio'],
-    ['foreign_hold_chg_5d', 'rsi14'],
-    ['foreign_hold_chg_5d', 'trust_buy_5d'],
-    # 三因子（Phase 6）
-    ['sector_rs', 'rsi14', 'vol_ratio'],
-    # ETF 申贖資金流向（Phase 3B）
-    ['etf_net_flow_5d'],
-    ['etf_net_flow_5d', 'foreign_buy_5d'],
-    ['etf_net_flow_5d', 'rsi14'],
-    # Phase 7 — 中長期籌碼單因子
-    ['foreign_buy_10d'], ['foreign_buy_20d'],
-    ['trust_buy_10d'], ['trust_buy_20d'],
-    # Phase 7 — 跨期籌碼動量（短 vs 中期差異 = 加速度信號）
-    ['foreign_buy_5d', 'foreign_buy_20d'],
-    ['trust_buy_5d', 'trust_buy_20d'],
-    # Phase 7 — 中期籌碼 + 技術面
-    ['foreign_buy_20d', 'rsi14'],
-    ['trust_buy_20d', 'sector_rs'],
-    # Phase 8 — RSI(2) 極短期反轉
-    ['rsi2'],
-    ['rsi2', 'vol_ratio'],
-    ['rsi2', 'pb_ratio'],
-    ['rsi2', 'foreign_buy_5d'],
-    ['rsi2', 'bias10'],
-    ['rsi2', 'bias10', 'vol_ratio'],
-]
-
 _LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(FACTOR_LABELS.keys())
 
-# Bonferroni 校正：組合數自動計算
-_BONFERRONI_N = len(FACTOR_COMBINATIONS)
+# Bonferroni 校正：6 個維度（3 持有期 × 2 方向）
+_BONFERRONI_N = 6
 
 # ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────
 _PROGRESS_FILE = '/tmp/alpha_miner_progress.json'
@@ -215,7 +128,7 @@ _TRAINING_STUB = AlphaMinerResult(
 
 
 class AlphaMinerService:
-    """多因子邏輯迴歸訓練與排行榜快取"""
+    """LightGBM 多因子模型訓練與排行榜快取（每維度一個模型，共 6 個）"""
 
     _cache: Optional[AlphaMinerResult] = None
     _cache_date: Optional[date] = None
@@ -256,7 +169,7 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 多時間維度設定：各維度獨立訓練，各自做 Bonferroni 校正（N=63）
+    # 多時間維度設定：各維度獨立訓練一個 LightGBM 模型，Bonferroni 校正 N=6
     # direction="short" 的維度會反轉 label（預測下跌而非上漲）
     DIMENSIONS = [
         {"key": "5d",        "forward_days": 5,  "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
@@ -313,10 +226,10 @@ class AlphaMinerService:
     def get_today_signals(
         cls, db: Session, dimension: str = "10d", direction: str = "long",
     ) -> List[TodaySignal]:
-        """彙整訊號。
+        """從該維度的單一 LightGBM 模型的 recent_signals 轉換為 TodaySignal。
 
-        direction='long': 找被多個策略同時看多的股票（現有邏輯）
-        direction='short': 從 stock_features 找滿足多個看空條件的股票
+        每支股票的 trigger_factors 已在 _build_recent_signals_lgb 中用
+        pred_contrib 計算好（Top 3 正貢獻因子）。
         """
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
@@ -325,95 +238,55 @@ class AlphaMinerService:
         tlo = 0.05 if dimension == '30d' else 0.03
         thi = 0.10 if dimension == '30d' else 0.05
 
-        # 放空：使用訓練好的 short 模型策略
+        # 找該維度對應的策略
         dim_key = f"{dimension}_short" if direction == 'short' else dimension
+        strategy_id = f"lgb_{dim_key}"
+        detail = cls._details.get(strategy_id)
+        if not detail or not detail.recent_signals:
+            return []
 
-        stock_map: Dict[str, dict] = {}
-        for ranking in result.strategies:
-            if not ranking.is_significant or ranking.time_dimension != dim_key:
-                continue
-            # 做多只用 IC > 0（預測漲→實際漲）；放空只用 IC < 0（預測跌→實際跌）
-            if direction == 'short':
-                if ranking.ic >= 0:
-                    continue
-                ic = abs(ranking.ic)
-            else:
-                if ranking.ic <= 0:
-                    continue
-                ic = ranking.ic
-            detail = cls._details.get(ranking.strategy_id)
-            if not detail or not detail.recent_signals:
-                continue
-            for sig in detail.recent_signals:
-                sid = sig.stock_id
-                if sid not in stock_map:
-                    stock_map[sid] = {
-                        'stock_id': sid,
-                        'stock_name': sig.stock_name,
-                        'trigger_count': 0,
-                        'strategies': [],
-                        'signal_date': sig.signal_date,
-                        '_ic_sum': 0.0,
-                        '_w_win': 0.0,
-                        '_w_win_hi': 0.0,
-                        '_w_loss': 0.0,
-                        '_w_loss_hi': 0.0,
-                        '_w_mkt_win': 0.0,
-                        '_w_mkt_win_hi': 0.0,
-                        '_w_mkt_loss': 0.0,
-                        '_w_mkt_loss_hi': 0.0,
-                    }
-                stock_map[sid]['trigger_count'] += 1
-                stock_map[sid]['strategies'].append(ranking.strategy_name)
-                stock_map[sid]['_ic_sum'] += ic
-                stock_map[sid]['_w_win'] += ranking.win_rate_outsample * ic
-                stock_map[sid]['_w_win_hi'] += ranking.win_rate_outsample_hi * ic
-                stock_map[sid]['_w_loss'] += ranking.loss_rate_outsample * ic
-                stock_map[sid]['_w_loss_hi'] += ranking.loss_rate_outsample_hi * ic
-                stock_map[sid]['_w_mkt_win'] += ranking.market_win_rate * ic
-                stock_map[sid]['_w_mkt_win_hi'] += ranking.market_win_rate_hi * ic
-                stock_map[sid]['_w_mkt_loss'] += ranking.market_loss_rate * ic
-                stock_map[sid]['_w_mkt_loss_hi'] += ranking.market_loss_rate_hi * ic
-
-        # 動態門檻（做多和放空共用同一邏輯）
-        valid_strategy_count = sum(
-            1 for r in result.strategies
-            if r.is_significant and r.time_dimension == dim_key
-            and (r.ic < 0 if direction == 'short' else r.ic > 0)
-        )
-        min_triggers = max(2, round(valid_strategy_count * 0.4))
+        # 找對應 ranking 取得維度層級的統計數據
+        ranking = None
+        for r in result.strategies:
+            if r.strategy_id == strategy_id:
+                ranking = r
+                break
+        if ranking is None:
+            return []
 
         signals = []
-        for s in stock_map.values():
-            if s['trigger_count'] < min_triggers:
-                continue
-            ic_sum = max(s['_ic_sum'], 1e-9)
-            w_win = s['_w_win'] / ic_sum
-            w_win_hi = s['_w_win_hi'] / ic_sum
-            w_loss = s['_w_loss'] / ic_sum
-            w_loss_hi = s['_w_loss_hi'] / ic_sum
+        for sig in detail.recent_signals:
+            # trigger_count = 正貢獻因子數
+            n_positive = len(sig.trigger_factors)
+            # strategies = Top 3 因子的中文名稱
+            top_factors = [FACTOR_LABELS.get(f, f) for f in sig.trigger_factors[:3]]
+            # weighted_odds_ratio = predicted_prob / (1 - predicted_prob)
+            prob = sig.predicted_prob
+            odds = prob / max(1 - prob, 1e-6)
+
             signals.append(TodaySignal(
-                stock_id=s['stock_id'],
-                stock_name=s['stock_name'],
-                trigger_count=s['trigger_count'],
-                strategies=s['strategies'],
-                signal_date=s['signal_date'],
+                stock_id=sig.stock_id,
+                stock_name=sig.stock_name,
+                trigger_count=n_positive,
+                strategies=top_factors,
+                signal_date=sig.signal_date,
                 time_dimension=dimension,
                 threshold_low=tlo,
                 threshold_high=thi,
-                weighted_odds_ratio=w_win / max(w_loss, 0.001),
-                weighted_odds_ratio_hi=w_win_hi / max(w_loss_hi, 0.001),
-                weighted_win_rate=w_win,
-                weighted_win_rate_hi=w_win_hi,
-                weighted_loss_rate=w_loss,
-                weighted_loss_rate_hi=w_loss_hi,
-                weighted_market_win_rate=s['_w_mkt_win'] / ic_sum,
-                weighted_market_win_rate_hi=s['_w_mkt_win_hi'] / ic_sum,
-                weighted_market_loss_rate=s['_w_mkt_loss'] / ic_sum,
-                weighted_market_loss_rate_hi=s['_w_mkt_loss_hi'] / ic_sum,
+                weighted_odds_ratio=round(odds, 2),
+                weighted_odds_ratio_hi=round(odds, 2),
+                weighted_win_rate=ranking.win_rate_outsample,
+                weighted_win_rate_hi=ranking.win_rate_outsample_hi,
+                weighted_loss_rate=ranking.loss_rate_outsample,
+                weighted_loss_rate_hi=ranking.loss_rate_outsample_hi,
+                weighted_market_win_rate=ranking.market_win_rate,
+                weighted_market_win_rate_hi=ranking.market_win_rate_hi,
+                weighted_market_loss_rate=ranking.market_loss_rate,
+                weighted_market_loss_rate_hi=ranking.market_loss_rate_hi,
             ))
 
-        signals.sort(key=lambda x: x.trigger_count, reverse=True)
+        # 按 odds ratio 降序排列
+        signals.sort(key=lambda x: x.weighted_odds_ratio, reverse=True)
         return signals[:20]
 
     @classmethod
@@ -458,34 +331,33 @@ class AlphaMinerService:
         df_base = cls._compute_quantile_ranks(df_base)
         df_base = cls._add_weights(df_base, train_end)
 
-        n_combos = len(FACTOR_COMBINATIONS)
-        n_total = n_combos * len(cls.DIMENSIONS)
+        n_dims = len(cls.DIMENSIONS)
         all_rankings: List[StrategyRanking] = []
         all_details: Dict[str, StrategyDetail] = {}
 
-        _write_progress({"current": 0, "total": n_total, "percent": 0,
+        _write_progress({"current": 0, "total": n_dims, "percent": 0,
                          "current_dim": "", "current_strategy": ""})
 
-        completed = 0
-        for dim in cls.DIMENSIONS:
-            # 每個持有期各自計算 forward_return 與 label
+        for idx, dim in enumerate(cls.DIMENSIONS):
             dim_direction = dim.get('direction', 'long')
-            df_dim = cls._compute_forward_returns(df_base, dim['forward_days'], dim['threshold_low'], dim_direction)
-            logger.info(f"[AlphaMiner] 開始訓練 {dim['key']} 維度（{n_combos} 組）")
+            dir_label = "做多" if dim_direction == "long" else "做空"
+            strategy_name = f"LightGBM {dim['key'].replace('_short', '')} {dir_label}"
+            _write_progress({
+                "current": idx, "total": n_dims,
+                "percent": round(idx / n_dims * 100),
+                "current_dim": dim['key'], "current_strategy": strategy_name,
+            })
 
-            for i, factors in enumerate(FACTOR_COMBINATIONS):
-                strategy_name = " + ".join(FACTOR_LABELS.get(f, f) for f in factors)
-                _write_progress({
-                    "current": completed, "total": n_total,
-                    "percent": round(completed / n_total * 100),
-                    "current_dim": dim['key'], "current_strategy": strategy_name,
-                })
-                logger.info(f"[AlphaMiner] [{dim['key']}] {i+1}/{n_combos}: {factors}")
-                ranking, detail = cls._train_one(df_dim, factors, n_total, train_end, test_start, dim)
-                if ranking is not None:
-                    all_rankings.append(ranking)
-                    all_details[ranking.strategy_id] = detail  # type: ignore[arg-type]
-                completed += 1
+            # 每個持有期各自計算 forward_return 與 label
+            df_dim = cls._compute_forward_returns(
+                df_base, dim['forward_days'], dim['threshold_low'], dim_direction)
+            logger.info(f"[AlphaMiner] 開始訓練 {dim['key']} 維度（LightGBM，全部 {len(FACTOR_LABELS)} 因子）")
+
+            ranking, detail = cls._train_dimension(
+                df_dim, train_end, test_start, dim)
+            if ranking is not None:
+                all_rankings.append(ranking)
+                all_details[ranking.strategy_id] = detail  # type: ignore[arg-type]
 
         all_rankings.sort(key=lambda x: x.ic, reverse=True)
 
@@ -495,8 +367,8 @@ class AlphaMinerService:
             last_trained=date.today().isoformat(),
             train_period=f"{pd.Timestamp(min_date).strftime('%Y-%m')} ~ {train_end.strftime('%Y-%m')}",
             test_period=f"{test_start.strftime('%Y-%m')} ~ {pd.Timestamp(max_date).strftime('%Y-%m')}",
-            total_combinations_tested=n_combos,
-            bonferroni_threshold=round(0.05 / n_total, 6),
+            total_combinations_tested=n_dims,
+            bonferroni_threshold=round(0.05 / _BONFERRONI_N, 6),
         )
         cls._cache = result
         cls._cache_date = date.today()
@@ -605,8 +477,7 @@ class AlphaMinerService:
 
     @classmethod
     def _compute_quantile_ranks(cls, df: pd.DataFrame) -> pd.DataFrame:
-        all_factors = {f for combo in FACTOR_COMBINATIONS for f in combo}
-        for factor in all_factors:
+        for factor in FACTOR_LABELS.keys():
             if factor in df.columns:
                 df[f'{factor}_rank'] = (
                     df.groupby('date')[factor]
@@ -622,36 +493,40 @@ class AlphaMinerService:
         df['weight'] = (1.0 - delta * 0.2).clip(lower=0.2)
         return df
 
-    # ─── 單策略訓練 ────────────────────────────────────────────────────────────
+    # ─── 單維度 LightGBM 訓練 ───────────────────────────────────────────────────
     @classmethod
-    def _train_one(
+    def _train_dimension(
         cls,
         df: pd.DataFrame,
-        factors: List[str],
-        n_total: int,
         train_end: date,
         test_start: date,
         dim: dict,
     ) -> Tuple[Optional[StrategyRanking], Optional[StrategyDetail]]:
-        from sklearn.linear_model import LogisticRegression
+        import lightgbm as lgb
         from scipy import stats
 
         thr_lo = dim['threshold_low']
         thr_hi = dim['threshold_high']
+        dim_direction = dim.get('direction', 'long')
+        forward_days = dim.get('forward_days', 5)
 
+        factors = list(FACTOR_LABELS.keys())
         rank_cols = [f'{f}_rank' for f in factors]
-        if any(c not in df.columns for c in rank_cols):
+        # 只留存在於 DataFrame 中的因子
+        available = [(f, rc) for f, rc in zip(factors, rank_cols) if rc in df.columns]
+        if len(available) < 5:
             return None, None
+        factors = [a[0] for a in available]
+        rank_cols = [a[1] for a in available]
 
+        # LightGBM 原生支援 NaN，只需 drop label 為空的列
         train_df = df[df['date'] <= pd.Timestamp(train_end)].dropna(
-            subset=rank_cols + ['label'])
+            subset=['label'])
         test_df = df[df['date'] >= pd.Timestamp(test_start)].dropna(
-            subset=rank_cols + ['label', 'forward_return'])
+            subset=['label', 'forward_return'])
 
         # 趨勢過濾：10d/30d 做多只用上升趨勢、做空只用下降趨勢
         # 5d 不過濾——短期均值回歸在下跌趨勢中反彈更強（診斷實證）
-        dim_direction = dim.get('direction', 'long')
-        forward_days = dim.get('forward_days', 5)
         if 'ma60' in df.columns and forward_days >= 10:
             if dim_direction == 'long':
                 train_df = train_df[train_df['close'] > train_df['ma60']].copy()
@@ -660,31 +535,35 @@ class AlphaMinerService:
                 train_df = train_df[train_df['close'] < train_df['ma60']].copy()
                 test_df = test_df[test_df['close'] < test_df['ma60']].copy()
 
-        if len(train_df) < 100 or len(test_df) < 30:
+        if len(train_df) < 200 or len(test_df) < 50:
             return None, None
 
         X_train = train_df[rank_cols].values
         y_train = train_df['label'].values
         w_train = train_df['weight'].values
+        X_test = test_df[rank_cols].values
+        y_test = test_df['label'].values
 
         try:
-            model = LogisticRegression(
-                tol=1e-3, max_iter=500, random_state=42, solver='lbfgs', C=1.0,
-                class_weight='balanced')
+            model = lgb.LGBMClassifier(
+                n_estimators=200, max_depth=4, num_leaves=15,
+                learning_rate=0.01, min_child_samples=100,
+                subsample=0.8, colsample_bytree=0.8,
+                reg_alpha=0.1, reg_lambda=1.0,
+                random_state=42, verbose=-1, is_unbalance=True,
+                importance_type='gain',
+            )
             model.fit(X_train, y_train, sample_weight=w_train)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[AlphaMiner] LightGBM 訓練失敗 ({dim['key']}): {e}")
             return None, None
 
         prob_train = model.predict_proba(X_train)[:, 1]
-        X_test = test_df[rank_cols].values
-        y_test  = test_df['label'].values
         prob_test = model.predict_proba(X_test)[:, 1]
 
         # 勝率/踩雷率：預測機率前 20%（Top Quintile）的實際報酬分布
-        # 邏輯迴歸輸出聚集在 0.5 附近，用分位數門檻比固定 0.5 更有意義
         train_threshold = np.percentile(prob_train, 80)
-        pos_train_mask  = prob_train >= train_threshold
-        # 樣本內勝率（>+3%，用於過擬合檢測）
+        pos_train_mask = prob_train >= train_threshold
         train_returns = train_df['forward_return'].values
         win_rate_insample = (
             float((train_returns[pos_train_mask] > thr_lo).mean())
@@ -692,7 +571,7 @@ class AlphaMinerService:
         )
 
         test_threshold = np.percentile(prob_test, 80)
-        pos_test_mask  = prob_test >= test_threshold
+        pos_test_mask = prob_test >= test_threshold
         sample_count_test = int(pos_test_mask.sum())
 
         top_returns = test_df['forward_return'].values[pos_test_mask]
@@ -705,26 +584,23 @@ class AlphaMinerService:
         win_rate_outsample_hi = (
             float((top_returns > thr_hi).mean()) if len(top_returns) > 0 else 0.0
         )
-        # 策略踩雷率（Top20% 中 < -thr_lo 與 < -thr_hi）
+        # 策略踩雷率
         loss_rate_outsample = (
             float((top_returns < -thr_lo).mean()) if len(top_returns) > 0 else 0.0
         )
         loss_rate_outsample_hi = (
             float((top_returns < -thr_hi).mean()) if len(top_returns) > 0 else 0.0
         )
-        # 賠率比（勝率 / 踩雷率，踩雷率為 0 時用 0.001 避免除零）
         odds_ratio    = round(win_rate_outsample    / max(loss_rate_outsample,    0.001), 2)
         odds_ratio_hi = round(win_rate_outsample_hi / max(loss_rate_outsample_hi, 0.001), 2)
 
-        # 全市場基準（測試集所有股票）
+        # 全市場基準
         market_win_rate     = float((all_returns > thr_lo).mean())  if len(all_returns) > 0 else 0.0
         market_win_rate_hi  = float((all_returns > thr_hi).mean())  if len(all_returns) > 0 else 0.0
         market_loss_rate    = float((all_returns < -thr_lo).mean()) if len(all_returns) > 0 else 0.0
         market_loss_rate_hi = float((all_returns < -thr_hi).mean()) if len(all_returns) > 0 else 0.0
 
         # IC：逐日計算 Spearman 相關後對 IC 時間序列做 t-test
-        # 原本用整個 panel 一次 spearmanr 會因樣本數膨脹（~20萬筆）導致 p-value 趨近 0
-        # 正確做法：每日 IC 為一個獨立觀測值，t-test 自然處理橫截面相關性
         if len(prob_test) < 10:
             return None, None
         test_df_copy = test_df.copy()
@@ -744,7 +620,7 @@ class AlphaMinerService:
         ic = float(np.mean(daily_ics_arr))
         t_stat, p_val = stats.ttest_1samp(daily_ics_arr, 0)
         p_value = float(p_val) if not np.isnan(p_val) else 1.0
-        p_value_corrected = min(p_value * n_total, 1.0)
+        p_value_corrected = min(p_value * _BONFERRONI_N, 1.0)
 
         is_significant = p_value_corrected < 0.05
         overfit_warning = abs(win_rate_insample - win_rate_outsample) > 0.05
@@ -757,21 +633,27 @@ class AlphaMinerService:
         if overfit_warning:
             integrity_flags.append("此策略可能存在過擬合")
 
-        strategy_id   = f"{dim['key']}_{'_'.join(factors)}"
-        strategy_name = " + ".join(FACTOR_LABELS.get(f, f) for f in factors)
+        dir_label = "做多" if dim_direction == "long" else "做空"
+        dim_base = dim['key'].replace('_short', '')
+        strategy_id   = f"lgb_{dim['key']}"
+        strategy_name = f"LightGBM {dim_base} {dir_label}"
 
+        # factor_weights：按 gain-based feature importance 排序
+        importances = model.feature_importances_
+        sorted_indices = np.argsort(importances)[::-1]
         factor_weights = [
             FactorWeight(
-                factor=f,
-                factor_label=FACTOR_LABELS.get(f, f),
-                coefficient=float(coef),
-                direction="bullish" if coef > 0 else "bearish",
+                factor=factors[i],
+                factor_label=FACTOR_LABELS.get(factors[i], factors[i]),
+                coefficient=float(importances[i]),
+                direction="bullish",  # LightGBM 無法直接判定方向，統一標 bullish
             )
-            for f, coef in zip(factors, model.coef_[0])
+            for i in sorted_indices
+            if importances[i] > 0
         ]
 
         equity_curve   = cls._build_equity_curve(test_df, prob_test)
-        recent_signals = cls._build_recent_signals(df, model, rank_cols, factors)
+        recent_signals = cls._build_recent_signals_lgb(df, model, rank_cols, factors)
 
         ranking = StrategyRanking(
             strategy_id=strategy_id,
@@ -828,20 +710,15 @@ class AlphaMinerService:
             ))
         return curve
 
-    # ─── 輔助：近期訊號 ────────────────────────────────────────────────────────
+    # ─── 輔助：近期訊號（LightGBM pred_contrib）─────────────────────────────────
     @classmethod
-    def _build_recent_signals(
+    def _build_recent_signals_lgb(
         cls,
         df: pd.DataFrame,
         model,
         rank_cols: List[str],
         factors: List[str],
     ) -> List[RecentAlphaSignal]:
-        try:
-            import twstock
-        except Exception:
-            twstock = None
-
         # 找最近有完整資料的日期（至少 200 支股票）
         date_counts = df.groupby('date')['stock_id'].count()
         complete_dates = date_counts[date_counts >= 200].index
@@ -849,7 +726,7 @@ class AlphaMinerService:
             return []
         latest_date = complete_dates.max()
 
-        recent = df[df['date'] == latest_date].dropna(subset=rank_cols)
+        recent = df[df['date'] == latest_date]
         if recent.empty:
             return []
 
@@ -861,16 +738,44 @@ class AlphaMinerService:
         recent['_prob'] = prob
         top_recent = recent[recent['_prob'] >= threshold].sort_values('_prob', ascending=False).head(50)
 
+        if top_recent.empty:
+            return []
+
+        # 用 pred_contrib 取得每支股票的因子貢獻
+        X_top = top_recent[rank_cols].values
+        try:
+            # pred_contrib 回傳 shape (n_samples, n_features + 1)，最後一欄是 bias
+            contribs = model.booster_.predict(X_top, pred_contrib=True)
+            # 只取因子欄位（去掉 bias）
+            factor_contribs = contribs[:, :-1]
+        except Exception:
+            # fallback：如果 pred_contrib 失敗，用全域 feature importance
+            factor_contribs = None
+
         result: List[RecentAlphaSignal] = []
-        for _, row in top_recent.iterrows():
+        for idx_enum, (_, row) in enumerate(top_recent.iterrows()):
             stock_id = str(row['stock_id'])
             name = cls._lookup_name(stock_id)
+
+            # 取該股票貢獻最大的因子（正貢獻）作為 trigger_factors
+            if factor_contribs is not None:
+                contrib_row = factor_contribs[idx_enum]
+                # 正貢獻因子，按貢獻大小降序
+                positive_indices = np.where(contrib_row > 0)[0]
+                sorted_pos = positive_indices[np.argsort(contrib_row[positive_indices])[::-1]]
+                trigger = [factors[i] for i in sorted_pos[:3]]
+            else:
+                # fallback：feature importance 前 3
+                importances = model.feature_importances_
+                top_idx = np.argsort(importances)[::-1][:3]
+                trigger = [factors[i] for i in top_idx]
+
             result.append(RecentAlphaSignal(
                 stock_id=stock_id,
                 stock_name=name,
                 signal_date=latest_date.strftime('%Y-%m-%d'),
-                predicted_prob=round(float(row['_prob']), 3),
-                trigger_factors=factors,
+                predicted_prob=round(float(row['_prob']), 6),
+                trigger_factors=trigger,
             ))
         return result
 
