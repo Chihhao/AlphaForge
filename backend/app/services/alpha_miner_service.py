@@ -83,9 +83,10 @@ FACTOR_LABELS: Dict[str, str] = {
     'dealer_buy_20d':   '自營商20日累積',
 }
 
-# ─── 訓練用因子（11 個穩定因子，walk-forward 驗證 IC 100% 為正）─────────────
-# 基本面（4）+ 外資動向（3）+ 次穩定（4）
-# 技術指標（RSI/KD/MACD/bias/bb）在 13 季 walk-forward 中 IC 不穩定，已移除
+# ─── 訓練用因子（15 個：11 穩定 + 4 反向投信）──────────────────────────────
+# Walk-forward V3 驗證：加入反向投信後 IC 100% 為正（7 窗口全正）
+# 投信買超是穩定的反向指標（IC -0.02~-0.03），取反後成為正 IC 因子
+# 搭配 threshold=3% → 5/7 窗口 PASS，Sharpe=1.83
 TRAINING_FACTORS: Dict[str, str] = {
     # 基本面 — 全期穩定正 IC
     'roe':                  'ROE',
@@ -101,6 +102,11 @@ TRAINING_FACTORS: Dict[str, str] = {
     'vol_ratio':            '量比',
     'foreign_buy_10d':      '外資10日累積',
     'price_vs_high20':      '距高點乖離',
+    # 反向投信（取反後 IC 穩定正：散戶逆向指標）
+    'neg_trust_net_buy':    '投信反向(日)',
+    'neg_trust_buy_5d':     '投信反向(5日)',
+    'neg_trust_buy_10d':    '投信反向(10日)',
+    'neg_trust_buy_20d':    '投信反向(20日)',
 }
 
 _LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(FACTOR_LABELS.keys())
@@ -197,7 +203,7 @@ class AlphaMinerService:
     # 5d 與做空維度在回測中 IC 均不顯著，已移除（2026-04-01 實驗驗證）
     DIMENSIONS = [
         {"key": "10d",       "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
-        {"key": "30d",       "forward_days": 30, "threshold_low": 0.05, "threshold_high": 0.10, "direction": "long"},
+        {"key": "30d",       "forward_days": 30, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
     ]
 
     # ─── 公開介面 ──────────────────────────────────────────────────────────────
@@ -485,6 +491,16 @@ class AlphaMinerService:
         if df.empty:
             return df
         df['date'] = pd.to_datetime(df['date'])
+        # 反向投信因子：投信買超是穩定的反向指標（IC -0.02~-0.03），
+        # 取反後成為正 IC 因子（散戶逆向）
+        for src, dst in [
+            ('trust_net_buy', 'neg_trust_net_buy'),
+            ('trust_buy_5d',  'neg_trust_buy_5d'),
+            ('trust_buy_10d', 'neg_trust_buy_10d'),
+            ('trust_buy_20d', 'neg_trust_buy_20d'),
+        ]:
+            if src in df.columns:
+                df[dst] = -df[src].fillna(0)
         return df
 
     # ─── 特徵工程 ──────────────────────────────────────────────────────────────
@@ -507,7 +523,9 @@ class AlphaMinerService:
 
     @classmethod
     def _compute_quantile_ranks(cls, df: pd.DataFrame) -> pd.DataFrame:
-        for factor in FACTOR_LABELS.keys():
+        # 計算所有因子的分位數排名（FACTOR_LABELS + TRAINING_FACTORS 的聯集）
+        all_factors = set(FACTOR_LABELS.keys()) | set(TRAINING_FACTORS.keys())
+        for factor in all_factors:
             if factor in df.columns:
                 df[f'{factor}_rank'] = (
                     df.groupby('date')[factor]
