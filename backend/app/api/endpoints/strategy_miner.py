@@ -210,20 +210,11 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stock_trade_count": 0,
             "stock_best_dim": None,
         })
-        # 品質過濾：相對門檻 + 最低樣本數
+        # 個股績效：樣本不足時清空（僅供前端顯示參考，不再用於過濾）
         trade_count = perf.get("stock_trade_count", 0)
         if trade_count < 10:
             perf["stock_win_rate"] = None
             perf["stock_avg_return"] = None
-        else:
-            dim = (p.time_dimension or '10d').replace('_short', '')
-            baseline = baselines.get(dim, 0.25)
-            wr = perf.get("stock_win_rate")
-            avg = perf.get("stock_avg_return")
-            if wr is not None and wr <= baseline + 0.05:
-                continue
-            if avg is not None and avg < 0:
-                continue
 
         result.append({
             "pick_date": p.pick_date.isoformat(),

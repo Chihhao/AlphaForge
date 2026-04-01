@@ -45,7 +45,7 @@ def get_params_list(dimension: str) -> list:
         for sl in SL_ATR_MULTIPLIERS
     ]  # 9 combos
 
-DIMENSIONS = ['5d', '10d', '30d']
+DIMENSIONS = ['10d', '30d']
 
 # ─── 訊號品質門檻 ─────────────────────────────────────────────────────────────
 TRIGGER_COUNT_PERCENTILE = 0.70   # 觸發數需 >= 該維度 P70
@@ -148,21 +148,21 @@ class StrategyMinerService:
 
         if direction == 'long':
             if breadth < 0.30:
-                max_picks = 2
-                trigger_pct = 0.85
-            elif breadth < 0.45:
                 max_picks = 3
                 trigger_pct = 0.80
+            elif breadth < 0.45:
+                max_picks = 4
+                trigger_pct = 0.75
             else:
                 max_picks = MAX_PICKS_PER_DIRECTION
                 trigger_pct = TRIGGER_COUNT_PERCENTILE
         else:  # short
             if breadth > 0.70:
-                max_picks = 2
-                trigger_pct = 0.85
-            elif breadth > 0.55:
                 max_picks = 3
                 trigger_pct = 0.80
+            elif breadth > 0.55:
+                max_picks = 4
+                trigger_pct = 0.75
             else:
                 max_picks = MAX_PICKS_PER_DIRECTION
                 trigger_pct = TRIGGER_COUNT_PERCENTILE

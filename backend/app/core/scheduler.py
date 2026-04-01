@@ -203,11 +203,11 @@ def start_scheduler():
     scheduler.add_job(
         lambda: run_on_trading_day(lambda db: [
             AlphaMinerService.save_today_signals(db, dim, 'long')
-            for dim in ["5d", "10d", "30d"]
+            for dim in ["10d", "30d"]
         ]),
         trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=10),
         id="save_signal_history",
-        name="Save today alpha signals to history (long only)",
+        name="Save today alpha signals to history (10d+30d long)",
         replace_existing=True
     )
 
