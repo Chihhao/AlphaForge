@@ -192,7 +192,8 @@ def _get_current_prices(db: Session, stock_ids: list[str]) -> dict:
 def get_today_picks(db: Session = Depends(get_db)):
     """今日推薦清單（含停利停損參數 + 個股回測績效 + 買入理由）"""
     import json as _json
-    picks = StrategyMinerService.get_today_picks(db)
+    all_picks = StrategyMinerService.get_today_picks(db)
+    picks = [p for p in all_picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
     stock_ids = [p.stock_id for p in picks]
     stock_perf = _load_stock_perf_map(db, stock_ids, direction='long')
     baselines = _load_market_baselines(db)
@@ -531,7 +532,8 @@ def get_concluded_picks(
 @router.get("/picks/history")
 def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
     """過去 N 天的推薦記錄（含個股回測績效）"""
-    picks = StrategyMinerService.get_picks_history(db, days=days)
+    all_picks = StrategyMinerService.get_picks_history(db, days=days)
+    picks = [p for p in all_picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
     stock_ids = [p.stock_id for p in picks]
     stock_perf = _load_stock_perf_map(db, stock_ids, direction='long')
     baselines = _load_market_baselines(db)
