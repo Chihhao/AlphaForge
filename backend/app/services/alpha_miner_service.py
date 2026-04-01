@@ -2,12 +2,12 @@
 AlphaMinerService — LightGBM 多因子模型
 
 設計原則：
-- 每個時間維度（5d/10d/30d × 做多/做空）訓練一個 LightGBM 模型，使用全部 25 個因子
+- 每個時間維度訓練一個 LightGBM 模型，使用 11 個穩定因子（基本面+外資動向）
+- Walk-forward 驗證：11 因子 IC 100% 為正，34 因子只有 71%（技術指標是噪音）
 - 分位數排名消除跨股票量綱差異
 - 時間衰減權重（近期資料比舊資料重要）
 - 訓練/測試嚴格時間切割，留一個月空白期避免標籤洩漏
-- Bonferroni 多重校正（N=6）防止 p-hacking
-- 多時間維度：5日、10日、30日各自訓練，每維度報告兩個門檻
+- Bonferroni 多重校正（N=2）防止 p-hacking
 - 樣本外 Spearman IC 為排序依據
 - SHAP-style factor contributions（pred_contrib）提取每支股票的 trigger_factors
 - 訓練結果持久化至 DB，後端重啟免重算
@@ -40,7 +40,7 @@ from app.schemas.alpha_miner import (
     SignalHistoryItem,
 )
 
-# ─── 因子中文標籤 ──────────────────────────────────────────────────────────────
+# ─── 因子中文標籤（全量，用於 UI 顯示與特徵載入）─────────────────────────────
 FACTOR_LABELS: Dict[str, str] = {
     'rsi14':           'RSI',
     'rsi2':            'RSI(2)',
@@ -81,6 +81,26 @@ FACTOR_LABELS: Dict[str, str] = {
     'trust_buy_20d':    '投信20日累積',
     'dealer_buy_10d':   '自營商10日累積',
     'dealer_buy_20d':   '自營商20日累積',
+}
+
+# ─── 訓練用因子（11 個穩定因子，walk-forward 驗證 IC 100% 為正）─────────────
+# 基本面（4）+ 外資動向（3）+ 次穩定（4）
+# 技術指標（RSI/KD/MACD/bias/bb）在 13 季 walk-forward 中 IC 不穩定，已移除
+TRAINING_FACTORS: Dict[str, str] = {
+    # 基本面 — 全期穩定正 IC
+    'roe':                  'ROE',
+    'yield_rate':           '殖利率',
+    'pb_ratio':             '股淨比',
+    'revenue_yoy':          '營收YoY',
+    # 外資動向 — 穩定正 IC
+    'foreign_hold_chg_5d':  '外資持股5日變化',
+    'foreign_net_buy':      '外資買超',
+    'foreign_buy_5d':       '外資5日累積',
+    # 次穩定 — 補充預測力
+    'dealer_buy_20d':       '自營商20日累積',
+    'vol_ratio':            '量比',
+    'foreign_buy_10d':      '外資10日累積',
+    'price_vs_high20':      '距高點乖離',
 }
 
 _LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(FACTOR_LABELS.keys())
@@ -361,7 +381,7 @@ class AlphaMinerService:
             # 每個持有期各自計算 forward_return 與 label
             df_dim = cls._compute_forward_returns(
                 df_base, dim['forward_days'], dim['threshold_low'], dim_direction)
-            logger.info(f"[AlphaMiner] 開始訓練 {dim['key']} 維度（LightGBM，全部 {len(FACTOR_LABELS)} 因子）")
+            logger.info(f"[AlphaMiner] 開始訓練 {dim['key']} 維度（LightGBM，{len(TRAINING_FACTORS)} 穩定因子）")
 
             ranking, detail = cls._train_dimension(
                 df_dim, train_end, test_start, dim)
@@ -520,7 +540,7 @@ class AlphaMinerService:
         dim_direction = dim.get('direction', 'long')
         forward_days = dim.get('forward_days', 5)
 
-        factors = list(FACTOR_LABELS.keys())
+        factors = list(TRAINING_FACTORS.keys())
         rank_cols = [f'{f}_rank' for f in factors]
         # 只留存在於 DataFrame 中的因子
         available = [(f, rc) for f, rc in zip(factors, rank_cols) if rc in df.columns]
