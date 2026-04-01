@@ -542,6 +542,7 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
+            "stock_best_dim": None,
         })
         trade_count = perf.get("stock_trade_count", 0)
         if trade_count < 10:
