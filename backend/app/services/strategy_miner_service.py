@@ -98,13 +98,10 @@ class StrategyMinerService:
         latest_date = latest_row.signal_date
         pick_date = latest_date
 
-        count = 0
-        for direction in ('long', 'short'):
-            n = cls._generate_direction_picks(db, latest_date, pick_date, direction)
-            count += n
+        count = cls._generate_direction_picks(db, latest_date, pick_date, 'long')
 
         db.commit()
-        logger.info(f"[StrategyMiner] 今日推薦清單已生成 {count} 筆（做多+放空，{pick_date}）")
+        logger.info(f"[StrategyMiner] 今日推薦清單已生成 {count} 筆（做多，{pick_date}）")
         return count
 
     @classmethod

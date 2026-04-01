@@ -202,13 +202,12 @@ def start_scheduler():
     # Alpha Miner 重訓於 17:30 啟動，需 12-15 分鐘；save_today_signals 內部亦有等待邏輯
     scheduler.add_job(
         lambda: run_on_trading_day(lambda db: [
-            AlphaMinerService.save_today_signals(db, dim, direction)
+            AlphaMinerService.save_today_signals(db, dim, 'long')
             for dim in ["5d", "10d", "30d"]
-            for direction in ["long", "short"]
         ]),
         trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=10),
         id="save_signal_history",
-        name="Save today alpha signals to history (long + short)",
+        name="Save today alpha signals to history (long only)",
         replace_existing=True
     )
 
@@ -269,8 +268,7 @@ def start_scheduler():
             logger.error(f"[Scheduler][Retry] Alpha Miner 重訓失敗: {e}")
         try:
             for dim in ["5d", "10d", "30d"]:
-                for direction in ["long", "short"]:
-                    AlphaMinerService.save_today_signals(db, dim, direction)
+                AlphaMinerService.save_today_signals(db, dim, 'long')
             logger.info("[Scheduler][Retry] 訊號儲存完成")
         except Exception as e:
             logger.error(f"[Scheduler][Retry] 訊號儲存失敗: {e}")
