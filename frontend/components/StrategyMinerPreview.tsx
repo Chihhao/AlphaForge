@@ -123,7 +123,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
           return (
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
-                {isStrategy ? '策略' : dimLabel}勝率 {(wr * 100).toFixed(0)}%
+                {isStrategy ? `${DIM_LABEL[pick.time_dimension] ?? ''}策略` : dimLabel}勝率 {(wr * 100).toFixed(0)}%
               </span>
               {ret != null && (
                 <>
