@@ -21,6 +21,12 @@ interface TodayPick {
   stock_best_dim?: string | null
 }
 
+interface StrategyInfo {
+  strategy_id: string
+  win_rate_outsample: number
+  ic: number
+}
+
 interface PickPreview {
   stock_id: string
   stock_name: string
@@ -36,6 +42,8 @@ interface PickPreview {
   stock_win_rate: number | null
   stock_avg_return: number | null
   stock_best_dim: string | null
+  strategy_win_rate: number | null
+  strategy_avg_return: number | null
   current_price?: number
   change_pct?: number
 }
@@ -107,21 +115,27 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
             </span>
           )}
         </div>
-        {pick.stock_win_rate !== null && (
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className={`text-xs font-mono ${pick.stock_win_rate >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
-              {dimLabel}勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
-            </span>
-            {pick.stock_avg_return != null && (
-              <>
-                <span className="text-zinc-700">|</span>
-                <span className={`text-xs font-mono ${pick.stock_avg_return >= 0 ? 'text-rose-400/80' : 'text-emerald-400'}`}>
-                  預計報酬 {pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
-                </span>
-              </>
-            )}
-          </div>
-        )}
+        {(() => {
+          const wr = pick.stock_win_rate ?? pick.strategy_win_rate
+          const ret = pick.stock_avg_return ?? pick.strategy_avg_return
+          const isStrategy = pick.stock_win_rate === null
+          if (wr === null) return null
+          return (
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
+                {isStrategy ? '策略' : dimLabel}勝率 {(wr * 100).toFixed(0)}%
+              </span>
+              {ret != null && (
+                <>
+                  <span className="text-zinc-700">|</span>
+                  <span className={`text-xs font-mono ${ret >= 0 ? 'text-rose-400/80' : 'text-emerald-400'}`}>
+                    預計報酬 {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
+                  </span>
+                </>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       <div className="flex flex-col items-end">
@@ -150,26 +164,44 @@ export default function StrategyMinerPreview() {
   useEffect(() => {
     let cancelled = false
 
-    api.get<TodayPick[]>('/strategy-miner/picks/today')
-      .then(picksRes => {
+    Promise.all([
+      api.get<TodayPick[]>('/strategy-miner/picks/today'),
+      api.get<{ strategies: StrategyInfo[] }>('/alpha-miner/strategies'),
+    ]).then(([picksRes, stratRes]) => {
         if (cancelled) return
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
-        const all = (picksRes.data || []).map(p => ({
-          stock_id: p.stock_id,
-          stock_name: p.stock_name,
-          entry_price: p.entry_price,
-          take_profit_pct: p.take_profit_pct,
-          stop_loss_pct: p.stop_loss_pct,
-          hold_days_max: p.hold_days_max,
-          weighted_score: p.weighted_score,
-          time_dimension: p.time_dimension,
-          direction: p.direction || 'long',
-          dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
-          buy_reasons: p.buy_reasons ?? [],
-          stock_win_rate: p.stock_win_rate ?? null,
-          stock_avg_return: (p as any).stock_avg_return ?? null,
-          stock_best_dim: (p as any).stock_best_dim ?? null,
-        }))
+
+        // 建立策略勝率 lookup（lgb_30d → 0.48, lgb_10d → 0.33）
+        const stratMap: Record<string, StrategyInfo> = {}
+        for (const s of stratRes.data?.strategies ?? []) {
+          stratMap[s.strategy_id] = s
+        }
+
+        const all = (picksRes.data || []).map(p => {
+          // 找對應策略的勝率做 fallback
+          const dimKey = p.time_dimension?.replace('d', '') ? `lgb_${p.time_dimension}` : ''
+          const strat = stratMap[dimKey]
+          return {
+            stock_id: p.stock_id,
+            stock_name: p.stock_name,
+            entry_price: p.entry_price,
+            take_profit_pct: p.take_profit_pct,
+            stop_loss_pct: p.stop_loss_pct,
+            hold_days_max: p.hold_days_max,
+            weighted_score: p.weighted_score,
+            time_dimension: p.time_dimension,
+            direction: p.direction || 'long',
+            dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
+            buy_reasons: p.buy_reasons ?? [],
+            stock_win_rate: p.stock_win_rate ?? null,
+            stock_avg_return: (p as any).stock_avg_return ?? null,
+            stock_best_dim: (p as any).stock_best_dim ?? null,
+            strategy_win_rate: strat?.win_rate_outsample ?? null,
+            strategy_avg_return: strat
+              ? (strat.win_rate_outsample * p.take_profit_pct - (1 - strat.win_rate_outsample) * p.stop_loss_pct) * 100
+              : null,
+          }
+        })
         // 做多前 3 + 放空前 3（首頁預覽精簡版）
         const longs = all.filter(p => p.direction === 'long').slice(0, 3)
         const shorts = all.filter(p => p.direction === 'short').slice(0, 3)
