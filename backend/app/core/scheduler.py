@@ -203,11 +203,11 @@ def start_scheduler():
     scheduler.add_job(
         lambda: run_on_trading_day(lambda db: [
             AlphaMinerService.save_today_signals(db, dim, 'long')
-            for dim in ["20d"]
+            for dim in ["20d", "10d"]
         ]),
         trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=10),
         id="save_signal_history",
-        name="Save today alpha signals to history (20d long)",
+        name="Save today alpha signals to history (20d+10d long)",
         replace_existing=True
     )
 
@@ -267,7 +267,7 @@ def start_scheduler():
         except Exception as e:
             logger.error(f"[Scheduler][Retry] Alpha Miner 重訓失敗: {e}")
         try:
-            for dim in ["20d"]:
+            for dim in ["20d", "10d"]:
                 AlphaMinerService.save_today_signals(db, dim, 'long')
             logger.info("[Scheduler][Retry] 訊號儲存完成")
         except Exception as e:

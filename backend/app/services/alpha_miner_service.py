@@ -202,13 +202,13 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 維度設定：只保留 20d（Ensemble Clf+Reg）
-    # 5d: IC≈0，無 alpha（2026-04-02 驗證）
-    # 10d: 真實勝率 49%，walk-forward IC 只 57% 為正，不可靠
-    # 30d: 持有期 6 週太長
-    # 20d: IC 100% 正，Sharpe 1.64，真實勝率 54%，平均報酬 +4.5%
+    # 維度設定：20d 主力 + 10d 共振過濾
+    # 20d: 主要推薦維度（Sharpe 1.79，IC>0 86%）
+    # 10d: 僅用於共振過濾（Long-Short 分辨力強，L-S +1.65%），不單獨推薦
+    # 共振策略：兩者同時 Top10% 的股票，報酬 +3.62%（20d 單獨 +2.05%）
     DIMENSIONS = [
-        {"key": "20d",       "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
+        {"key": "20d", "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
+        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long", "resonance_only": True},
     ]
 
     # ─── 公開介面 ──────────────────────────────────────────────────────────────
@@ -255,11 +255,12 @@ class AlphaMinerService:
 
     @classmethod
     def get_today_signals(
-        cls, db: Session, dimension: str = "10d", direction: str = "long",
+        cls, db: Session, dimension: str = "20d", direction: str = "long",
     ) -> List[TodaySignal]:
         """從該維度的 Ensemble 模型的 recent_signals 轉換為 TodaySignal。
 
-        10d 使用「20d 共振」前置過濾：只推薦同時在 20d 模型 Top 訊號的股票。
+        20d 使用「10d 共振」過濾：只推薦同時在 10d 模型 Top 訊號的股票。
+        共振回測：報酬 +3.62%（20d 單獨 +2.05%），勝率 51%（20d 47%）。
         """
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
@@ -269,8 +270,7 @@ class AlphaMinerService:
         thi = 0.05
 
         # 找該維度對應的策略
-        dim_key = f"{dimension}_short" if direction == 'short' else dimension
-        strategy_id = f"lgb_{dim_key}"
+        strategy_id = f"lgb_{dimension}"
         detail = cls._details.get(strategy_id)
         if not detail or not detail.recent_signals:
             return []
@@ -284,8 +284,20 @@ class AlphaMinerService:
         if ranking is None:
             return []
 
+        # 共振過濾：取得 10d 模型的 Top 股票集合
+        resonance_ids: set = set()
+        if dimension == "20d":
+            detail_10d = cls._details.get("lgb_10d")
+            if detail_10d and detail_10d.recent_signals:
+                resonance_ids = {sig.stock_id for sig in detail_10d.recent_signals}
+                logger.info(f"[AlphaMiner] 共振過濾：10d Top {len(resonance_ids)} 檔")
+
         signals = []
         for sig in detail.recent_signals:
+            # 如果有共振集合，只保留同時在 10d Top 的股票
+            if resonance_ids and sig.stock_id not in resonance_ids:
+                continue
+
             n_positive = len(sig.trigger_factors)
             top_factors = [TRAINING_FACTORS.get(f, FACTOR_LABELS.get(f, f)) for f in sig.trigger_factors[:3]]
             prob = sig.predicted_prob
@@ -312,6 +324,7 @@ class AlphaMinerService:
                 weighted_market_loss_rate_hi=ranking.market_loss_rate_hi,
             ))
 
+        logger.info(f"[AlphaMiner] {dimension} 訊號{'（共振後）' if resonance_ids else ''}: {len(signals)} 檔")
         # 按 odds ratio 降序排列
         signals.sort(key=lambda x: x.weighted_odds_ratio, reverse=True)
         return signals[:20]
@@ -383,7 +396,9 @@ class AlphaMinerService:
             ranking, detail = cls._train_dimension(
                 df_dim, train_end, test_start, dim)
             if ranking is not None:
-                all_rankings.append(ranking)
+                # resonance_only 維度不加入排行榜（僅用於共振過濾）
+                if not dim.get('resonance_only'):
+                    all_rankings.append(ranking)
                 all_details[ranking.strategy_id] = detail  # type: ignore[arg-type]
 
         all_rankings.sort(key=lambda x: x.ic, reverse=True)
@@ -930,7 +945,7 @@ class AlphaMinerService:
         使用批次查詢避免 N+1。回傳成功結算筆數。
         """
         today = date.today()
-        HOLDING = {"20d": 30}
+        HOLDING = {"20d": 30, "10d": 14}
 
         pending = (
             db.query(AlphaSignalHistory)
