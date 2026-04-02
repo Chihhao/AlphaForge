@@ -257,8 +257,8 @@ export default function StockDetail() {
                     }
                   </svg>
                   {isShort
-                    ? `${strategyPick.pick_date?.slice(5).replace('-', '/') ?? todayLabel()} 建議放空`
-                    : `${strategyPick.pick_date?.slice(5).replace('-', '/') ?? todayLabel()} 建議買入`}
+                    ? `${todayLabel()} 建議放空`
+                    : `${todayLabel()} 建議買入`}
                 </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   {isShort ? '參考放空' : '參考買入'} <span className="text-zinc-300">{strategyPick.entry_price?.toLocaleString()}</span>
