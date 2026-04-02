@@ -24,6 +24,8 @@ interface TodayPick {
 interface StrategyInfo {
   strategy_id: string
   win_rate_outsample: number
+  win_rate_positive: number
+  avg_return_top: number
   ic: number
 }
 
@@ -196,10 +198,8 @@ export default function StrategyMinerPreview() {
             stock_win_rate: p.stock_win_rate ?? null,
             stock_avg_return: (p as any).stock_avg_return ?? null,
             stock_best_dim: (p as any).stock_best_dim ?? null,
-            strategy_win_rate: strat?.win_rate_outsample ?? null,
-            strategy_avg_return: strat
-              ? (strat.win_rate_outsample * p.take_profit_pct - (1 - strat.win_rate_outsample) * p.stop_loss_pct) * 100
-              : null,
+            strategy_win_rate: strat?.win_rate_positive ?? null,
+            strategy_avg_return: strat?.avg_return_top ?? null,
           }
         })
         // 做多前 3 + 放空前 3（首頁預覽精簡版）

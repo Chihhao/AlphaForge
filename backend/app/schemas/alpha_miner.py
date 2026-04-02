@@ -40,6 +40,8 @@ class StrategyRanking(BaseModel):
     market_win_rate_hi: float = 0.0     # 全市場基準：> threshold_high
     market_loss_rate: float = 0.0       # 全市場基準：< -threshold_low
     market_loss_rate_hi: float = 0.0    # 全市場基準：< -threshold_high
+    win_rate_positive: float = 0.0   # Top20% 報酬 > 0% 的比例（真實勝率）
+    avg_return_top: float = 0.0     # Top20% 平均報酬（%）
     ic: float                   # Spearman IC（測試集）
     p_value: float
     p_value_corrected: float    # Bonferroni 校正後

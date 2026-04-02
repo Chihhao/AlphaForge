@@ -667,6 +667,13 @@ class AlphaMinerService:
         loss_rate_outsample_hi = (
             float((top_returns < -thr_hi).mean()) if len(top_returns) > 0 else 0.0
         )
+        # 真實勝率（報酬 > 0%）與 Top20% 平均報酬 — 用於前端顯示
+        win_rate_positive = (
+            float((top_returns > 0).mean()) if len(top_returns) > 0 else 0.0
+        )
+        avg_return_top = (
+            float(np.nanmean(top_returns) * 100) if len(top_returns) > 0 else 0.0
+        )
         odds_ratio    = round(win_rate_outsample    / max(loss_rate_outsample,    0.001), 2)
         odds_ratio_hi = round(win_rate_outsample_hi / max(loss_rate_outsample_hi, 0.001), 2)
 
@@ -749,6 +756,8 @@ class AlphaMinerService:
             market_win_rate_hi=round(market_win_rate_hi, 4),
             market_loss_rate=round(market_loss_rate, 4),
             market_loss_rate_hi=round(market_loss_rate_hi, 4),
+            win_rate_positive=round(win_rate_positive, 4),
+            avg_return_top=round(avg_return_top, 2),
             ic=ic,
             p_value=p_value,
             p_value_corrected=p_value_corrected,
