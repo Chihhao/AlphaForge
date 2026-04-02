@@ -290,11 +290,17 @@ def fetch_twse_foreign_holding(target_date: date) -> pd.DataFrame:
 # ─── TPEx 融資融券 ───────────────────────────────────────────────────────────
 
 def fetch_tpex_margin(target_date: date) -> pd.DataFrame:
-    """抓取上櫃融資融券餘額（單位：張）"""
+    """抓取上櫃融資融券餘額（單位：張）
+
+    2026-03 起 TPEx 改版 API：
+    舊 URL (已失效): /web/stock/margin_trading/margin_balance/mbalance_result.php
+    新 URL: /www/zh-tw/margin/balance
+    """
     roc_year = target_date.year - 1911
     date_str = f"{roc_year}/{target_date.strftime('%m/%d')}"
-    url = "https://www.tpex.org.tw/web/stock/margin_trading/margin_balance/mbalance_result.php"
-    params = {"l": "zh-tw", "d": date_str}
+
+    url = "https://www.tpex.org.tw/www/zh-tw/margin/balance"
+    params = {"date": date_str, "response": "json"}
 
     try:
         resp = requests.get(url, params=params, headers=_HEADERS, timeout=15)
@@ -304,39 +310,37 @@ def fetch_tpex_margin(target_date: date) -> pd.DataFrame:
         logger.warning(f"[ChipCrawler] TPEx 融資融券請求失敗 {date_str}: {e}")
         return pd.DataFrame()
 
-    aa_data = None
-    fields = None
-
-    if "tables" in data:
-        for table in data["tables"]:
-            f = table.get("fields", [])
-            if any("代號" in x for x in f) and any("融資" in x for x in f):
-                fields = f
-                aa_data = table.get("aaData") or table.get("data")
-                break
-    elif "aaData" in data:
-        aa_data = data["aaData"]
-
-    if not aa_data:
+    tables = data.get("tables", [])
+    if not tables:
         logger.info(f"[ChipCrawler] TPEx 融資融券無資料: {date_str}")
         return pd.DataFrame()
 
-    df = pd.DataFrame(aa_data)
+    table = tables[0]
+    fields = table.get("fields", [])
+    rows = table.get("data", [])
 
-    if fields:
-        idx = {f: i for i, f in enumerate(fields)}
-        id_idx     = next((v for k, v in idx.items() if "代號" in k), 0)
-        margin_idx = next((v for k, v in idx.items() if "融資" in k and "餘額" in k), None)
-        short_idx  = next((v for k, v in idx.items() if "融券" in k and "餘額" in k), None)
-    else:
-        id_idx, margin_idx, short_idx = 0, 4, 10  # 常見預設索引（備用）
+    if not fields or not rows:
+        logger.info(f"[ChipCrawler] TPEx 融資融券無資料: {date_str}")
+        return pd.DataFrame()
 
-    df = df[df[id_idx].astype(str).str.match(r"^[1-9]\d{3}$", na=False)].copy()
+    df = pd.DataFrame(rows, columns=fields)
+
+    # 找欄位
+    id_col = fields[0]  # 代號
+    margin_col = next((f for f in fields if "資餘額" in f and "前" not in f), None)
+    short_col = next((f for f in fields if "券餘額" in f and "前" not in f), None)
+
+    if margin_col is None or short_col is None:
+        logger.warning(f"[ChipCrawler] TPEx 融資融券欄位結構異常: {fields}")
+        return pd.DataFrame()
+
+    # 只保留 4 碼純數字（普通股）
+    df = df[df[id_col].astype(str).str.match(r"^[1-9]\d{3}$", na=False)].copy()
 
     result = pd.DataFrame()
-    result["stock_id"]      = df[id_idx].astype(str).str.strip()
-    result["margin_balance"] = df[margin_idx].apply(_clean_num) if margin_idx is not None else None
-    result["short_balance"]  = df[short_idx].apply(_clean_num)  if short_idx  is not None else None
+    result["stock_id"] = df[id_col].astype(str).str.strip()
+    result["margin_balance"] = df[margin_col].apply(_clean_num)
+    result["short_balance"] = df[short_col].apply(_clean_num)
 
     return result.reset_index(drop=True)
 
@@ -356,16 +360,20 @@ def sync_daily_chip_data(db: Session, target_date: Optional[date] = None) -> Dic
 
     logger.info(f"[ChipCrawler] 開始抓取 {target_date} 籌碼資料...")
 
-    # 1. 抓取資料
+    # 1. 抓取資料（MI_QFIIS 放最後且加 retry，避免 TWSE 限流導致外資持股資料遺失）
     twse_inst   = fetch_twse_institutional(target_date)
-    time.sleep(1)
+    time.sleep(2)
     twse_margin = fetch_twse_margin(target_date)
-    time.sleep(1)
+    time.sleep(2)
     tpex_inst   = fetch_tpex_institutional(target_date)
-    time.sleep(1)
+    time.sleep(2)
     tpex_margin = fetch_tpex_margin(target_date)
-    time.sleep(1)
+    time.sleep(3)  # MI_QFIIS 前多等一秒，降低限流風險
     twse_holding = fetch_twse_foreign_holding(target_date)
+    if twse_holding.empty:
+        logger.info("[ChipCrawler] MI_QFIIS 首次為空，3 秒後重試...")
+        time.sleep(3)
+        twse_holding = fetch_twse_foreign_holding(target_date)
 
     # 2. 合併三大法人（TWSE + TPEx）
     inst_dfs = [df for df in [twse_inst, tpex_inst] if not df.empty]

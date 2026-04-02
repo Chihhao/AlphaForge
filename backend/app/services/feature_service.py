@@ -146,6 +146,16 @@ class FeatureService:
 
         if not chip_df.empty:
             target_df = target_df.merge(chip_df, on='stock_id', how='left')
+            # 有收盤價但沒法人資料的股票 → 法人買賣=0（沒有法人交易，非資料缺失）
+            # 注意：foreign_hold_pct / foreign_hold_chg_5d 不填 0（持股比率無法推斷）
+            chip_zero_fill = [
+                'foreign_net_buy', 'foreign_buy_5d', 'foreign_buy_10d', 'foreign_buy_20d',
+                'trust_net_buy', 'trust_buy_5d', 'trust_buy_10d', 'trust_buy_20d',
+                'dealer_net_buy', 'dealer_buy_5d', 'dealer_buy_10d', 'dealer_buy_20d',
+            ]
+            for col in chip_zero_fill:
+                if col in target_df.columns:
+                    target_df[col] = target_df[col].fillna(0)
         else:
             for col in ('foreign_net_buy', 'foreign_buy_5d',
                         'foreign_buy_10d', 'foreign_buy_20d',
