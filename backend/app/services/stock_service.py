@@ -66,12 +66,12 @@ class StockService:
             # Yahoo Finance 數據抓取
             ticker = f"{stock_id}.TW"
             stock = yf.Ticker(ticker)
-            hist = stock.history(period="1d")
+            hist = stock.history(period="5d")
 
             if hist.empty:
                 ticker = f"{stock_id}.TWO"
                 stock = yf.Ticker(ticker)
-                hist = stock.history(period="1d")
+                hist = stock.history(period="5d")
 
             if hist.empty:
                 return None
@@ -79,9 +79,8 @@ class StockService:
             latest = hist.iloc[-1]
             volume = int(latest.get('Volume', 0))
 
-            hist_2d = stock.history(period="2d")
-            if len(hist_2d) >= 2:
-                prev_close = hist_2d.iloc[-2]['Close']
+            if len(hist) >= 2:
+                prev_close = hist.iloc[-2]['Close']
                 change_percent = ((latest['Close'] - prev_close) / prev_close * 100)
             else:
                 change_percent = 0.0

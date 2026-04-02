@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-yfinance
+yfinance==1.2.0
 pandas
 lxml
 FinMind==1.9.6
