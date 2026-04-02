@@ -544,7 +544,7 @@ class AlphaMinerService:
         df['weight'] = (1.0 - delta * 0.2).clip(lower=0.2)
         return df
 
-    # ─── 單維度 LightGBM 訓練 ───────────────────────────────────────────────────
+    # ─── 單維度 Ensemble 訓練（Classifier + Regressor 等權混合）──────────────────
     @classmethod
     def _train_dimension(
         cls,
@@ -596,7 +596,8 @@ class AlphaMinerService:
         y_test = test_df['label'].values
 
         try:
-            model = lgb.LGBMClassifier(
+            # ── Classifier ──
+            clf = lgb.LGBMClassifier(
                 n_estimators=200, max_depth=4, num_leaves=15,
                 learning_rate=0.01, min_child_samples=100,
                 subsample=0.8, colsample_bytree=0.8,
@@ -604,13 +605,38 @@ class AlphaMinerService:
                 random_state=42, verbose=-1, is_unbalance=True,
                 importance_type='gain',
             )
-            model.fit(X_train, y_train, sample_weight=w_train)
+            clf.fit(X_train, y_train, sample_weight=w_train)
+
+            # ── Regressor（預測實際報酬率，clip 極端值）──
+            y_train_ret = train_df['forward_return'].values.clip(-0.5, 0.5)
+            reg = lgb.LGBMRegressor(
+                n_estimators=200, max_depth=4, num_leaves=15,
+                learning_rate=0.01, min_child_samples=100,
+                subsample=0.8, colsample_bytree=0.8,
+                reg_alpha=0.1, reg_lambda=1.0,
+                random_state=42, verbose=-1,
+                importance_type='gain',
+            )
+            reg.fit(X_train, y_train_ret, sample_weight=w_train)
         except Exception as e:
             logger.warning(f"[AlphaMiner] LightGBM 訓練失敗 ({dim['key']}): {e}")
             return None, None
 
-        prob_train = model.predict_proba(X_train)[:, 1]
-        prob_test = model.predict_proba(X_test)[:, 1]
+        # ── Ensemble：Classifier 機率 + Regressor 預測 等權混合 ──
+        p_clf_train = clf.predict_proba(X_train)[:, 1]
+        p_clf_test  = clf.predict_proba(X_test)[:, 1]
+        p_reg_train = reg.predict(X_train)
+        p_reg_test  = reg.predict(X_test)
+
+        # Regressor 預測 normalize 到 [0, 1]（與 Classifier 機率對齊）
+        reg_min, reg_max = p_reg_train.min(), p_reg_train.max()
+        reg_range = reg_max - reg_min + 1e-9
+        p_reg_train_n = (p_reg_train - reg_min) / reg_range
+        p_reg_test_n  = np.clip((p_reg_test - reg_min) / reg_range, 0, 1)
+
+        prob_train = 0.5 * p_clf_train + 0.5 * p_reg_train_n
+        prob_test  = 0.5 * p_clf_test  + 0.5 * p_reg_test_n
+        model = clf  # factor_weights 用 Classifier 的 importance
 
         # 勝率/踩雷率：預測機率前 20%（Top Quintile）的實際報酬分布
         train_threshold = np.percentile(prob_train, 80)
@@ -704,7 +730,7 @@ class AlphaMinerService:
         ]
 
         equity_curve   = cls._build_equity_curve(test_df, prob_test)
-        recent_signals = cls._build_recent_signals_lgb(df, model, rank_cols, factors)
+        recent_signals = cls._build_recent_signals_lgb(df, clf, reg, reg_min, reg_range, rank_cols, factors)
 
         ranking = StrategyRanking(
             strategy_id=strategy_id,
@@ -766,7 +792,10 @@ class AlphaMinerService:
     def _build_recent_signals_lgb(
         cls,
         df: pd.DataFrame,
-        model,
+        clf,
+        reg,
+        reg_min: float,
+        reg_range: float,
         rank_cols: List[str],
         factors: List[str],
     ) -> List[RecentAlphaSignal]:
@@ -782,8 +811,11 @@ class AlphaMinerService:
             return []
 
         X = recent[rank_cols].values
-        prob = model.predict_proba(X)[:, 1]
-        # Top 10% 作為訊號門檻（回測驗證 Top10% Sharpe > Top20%）
+        # Ensemble：Classifier + Regressor 等權混合
+        p_clf = clf.predict_proba(X)[:, 1]
+        p_reg = np.clip((reg.predict(X) - reg_min) / reg_range, 0, 1)
+        prob = 0.5 * p_clf + 0.5 * p_reg
+        # Top 10% 作為訊號門檻
         threshold = np.percentile(prob, 90)
         recent = recent.copy()
         recent['_prob'] = prob
@@ -796,7 +828,7 @@ class AlphaMinerService:
         X_top = top_recent[rank_cols].values
         try:
             # pred_contrib 回傳 shape (n_samples, n_features + 1)，最後一欄是 bias
-            contribs = model.booster_.predict(X_top, pred_contrib=True)
+            contribs = clf.booster_.predict(X_top, pred_contrib=True)
             # 只取因子欄位（去掉 bias）
             factor_contribs = contribs[:, :-1]
         except Exception:
@@ -817,7 +849,7 @@ class AlphaMinerService:
                 trigger = [factors[i] for i in sorted_pos[:3]]
             else:
                 # fallback：feature importance 前 3
-                importances = model.feature_importances_
+                importances = clf.feature_importances_
                 top_idx = np.argsort(importances)[::-1][:3]
                 trigger = [factors[i] for i in top_idx]
 
