@@ -45,7 +45,7 @@ def get_params_list(dimension: str) -> list:
         for sl in SL_ATR_MULTIPLIERS
     ]  # 9 combos
 
-DIMENSIONS = ['10d', '30d']
+DIMENSIONS = ['10d', '20d']
 
 # ─── 訊號品質門檻 ─────────────────────────────────────────────────────────────
 TRIGGER_COUNT_PERCENTILE = 0.70   # 觸發數需 >= 該維度 P70
