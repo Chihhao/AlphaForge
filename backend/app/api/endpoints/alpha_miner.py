@@ -1,5 +1,5 @@
 """
-Alpha Miner API — 邏輯迴歸多因子策略排行榜
+Alpha Miner API — LightGBM Ensemble 多因子策略
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
@@ -24,7 +24,7 @@ def get_db():
 
 @router.get("/strategies", response_model=AlphaMinerResult)
 def get_strategies(db: Session = Depends(get_db)):
-    """回傳所有因子組合的邏輯迴歸訓練結果，依樣本外 IC 排序"""
+    """回傳 LightGBM Ensemble 訓練結果"""
     return AlphaMinerService.get_strategies(db)
 
 
@@ -38,7 +38,7 @@ def get_strategy_detail(strategy_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/signals/today", response_model=List[TodaySignal])
-def get_today_signals(dimension: str = "10d", db: Session = Depends(get_db)):
+def get_today_signals(dimension: str = "20d", db: Session = Depends(get_db)):
     """回傳今日最強訊號：被多個顯著策略同時看好的股票，依觸發策略數排序"""
     return AlphaMinerService.get_today_signals(db, dimension=dimension)
 
@@ -52,7 +52,7 @@ def get_training_progress():
 @router.get("/signals/history", response_model=List[SignalHistoryItem])
 def get_signals_history(
     days: int = 14,
-    dimension: str = "10d",
+    dimension: str = "20d",
     db: Session = Depends(get_db),
 ):
     """回傳近 days 天的訊號歷史記錄，包含已到期的實際報酬"""

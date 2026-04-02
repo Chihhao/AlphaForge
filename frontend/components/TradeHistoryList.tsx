@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日', '30d': '30日' }
+const DIM_LABEL: Record<string, string> = { '20d': '20日' }
 const DIM_TABS = ['20d'] as const
 const EXIT_LABEL: Record<string, string> = { take_profit: '停利', stop_loss: '停損', time_limit: '到期' }
 
@@ -9,8 +9,8 @@ export interface TradeItem {
   exit_date: string | null
   return_pct: number
   exit_reason: string
-  direction: string        // 'long' | 'short'
-  time_dimension: string   // '5d' | '10d' | '30d'
+  direction: string
+  time_dimension: string
 }
 
 interface Props {
@@ -22,7 +22,7 @@ interface Props {
 
 const fmtDate = (d: string) => { const p = d.split('-'); return `${parseInt(p[1])}/${p[2]}` }
 
-export default function TradeHistoryList({ trades, defaultDim = '5d', maxVisible = 8, showList }: Props) {
+export default function TradeHistoryList({ trades, defaultDim = '20d', maxVisible = 8, showList }: Props) {
   const [dimTab, setDimTab] = useState(defaultDim)
 
   const filtered = trades.filter(t => t.time_dimension === dimTab)
@@ -82,11 +82,7 @@ export default function TradeHistoryList({ trades, defaultDim = '5d', maxVisible
             return (
               <div key={i} className="flex items-center justify-between py-1.5 border-b border-zinc-800/30 last:border-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  {t.direction === 'short' ? (
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1.5 py-0.5 leading-none shrink-0">空</span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none shrink-0">多</span>
-                  )}
+                  <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none shrink-0">多</span>
                   <span className="text-xs text-zinc-200 bg-zinc-700 px-1.5 py-0.5 rounded font-mono shrink-0">
                     {DIM_LABEL[t.time_dimension] ?? t.time_dimension}
                   </span>

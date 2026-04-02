@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # ─── 參數組合（持有天數與維度對齊）──────────────────────────────────────────────
 TP_ATR_MULTIPLIERS = [1.5, 2.5, 3.5]   # 停利 = N × ATR
 SL_ATR_MULTIPLIERS = [1.0, 1.5, 2.0]   # 停損 = M × ATR
-DIM_HOLD_DAYS = {'5d': 5, '10d': 10, '30d': 30}
+DIM_HOLD_DAYS = {'20d': 20}
 ROUND_TRIP_COST = 0.006   # 來回交易成本 ~0.6%（手續費 0.1425%×2 + 交易稅 0.3%）
 
 
@@ -757,7 +757,5 @@ class StrategyMinerService:
     @staticmethod
     def _default_params(dimension: str) -> Tuple[float, float, int]:
         """當尚無回測結果時的 fallback ATR 倍數"""
-        hd = DIM_HOLD_DAYS.get(dimension, 10)
-        if dimension == '30d':
-            return 2.5, 1.5, hd   # TP=2.5×ATR, SL=1.5×ATR
+        hd = DIM_HOLD_DAYS.get(dimension, 20)
         return 1.5, 1.0, hd      # TP=1.5×ATR, SL=1.0×ATR

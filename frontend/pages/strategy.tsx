@@ -64,7 +64,7 @@ interface StrategyPick {
     change_percent?: number | null    // 漲跌幅 (%)
 }
 
-const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日', '30d': '30日' }
+const DIM_LABEL: Record<string, string> = { '20d': '20日' }
 
 const toStars = (score: number) => {
     const n = score >= 20 ? 5 : score >= 15 ? 4 : score >= 10 ? 3 : score >= 5 ? 2 : 1
@@ -99,11 +99,7 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             <div className="flex items-start gap-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
                 <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    {pick.direction === 'short' ? (
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded px-1.5 py-0.5 leading-none">空</span>
-                    ) : (
-                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none">多</span>
-                    )}
+                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none">多</span>
                     <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
                         {pick.stock_name}
                     </Link>
@@ -194,10 +190,10 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                                 exit_date: t.exit_date,
                                 return_pct: t.return_pct,
                                 exit_reason: t.exit_reason,
-                                direction: t.strategy_id.includes('_short') ? 'short' : 'long',
-                                time_dimension: t.strategy_id.replace('_short', ''),
+                                direction: 'long',
+                                time_dimension: t.strategy_id,
                             }))}
-                            defaultDim={pick.stock_best_dim || pick.time_dimension?.replace('_short', '') || '5d'}
+                            defaultDim={pick.stock_best_dim || pick.time_dimension || '20d'}
                         />
                     )}
                 </div>
@@ -706,20 +702,13 @@ const StrategyPage = () => {
         }
 
         const THRESHOLDS: Record<string, { lo: number; hi: number }> = {
-            '5d':  { lo: 3, hi: 5 },
-            '10d': { lo: 3, hi: 5 },
             '20d': { lo: 3, hi: 5 },
-            '30d': { lo: 5, hi: 10 },
         }
-        const DIM_DAYS: Record<string, number> = { '5d': 5, '10d': 10, '20d': 20, '30d': 30 }
+        const DIM_DAYS: Record<string, number> = { '20d': 20 }
 
         const loadFallback = async () => {
-            const [r5, r10, r30] = await Promise.all([
-                api.get('/alpha-miner/signals/history?days=2&dimension=5d'),
-                api.get('/alpha-miner/signals/history?days=2&dimension=10d'),
-                api.get('/alpha-miner/signals/history?days=2&dimension=30d'),
-            ])
-            const all = [...(r5.data ?? []), ...(r10.data ?? []), ...(r30.data ?? [])]
+            const r20 = await api.get('/alpha-miner/signals/history?days=2&dimension=20d')
+            const all = [...(r20.data ?? [])]
             if (all.length === 0) { setLoading(false); return }
 
             const maxDate = all.reduce((m: string, s: any) => s.signal_date > m ? s.signal_date : m, '')
@@ -856,24 +845,6 @@ const StrategyPage = () => {
                         </div>
                     </>
                 )}
-                {!loading && picks.filter(p => p.direction === 'short').length > 0 && (
-                    <>
-                        <div className="flex items-center gap-3 px-1">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                <span className="text-sm font-semibold text-zinc-300">做空</span>
-                            </div>
-                            <span className="text-xs font-mono text-zinc-500">{picks.filter(p => p.direction === 'short').length} 檔</span>
-                            <div className="flex-1 h-px bg-zinc-800" />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            {picks.filter(p => p.direction === 'short').map((pick, i) => (
-                                <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
-                            ))}
-                        </div>
-                    </>
-                )}
-
                 {/* ── 近期精選歷史（折疊）─────────────────────────────── */}
                 <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
                     <button
@@ -919,19 +890,16 @@ const StrategyPage = () => {
                                                     </p>
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {dayPicks.map(p => {
-                                                            const isShort = p.direction === 'short'
                                                             const days = p.time_dimension?.replace('d', '') || ''
                                                             const wr = p.stock_win_rate != null ? `${days}日勝率${Math.round(p.stock_win_rate * 100)}%` : null
                                                             const avg = p.stock_avg_return != null ? `${p.stock_avg_return > 0 ? '+' : ''}${p.stock_avg_return.toFixed(1)}%` : null
                                                             return (
                                                                 <Link
-                                                                    key={`${p.stock_id}-${p.direction}`}
+                                                                    key={p.stock_id}
                                                                     href={`/stock/${p.stock_id}`}
                                                                     className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-xs hover:border-amber-500/50 hover:text-amber-300 transition-colors"
                                                                 >
-                                                                    <span className={`font-bold text-[10px] ${isShort ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                                        {isShort ? '空' : '多'}
-                                                                    </span>
+                                                                    <span className="font-bold text-[10px] text-rose-400">多</span>
                                                                     <span className="text-zinc-300 font-medium">{p.stock_name}</span>
                                                                     {wr && (
                                                                         <span className="text-zinc-500 font-mono">

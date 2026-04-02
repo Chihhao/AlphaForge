@@ -925,14 +925,12 @@ class AlphaMinerService:
         """對已到期但尚未結算的歷史訊號回填實際報酬率。
 
         持有期到期判斷（加 buffer 確保收盤資料已入庫）：
-          5d  → signal_date + 7 天前（5 交易日 + 2 天 buffer）
-          10d → signal_date + 14 天前（10 交易日 + 4 天 buffer）
-          30d → signal_date + 45 天前（30 交易日 + 15 天 buffer）
+          20d → signal_date + 30 天前（20 交易日 + 10 天 buffer）
 
         使用批次查詢避免 N+1。回傳成功結算筆數。
         """
         today = date.today()
-        HOLDING = {"5d": 7, "10d": 14, "30d": 45}
+        HOLDING = {"20d": 30}
 
         pending = (
             db.query(AlphaSignalHistory)
@@ -945,13 +943,13 @@ class AlphaMinerService:
         # 篩出已到期的記錄
         expired = [
             r for r in pending
-            if (today - r.signal_date).days >= HOLDING.get(r.time_dimension, 14)
+            if (today - r.signal_date).days >= HOLDING.get(r.time_dimension, 30)
         ]
         if not expired:
             logger.info("[SignalHistory] 尚無到期訊號需要結算")
             return 0
 
-        # 批次取所有需要的 stock_prices（用 ORM 避免 SQLite tuple 綁定問題）
+        # 批次取所有需要的 stock_prices
         from app.models.stock_price import StockPrice as SP
         stock_ids = list({r.stock_id for r in expired})
         min_date  = min(r.signal_date for r in expired)

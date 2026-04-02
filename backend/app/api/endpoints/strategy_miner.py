@@ -133,7 +133,7 @@ def _load_buy_reasons_fallback(db: Session, picks) -> dict:
         )
         if snap:
             result_data = json.loads(snap.result_json)
-            for dim in ["5d", "10d", "30d"]:
+            for dim in ["20d"]:
                 dim_strats = sorted(
                     [
                         s for s in result_data.get("strategies", [])
