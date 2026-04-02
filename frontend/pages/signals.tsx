@@ -26,9 +26,8 @@ interface TodaySignal {
     weighted_market_loss_rate_hi: number
 }
 
-type DimKey = '10d' | '20d'
+type DimKey = '20d'
 const DIM_CONFIG: Record<DimKey, { label: string; shortLabel: string; desc: string }> = {
-    '10d': { label: '10日持有', shortLabel: '10日', desc: '門檻 3% / 5%' },
     '20d': { label: '20日持有', shortLabel: '20日', desc: '門檻 3% / 5%' },
 }
 
@@ -110,7 +109,7 @@ interface DayGroup {
     hitCount: number   // actual_return > threshold_low
 }
 
-const HISTORY_THR: Record<DimKey, number> = { '10d': 0.03, '20d': 0.03 }
+const HISTORY_THR: Record<DimKey, number> = { '20d': 0.03 }
 
 function SignalHistorySection({ history, dim }: { history: SignalHistoryItem[]; dim: DimKey }) {
     if (history.length === 0) return null
@@ -206,10 +205,9 @@ export default function SignalsPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [expandedId, setExpandedId] = useState<string | null>(null)
-    const [dim, setDim] = useState<DimKey>('10d')
+    const [dim, setDim] = useState<DimKey>('20d')
     const { toggle, has } = useWatchlist()
     const [dimStats, setDimStats] = useState<Record<DimKey, { posIc: number; totalSig: number }>>({
-        '10d': { posIc: 0, totalSig: 0 },
         '20d': { posIc: 0, totalSig: 0 },
     })
     const [history, setHistory] = useState<SignalHistoryItem[]>([])
@@ -218,7 +216,7 @@ export default function SignalsPage() {
     useEffect(() => {
         api.get('/alpha-miner/strategies').then(r => {
             const strats: StrategyItem[] = r.data?.strategies ?? []
-            const stats = { '10d': { posIc: 0, totalSig: 0 }, '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
+            const stats = { '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
             strats.forEach(s => {
                 const d = s.time_dimension as DimKey
                 if (!stats[d] || !s.is_significant) return

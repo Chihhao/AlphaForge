@@ -116,7 +116,7 @@ _LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + [
 ] + _TRUST_SRC_COLS
 
 # Bonferroni 校正：6 個維度（3 持有期 × 2 方向）
-_BONFERRONI_N = 2  # 只剩 10d + 30d 兩個維度
+_BONFERRONI_N = 1  # 只剩 20d 一個維度
 
 # ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────
 _PROGRESS_FILE = '/tmp/alpha_miner_progress.json'
@@ -202,12 +202,12 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 多時間維度設定：各維度獨立訓練一個 Ensemble（Clf+Reg）模型
+    # 維度設定：只保留 20d（Ensemble Clf+Reg）
     # 5d: IC≈0，無 alpha（2026-04-02 驗證）
-    # 30d: IC 穩定但 30 交易日≈6 週，持有期過長，改用 20d
-    # 20d: IC 100% 正，Sharpe 1.64，MaxDD -25%（優於 30d 的 -33%）
+    # 10d: 真實勝率 49%，walk-forward IC 只 57% 為正，不可靠
+    # 30d: 持有期 6 週太長
+    # 20d: IC 100% 正，Sharpe 1.64，真實勝率 54%，平均報酬 +4.5%
     DIMENSIONS = [
-        {"key": "10d",       "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
         {"key": "20d",       "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
     ]
 
@@ -284,20 +284,8 @@ class AlphaMinerService:
         if ranking is None:
             return []
 
-        # ── 10d 共振過濾：只保留同時在 20d 模型 Top 訊號的股票 ──
-        resonance_stock_ids: set = set()
-        if dimension == '10d' and direction == 'long':
-            detail_20d = cls._details.get('lgb_20d')
-            if detail_20d and detail_20d.recent_signals:
-                resonance_stock_ids = {s.stock_id for s in detail_20d.recent_signals}
-                logger.info(f"[AlphaMiner] 10d 共振過濾：20d 白名單 {len(resonance_stock_ids)} 檔")
-
         signals = []
         for sig in detail.recent_signals:
-            # 10d 共振：若白名單非空，只保留共振股票
-            if resonance_stock_ids and sig.stock_id not in resonance_stock_ids:
-                continue
-
             n_positive = len(sig.trigger_factors)
             top_factors = [TRAINING_FACTORS.get(f, FACTOR_LABELS.get(f, f)) for f in sig.trigger_factors[:3]]
             prob = sig.predicted_prob

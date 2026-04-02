@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
 const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日', '30d': '30日' }
-const DIM_TABS = ['10d', '20d'] as const
+const DIM_TABS = ['20d'] as const
 const EXIT_LABEL: Record<string, string> = { take_profit: '停利', stop_loss: '停損', time_limit: '到期' }
 
 export interface TradeItem {
