@@ -202,12 +202,13 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 多時間維度設定：各維度獨立訓練一個 LightGBM 模型，Bonferroni 校正 N=6
-    # direction="short" 的維度會反轉 label（預測下跌而非上漲）
-    # 5d 與做空維度在回測中 IC 均不顯著，已移除（2026-04-01 實驗驗證）
+    # 多時間維度設定：各維度獨立訓練一個 Ensemble（Clf+Reg）模型
+    # 5d: IC≈0，無 alpha（2026-04-02 驗證）
+    # 30d: IC 穩定但 30 交易日≈6 週，持有期過長，改用 20d
+    # 20d: IC 100% 正，Sharpe 1.64，MaxDD -25%（優於 30d 的 -33%）
     DIMENSIONS = [
         {"key": "10d",       "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
-        {"key": "30d",       "forward_days": 30, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
+        {"key": "20d",       "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
     ]
 
     # ─── 公開介面 ──────────────────────────────────────────────────────────────
@@ -256,17 +257,16 @@ class AlphaMinerService:
     def get_today_signals(
         cls, db: Session, dimension: str = "10d", direction: str = "long",
     ) -> List[TodaySignal]:
-        """從該維度的單一 LightGBM 模型的 recent_signals 轉換為 TodaySignal。
+        """從該維度的 Ensemble 模型的 recent_signals 轉換為 TodaySignal。
 
-        10d 使用「30d 共振」前置過濾：只推薦同時在 30d 模型 Top 30% 的股票。
-        回測驗證此策略讓 10d IC 從 ≈0 提升到 +0.06（t=5.24）。
+        10d 使用「20d 共振」前置過濾：只推薦同時在 20d 模型 Top 訊號的股票。
         """
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
             return []
 
-        tlo = 0.05 if dimension == '30d' else 0.03
-        thi = 0.10 if dimension == '30d' else 0.05
+        tlo = 0.03
+        thi = 0.05
 
         # 找該維度對應的策略
         dim_key = f"{dimension}_short" if direction == 'short' else dimension
@@ -284,14 +284,13 @@ class AlphaMinerService:
         if ranking is None:
             return []
 
-        # ── 10d 共振過濾：只保留同時在 30d 模型 Top 30% 的股票 ──
+        # ── 10d 共振過濾：只保留同時在 20d 模型 Top 訊號的股票 ──
         resonance_stock_ids: set = set()
         if dimension == '10d' and direction == 'long':
-            detail_30d = cls._details.get('lgb_30d')
-            if detail_30d and detail_30d.recent_signals:
-                # 30d 信號已是 Top 10%，全部保留作為共振白名單
-                resonance_stock_ids = {s.stock_id for s in detail_30d.recent_signals}
-                logger.info(f"[AlphaMiner] 10d 共振過濾：30d 白名單 {len(resonance_stock_ids)} 檔")
+            detail_20d = cls._details.get('lgb_20d')
+            if detail_20d and detail_20d.recent_signals:
+                resonance_stock_ids = {s.stock_id for s in detail_20d.recent_signals}
+                logger.info(f"[AlphaMiner] 10d 共振過濾：20d 白名單 {len(resonance_stock_ids)} 檔")
 
         signals = []
         for sig in detail.recent_signals:

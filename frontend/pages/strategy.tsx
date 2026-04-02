@@ -64,7 +64,7 @@ interface StrategyPick {
     change_percent?: number | null    // 漲跌幅 (%)
 }
 
-const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
+const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日', '30d': '30日' }
 
 const toStars = (score: number) => {
     const n = score >= 20 ? 5 : score >= 15 ? 4 : score >= 10 ? 3 : score >= 5 ? 2 : 1
@@ -279,11 +279,10 @@ interface AlphaMinerResult {
     is_training: boolean
 }
 
-type DimKey = '5d' | '10d' | '30d'
+type DimKey = '10d' | '20d'
 const DIM_CONFIG: Record<DimKey, { label: string; shortLabel: string; desc: string }> = {
-    '5d':  { label: '5日持有',  shortLabel: '5日', desc: '門檻 3% / 5%' },
     '10d': { label: '10日持有', shortLabel: '10日', desc: '門檻 3% / 5%' },
-    '30d': { label: '30日持有', shortLabel: '30日', desc: '門檻 5% / 10%' },
+    '20d': { label: '20日持有', shortLabel: '20日', desc: '門檻 3% / 5%' },
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -589,7 +588,7 @@ const StrategyPage = () => {
     const [alphaExpanded, setAlphaExpanded] = useState(false)
     const [alphaData, setAlphaData] = useState<AlphaMinerResult | null>(null)
     const [alphaLoading, setAlphaLoading] = useState(false)
-    const [activeDim, setActiveDim] = useState<DimKey>('5d')
+    const [activeDim, setActiveDim] = useState<DimKey>('10d')
     const [selectedStratId, setSelectedStratId] = useState<string | null>(null)
 
     // Strategy Miner 回測績效
@@ -710,9 +709,10 @@ const StrategyPage = () => {
         const THRESHOLDS: Record<string, { lo: number; hi: number }> = {
             '5d':  { lo: 3, hi: 5 },
             '10d': { lo: 3, hi: 5 },
+            '20d': { lo: 3, hi: 5 },
             '30d': { lo: 5, hi: 10 },
         }
-        const DIM_DAYS: Record<string, number> = { '5d': 5, '10d': 10, '30d': 30 }
+        const DIM_DAYS: Record<string, number> = { '5d': 5, '10d': 10, '20d': 20, '30d': 30 }
 
         const loadFallback = async () => {
             const [r5, r10, r30] = await Promise.all([
@@ -984,13 +984,13 @@ const StrategyPage = () => {
                             )}
                             {!perfLoading && perfData && Object.keys(perfData).length > 0 && (
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                    {(['5d', '10d', '30d'] as const).map(dim => {
+                                    {(['10d', '20d'] as const).map(dim => {
                                         const p = perfData[dim]
                                         if (!p) return null
                                         return (
                                             <div key={dim} className="bg-zinc-800/50 rounded-xl px-3 py-3 space-y-1.5">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-zinc-300 font-semibold text-sm">{dim === '5d' ? '5日持有' : dim === '10d' ? '10日持有' : '30日持有'}</span>
+                                                    <span className="text-zinc-300 font-semibold text-sm">{DIM_LABEL[dim] ?? dim}持有</span>
                                                     {p.computed_at && (
                                                         <span className="text-zinc-700 text-[10px] font-mono">{p.computed_at}</span>
                                                     )}
@@ -1081,8 +1081,8 @@ const StrategyPage = () => {
 
                             {!alphaLoading && alphaData && (() => {
                                 const strategies = alphaData.strategies ?? []
-                                const tloMap: Record<DimKey, number> = { '5d': 3, '10d': 3, '30d': 5 }
-                                const thiMap: Record<DimKey, number> = { '5d': 5, '10d': 5, '30d': 10 }
+                                const tloMap: Record<DimKey, number> = { '10d': 3, '20d': 3 }
+                                const thiMap: Record<DimKey, number> = { '10d': 5, '20d': 5 }
                                 const tlo = tloMap[activeDim]
                                 const thi = thiMap[activeDim]
                                 return (

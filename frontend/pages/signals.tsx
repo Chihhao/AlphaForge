@@ -26,11 +26,10 @@ interface TodaySignal {
     weighted_market_loss_rate_hi: number
 }
 
-type DimKey = '5d' | '10d' | '30d'
+type DimKey = '10d' | '20d'
 const DIM_CONFIG: Record<DimKey, { label: string; shortLabel: string; desc: string }> = {
-    '5d':  { label: '5日持有',  shortLabel: '5日',  desc: '門檻 3% / 5%' },
     '10d': { label: '10日持有', shortLabel: '10日', desc: '門檻 3% / 5%' },
-    '30d': { label: '30日持有', shortLabel: '30日', desc: '門檻 5% / 10%' },
+    '20d': { label: '20日持有', shortLabel: '20日', desc: '門檻 3% / 5%' },
 }
 
 const toPct = (v: number) => `${(v * 100).toFixed(1)}%`
@@ -111,7 +110,7 @@ interface DayGroup {
     hitCount: number   // actual_return > threshold_low
 }
 
-const HISTORY_THR: Record<DimKey, number> = { '5d': 0.03, '10d': 0.03, '30d': 0.05 }
+const HISTORY_THR: Record<DimKey, number> = { '10d': 0.03, '20d': 0.03 }
 
 function SignalHistorySection({ history, dim }: { history: SignalHistoryItem[]; dim: DimKey }) {
     if (history.length === 0) return null
@@ -210,9 +209,8 @@ export default function SignalsPage() {
     const [dim, setDim] = useState<DimKey>('10d')
     const { toggle, has } = useWatchlist()
     const [dimStats, setDimStats] = useState<Record<DimKey, { posIc: number; totalSig: number }>>({
-        '5d': { posIc: 0, totalSig: 0 },
         '10d': { posIc: 0, totalSig: 0 },
-        '30d': { posIc: 0, totalSig: 0 },
+        '20d': { posIc: 0, totalSig: 0 },
     })
     const [history, setHistory] = useState<SignalHistoryItem[]>([])
 
@@ -220,7 +218,7 @@ export default function SignalsPage() {
     useEffect(() => {
         api.get('/alpha-miner/strategies').then(r => {
             const strats: StrategyItem[] = r.data?.strategies ?? []
-            const stats = { '5d': { posIc: 0, totalSig: 0 }, '10d': { posIc: 0, totalSig: 0 }, '30d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
+            const stats = { '10d': { posIc: 0, totalSig: 0 }, '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
             strats.forEach(s => {
                 const d = s.time_dimension as DimKey
                 if (!stats[d] || !s.is_significant) return
@@ -237,14 +235,14 @@ export default function SignalsPage() {
         api.get(`/alpha-miner/signals/today?dimension=${dim}`)
             .then(r => { setSignals(r.data); setLoading(false) })
             .catch(e => { setError(e.message); setLoading(false) })
-        const historyDays = dim === '30d' ? 60 : 45
+        const historyDays = 45
         api.get(`/alpha-miner/signals/history?dimension=${dim}&days=${historyDays}`)
             .then(r => setHistory(r.data))
             .catch(() => {})
     }, [dim])
 
-    const tlo = dim === '30d' ? 5 : 3
-    const thi = dim === '30d' ? 10 : 5
+    const tlo = 3
+    const thi = 5
 
     const signalDate = signals[0]?.signal_date ?? ''
     const maxPossibleTrigger = dimStats[dim].posIc  // 有效策略數 = 最大可能 trigger_count

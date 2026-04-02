@@ -154,7 +154,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   )
 }
 
-const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '30d': '30日' }
+const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日', '30d': '30日' }
 
 export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
