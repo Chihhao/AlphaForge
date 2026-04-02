@@ -90,7 +90,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   const isMultiDim = pick.dims.length > 1
   const isShort = pick.direction === 'short'
   const price = pick.current_price || pick.entry_price
-  const dimLabel = pick.stock_best_dim ? (DIM_LABEL[pick.stock_best_dim] ?? pick.stock_best_dim) : ''
+  const dimLabel = DIM_LABEL[pick.time_dimension] ?? ''
   const change = pick.change_pct ?? 0
   const changeColor = change > 0 ? 'text-rose-400' : (change < 0 ? 'text-emerald-400' : 'text-zinc-400')
 
@@ -123,7 +123,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
           return (
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
-                {isStrategy ? `${DIM_LABEL[pick.time_dimension] ?? ''}策略` : dimLabel}勝率 {(wr * 100).toFixed(0)}%
+                {dimLabel}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
               </span>
               {ret != null && (
                 <>
