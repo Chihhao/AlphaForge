@@ -93,6 +93,9 @@ TRAINING_FACTORS: Dict[str, str] = {
     'yield_rate':           '殖利率',
     'pb_ratio':             '股淨比',
     'revenue_yoy':          '營收YoY',
+    # 營收衍生 — IC 0.15+，12季 100% 正（2026-04-03 研究驗證）
+    'rev_surprise':         '營收驚喜',
+    'rev_accel':            '營收加速度',
     # 外資動向 — 穩定正 IC
     'foreign_hold_chg_5d':  '外資持股5日變化',
     'foreign_net_buy':      '外資買超',

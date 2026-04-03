@@ -57,6 +57,8 @@ class StockFeature(Base):
     roe = Column(Float)
     pb_ratio = Column(Float)
     revenue_yoy = Column(Float)
+    rev_surprise = Column(Float, nullable=True)   # 營收驚喜：(本月營收 - 近3月均) / 近3月均 × 100
+    rev_accel = Column(Float, nullable=True)      # 營收加速度：本月YoY - 上月YoY
 
     # --- 籌碼面（Phase 4B，從 StockChipData 衍生）---
     foreign_net_buy = Column(Float)    # 外資單日淨買超（張）

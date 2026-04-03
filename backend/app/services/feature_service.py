@@ -136,6 +136,44 @@ class FeatureService:
         target_df['revenue_yoy'] = target_df['stock_id'].map(
             lambda sid: getattr(fund_map.get(sid), 'revenue_growth_yoy', None))
 
+        # 6a-2. 營收衍生因子（rev_surprise, rev_accel）
+        from app.models.stock_revenue import StockMonthlyRevenue
+        rev_rows = db.query(StockMonthlyRevenue).filter(
+            StockMonthlyRevenue.revenue > 0
+        ).order_by(StockMonthlyRevenue.stock_id, StockMonthlyRevenue.year, StockMonthlyRevenue.month).all()
+
+        if rev_rows:
+            rev_data: dict = {}  # {stock_id: [(year, month, revenue, yoy), ...]}
+            for r in rev_rows:
+                rev_data.setdefault(r.stock_id, []).append((r.year, r.month, r.revenue, r.revenue_yoy))
+
+            surprise_map: dict = {}
+            accel_map: dict = {}
+            for sid, records in rev_data.items():
+                if len(records) < 2:
+                    continue
+                # 最新一筆營收
+                latest = records[-1]
+                rev_val = latest[2]
+                yoy_val = latest[3]
+                # 近3個月平均（不含本月）
+                prev_revs = [r[2] for r in records[-4:-1] if r[2] and r[2] > 0]
+                if prev_revs:
+                    ma3 = sum(prev_revs) / len(prev_revs)
+                    if ma3 > 0:
+                        surprise_map[sid] = (rev_val - ma3) / ma3 * 100
+                # 加速度：本月 YoY - 上月 YoY
+                if yoy_val is not None and len(records) >= 2:
+                    prev_yoy = records[-2][3]
+                    if prev_yoy is not None:
+                        accel_map[sid] = yoy_val - prev_yoy
+
+            target_df['rev_surprise'] = target_df['stock_id'].map(surprise_map)
+            target_df['rev_accel'] = target_df['stock_id'].map(accel_map)
+        else:
+            target_df['rev_surprise'] = None
+            target_df['rev_accel'] = None
+
         # 6b. Left join 籌碼面（Phase 4B）
         chip_start = target_date - timedelta(days=30)
         chip_rows = db.query(StockChipData).filter(
@@ -219,6 +257,8 @@ class FeatureService:
                 roe=_safe_float(row.get('roe')),
                 pb_ratio=_safe_float(row.get('pb_ratio')),
                 revenue_yoy=_safe_float(row.get('revenue_yoy')),
+                rev_surprise=_safe_float(row.get('rev_surprise')),
+                rev_accel=_safe_float(row.get('rev_accel')),
                 foreign_net_buy=_safe_float(row.get('foreign_net_buy')),
                 foreign_buy_5d=_safe_float(row.get('foreign_buy_5d')),
                 trust_net_buy=_safe_float(row.get('trust_net_buy')),
@@ -457,6 +497,8 @@ class FeatureService:
                     roe=_safe_float(row.get('roe')),
                     pb_ratio=_safe_float(row.get('pb_ratio')),
                     revenue_yoy=_safe_float(row.get('revenue_yoy')),
+                    rev_surprise=_safe_float(row.get('rev_surprise')),
+                    rev_accel=_safe_float(row.get('rev_accel')),
                     foreign_net_buy=_safe_float(row.get('foreign_net_buy')),
                     foreign_buy_5d=_safe_float(row.get('foreign_buy_5d')),
                     trust_net_buy=_safe_float(row.get('trust_net_buy')),
