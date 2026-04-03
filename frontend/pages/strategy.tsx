@@ -580,6 +580,15 @@ const StrategyPage = () => {
     const [error, setError] = useState<string | null>(null)
     const [usingFallback, setUsingFallback] = useState(false)
 
+    const [nextTradingDay, setNextTradingDay] = useState<string | null>(null)
+
+    // 取得下一交易日
+    useEffect(() => {
+        api.get<{ label: string }>('/market/next-trading-day')
+            .then(r => { if (r.data?.label) setNextTradingDay(r.data.label) })
+            .catch(() => {})
+    }, [])
+
     const [alphaExpanded, setAlphaExpanded] = useState(false)
     const [alphaData, setAlphaData] = useState<AlphaMinerResult | null>(null)
     const [alphaLoading, setAlphaLoading] = useState(false)
@@ -771,7 +780,7 @@ const StrategyPage = () => {
                                     <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                                 </svg>
                                 <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                                    {todayLabel()} 操作建議
+                                    {nextTradingDay ?? todayLabel()} 操作建議
                                 </h1>
                             </div>
                             <span className="text-zinc-500 text-xs font-mono">更新於{displayDate}</span>
@@ -788,7 +797,7 @@ const StrategyPage = () => {
                         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-400">
                             <span className="flex items-center gap-1.5">
                                 <span className="text-amber-500 font-bold">1</span>
-                                <span>{todayLabel()} 開盤後以參考價附近買入</span>
+                                <span>{nextTradingDay ?? todayLabel()} 開盤後以參考價附近買入</span>
                             </span>
                             <span className="text-zinc-800">·</span>
                             <span className="flex items-center gap-1.5">
@@ -824,7 +833,7 @@ const StrategyPage = () => {
                 )}
                 {!loading && picks.length === 0 && !error && (
                     <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
-                        <p className="text-zinc-500 text-sm">{todayLabel()} 暫無訊號</p>
+                        <p className="text-zinc-500 text-sm">{nextTradingDay ?? todayLabel()} 暫無訊號</p>
                         <p className="text-zinc-400 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
                     </div>
                 )}

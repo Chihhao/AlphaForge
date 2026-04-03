@@ -50,6 +50,13 @@ export default function StockDetail() {
   const [alphaSignals, setAlphaSignals] = useState<any[]>([])
   const [funTrends, setFunTrends] = useState<any>(null)
   const [showAlphaSignals, setShowAlphaSignals] = useState(false)
+  const [nextTradingDay, setNextTradingDay] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.get<{ label: string }>('/market/next-trading-day')
+      .then(r => { if (r.data?.label) setNextTradingDay(r.data.label) })
+      .catch(() => {})
+  }, [])
   const { toggle, has } = useWatchlist()
 
   // 籌碼數據 + Strategy Miner 精選狀態（不依賴 interval，只在切換個股時重抓）
@@ -248,7 +255,7 @@ export default function StockDetail() {
                   <svg viewBox="0 0 24 24" width="12" height="12" className="fill-current shrink-0">
                     <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
                   </svg>
-                  {`${todayLabel()} 策略選股`}
+                  {`${nextTradingDay ?? todayLabel()} 策略選股`}
                 </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   參考買入 <span className="text-zinc-300">{strategyPick.entry_price?.toLocaleString()}</span>

@@ -157,6 +157,7 @@ export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
   const [loading, setLoading] = useState(true)
   const [pickDate, setPickDate] = useState<string | null>(null)
+  const [nextTradingDay, setNextTradingDay] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -164,9 +165,11 @@ export default function StrategyMinerPreview() {
     Promise.all([
       api.get<TodayPick[]>('/strategy-miner/picks/today'),
       api.get<{ strategies: StrategyInfo[] }>('/alpha-miner/strategies'),
-    ]).then(([picksRes, stratRes]) => {
+      api.get<{ label: string }>('/market/next-trading-day').catch(() => ({ data: null })),
+    ]).then(([picksRes, stratRes, ntdRes]) => {
         if (cancelled) return
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
+        if (ntdRes.data?.label) setNextTradingDay(ntdRes.data.label)
 
         // 建立策略勝率 lookup（lgb_20d → win_rate）
         const stratMap: Record<string, StrategyInfo> = {}
@@ -241,7 +244,7 @@ export default function StrategyMinerPreview() {
           <svg viewBox="0 0 24 24" width={14} height={14} className="fill-current">
             <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
           </svg>
-          {todayLabel()} 操作建議
+          {nextTradingDay ?? todayLabel()} 操作建議
           {pickDate && (
             <span className="text-zinc-400 text-xs font-mono font-normal ml-1">
               資料 {pickDate.split('-').slice(1).map(Number).join('/')}
@@ -268,7 +271,7 @@ export default function StrategyMinerPreview() {
           <SkeletonRow />
         </>
       ) : picks.length === 0 ? (
-        <div className="py-4 text-center text-xs text-zinc-400">{todayLabel()} 暫無推薦</div>
+        <div className="py-4 text-center text-xs text-zinc-400">{nextTradingDay ?? todayLabel()} 暫無推薦</div>
       ) : (
         picks.map((pick, i) => (
           <PickRow key={pick.stock_id} pick={pick} rank={i + 1} />

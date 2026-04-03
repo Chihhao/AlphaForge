@@ -18,6 +18,71 @@ from app.db.database import SessionLocal
 
 router = APIRouter(prefix="/market", tags=["market"])
 
+
+# ─── 下一交易日 API（從 TWSE 休市日曆）──────────────────────────────
+import logging
+from datetime import date, timedelta
+
+_logger = logging.getLogger(__name__)
+_twse_holidays: set = set()       # {date(2026, 4, 3), ...}
+_twse_holidays_year: int = 0      # 已載入的年度
+
+def _load_twse_holidays() -> set:
+    """從 TWSE Open API 載入休市日，一年只需呼叫一次"""
+    global _twse_holidays, _twse_holidays_year
+    current_year = date.today().year
+    if _twse_holidays_year == current_year and _twse_holidays:
+        return _twse_holidays
+    try:
+        import requests
+        r = requests.get(
+            'https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule',
+            timeout=10,
+        )
+        r.raise_for_status()
+        holidays = set()
+        for item in r.json():
+            date_roc = item.get('Date', '')
+            if len(date_roc) != 7:
+                continue
+            y = int(date_roc[:3]) + 1911
+            m = int(date_roc[3:5])
+            d = int(date_roc[5:7])
+            desc = item.get('Description', '') + item.get('Name', '')
+            # 排除「開始交易日」等交易日標記
+            if '開始交易' in desc:
+                continue
+            holidays.add(date(y, m, d))
+        _twse_holidays = holidays
+        _twse_holidays_year = current_year
+        _logger.info(f"[Market] 已載入 {len(holidays)} 個 TWSE 休市日（{current_year}）")
+    except Exception as e:
+        _logger.warning(f"[Market] TWSE 休市日曆載入失敗: {e}")
+    return _twse_holidays
+
+
+def _next_trading_day(from_date=None) -> date:
+    """計算下一個交易日（跳過週末和 TWSE 休市日）"""
+    holidays = _load_twse_holidays()
+    d = from_date or date.today()
+    d += timedelta(days=1)
+    for _ in range(30):  # 最多找 30 天（涵蓋春節）
+        if d.weekday() < 5 and d not in holidays:
+            return d
+        d += timedelta(days=1)
+    return d
+
+
+@router.get("/next-trading-day")
+def get_next_trading_day():
+    """回傳下一個交易日（TWSE 日曆），供前端顯示操作建議日期"""
+    ntd = _next_trading_day()
+    return {
+        "date": ntd.isoformat(),
+        "label": f"{ntd.month}/{ntd.day}",
+    }
+
+
 @router.get("/system-events")
 def get_system_events(limit: int = 500):
     """獲取最近的系統事件日誌"""
