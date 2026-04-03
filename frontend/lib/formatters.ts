@@ -4,35 +4,14 @@
  * 2. 當股價 > 999 時，不顯示小數點
  * 3. 當股價 <= 999 時，預設顯示兩位小數
  */
-/** 返回下一個交易日的 M/D 格式，跳過週六日和台灣國定假日 */
+/** 返回「下一個操作日」的 M/D 標籤，跳過週末。
+ *  實際是否為交易日由後端資料決定，前端只做基本的週末跳過。 */
 export const todayLabel = (): string => {
-    return nextTradingDayLabel();
-};
-
-/** 返回下一個交易日的 M/D，跳過週末和已知國定假日 */
-export const nextTradingDayLabel = (): string => {
     const d = new Date();
-    // 台灣國定假日（MM-DD 格式，每年需更新）
-    const holidays2026 = [
-        '01-01', '01-26', '01-27', '01-28', '01-29', '01-30',  // 元旦、春節
-        '02-27',                                                  // 228 補假
-        '04-03', '04-04',                                         // 清明+兒童節
-        '04-07',                                                  // 清明補假
-        '05-01',                                                  // 勞動節
-        '05-31',                                                  // 端午
-        '10-06',                                                  // 中秋
-        '10-10',                                                  // 國慶
-    ];
-    const isHoliday = (date: Date) => {
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        return holidays2026.includes(`${mm}-${dd}`);
-    };
-    // 從明天開始找下一個交易日
     d.setDate(d.getDate() + 1);
     for (let i = 0; i < 10; i++) {
         const day = d.getDay();
-        if (day !== 0 && day !== 6 && !isHoliday(d)) {
+        if (day !== 0 && day !== 6) {
             return `${d.getMonth() + 1}/${d.getDate()}`;
         }
         d.setDate(d.getDate() + 1);
