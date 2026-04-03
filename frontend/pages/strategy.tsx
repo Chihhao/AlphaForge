@@ -60,6 +60,8 @@ interface StrategyPick {
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
     stock_best_dim?: string | null    // 最佳勝率維度
+    strategy_win_rate?: number | null  // 策略級勝率（fallback）
+    strategy_avg_return?: number | null // 策略級預計報酬（fallback）
     current_price?: number | null     // 即時/收盤價
     change_percent?: number | null    // 漲跌幅 (%)
 }
@@ -126,21 +128,28 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                             ⚠ 績效偏弱
                         </span>
                     )}
-                    {pick.stock_win_rate != null && pick.stock_best_dim && (
-                        <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5">
-                            <span className={`font-mono text-xs ${pick.stock_win_rate >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
-                                {DIM_LABEL[pick.stock_best_dim] ?? pick.stock_best_dim}勝率 {(pick.stock_win_rate * 100).toFixed(0)}%
-                            </span>
-                            {pick.stock_avg_return != null && (
-                                <>
-                                    <span className="text-zinc-700">|</span>
-                                    <span className={`font-mono text-xs ${pick.stock_avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                        預計報酬 {pick.stock_avg_return >= 0 ? '+' : ''}{pick.stock_avg_return.toFixed(1)}%
-                                    </span>
-                                </>
-                            )}
-                        </div>
-                    )}
+                    {(() => {
+                        const wr = pick.stock_win_rate ?? pick.strategy_win_rate
+                        const ret = pick.stock_avg_return ?? pick.strategy_avg_return
+                        const dim = pick.stock_best_dim ?? pick.time_dimension
+                        const isStrategy = pick.stock_win_rate == null
+                        if (wr == null) return null
+                        return (
+                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5">
+                                <span className={`font-mono text-xs ${wr >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                                    {DIM_LABEL[dim] ?? dim}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
+                                </span>
+                                {ret != null && (
+                                    <>
+                                        <span className="text-zinc-700">|</span>
+                                        <span className={`font-mono text-xs ${ret >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                            預計報酬 {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        )
+                    })()}
                 </div>
                 {pick.current_price != null && pick.current_price > 0 && (
                     <div className="flex flex-col items-end shrink-0">
@@ -670,28 +679,43 @@ const StrategyPage = () => {
         const loadPicks = async () => {
             try {
                 // 優先使用 Strategy Miner 推薦清單（含真實優化停利停損）
-                const res = await api.get('/strategy-miner/picks/today')
-                const data: StrategyMinerPick[] = res.data ?? []
+                const [picksRes, stratRes] = await Promise.all([
+                    api.get('/strategy-miner/picks/today'),
+                    api.get<{ strategies: Array<{ strategy_id: string; win_rate_positive: number; avg_return_top: number }> }>('/alpha-miner/strategies').catch(() => ({ data: { strategies: [] } })),
+                ])
+                const data: StrategyMinerPick[] = picksRes.data ?? []
+
+                // 建立策略級 fallback lookup
+                const stratMap: Record<string, { wr: number; avg: number }> = {}
+                for (const s of stratRes.data?.strategies ?? []) {
+                    stratMap[s.strategy_id] = { wr: s.win_rate_positive, avg: s.avg_return_top }
+                }
 
                 if (data.length > 0) {
                     setSignalDate(data[0].pick_date)
-                    setPicks(data.map(p => ({
-                        stock_id: p.stock_id,
-                        stock_name: p.stock_name,
-                        entry_price: p.entry_price,
-                        take_profit_pct: Math.round(p.take_profit_pct * 100),
-                        stop_loss_pct: Math.round(p.stop_loss_pct * 100),
-                        hold_days_max: p.hold_days_max,
-                        weighted_score: p.weighted_score,
-                        time_dimension: p.time_dimension,
-                        direction: p.direction || 'long',
-                        dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
-                        buy_reasons: p.buy_reasons ?? [],
-                        stock_win_rate: p.stock_win_rate ?? null,
-                        stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
-                        stock_trade_count: p.stock_trade_count ?? 0,
-                        stock_best_dim: p.stock_best_dim ?? null,
-                    })))
+                    setPicks(data.map(p => {
+                        const dimKey = p.time_dimension?.replace('d', '') ? `lgb_${p.time_dimension}` : ''
+                        const strat = stratMap[dimKey]
+                        return {
+                            stock_id: p.stock_id,
+                            stock_name: p.stock_name,
+                            entry_price: p.entry_price,
+                            take_profit_pct: Math.round(p.take_profit_pct * 100),
+                            stop_loss_pct: Math.round(p.stop_loss_pct * 100),
+                            hold_days_max: p.hold_days_max,
+                            weighted_score: p.weighted_score,
+                            time_dimension: p.time_dimension,
+                            direction: p.direction || 'long',
+                            dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
+                            buy_reasons: p.buy_reasons ?? [],
+                            stock_win_rate: p.stock_win_rate ?? null,
+                            stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
+                            stock_trade_count: p.stock_trade_count ?? 0,
+                            stock_best_dim: p.stock_best_dim ?? null,
+                            strategy_win_rate: strat?.wr ?? null,
+                            strategy_avg_return: strat?.avg ?? null,
+                        }
+                    }))
                     setLoading(false)
                     // 非同步載入即時報價
                     enrichWithQuotes(data.map(p => p.stock_id))

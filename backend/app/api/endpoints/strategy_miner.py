@@ -202,6 +202,15 @@ def get_today_picks(db: Session = Depends(get_db)):
     any_missing = any(p.buy_reasons is None for p in picks)
     live_reasons: dict = _load_buy_reasons_fallback(db, picks) if any_missing else {}
 
+    # 策略級勝率 fallback（個股樣本不足時使用）
+    strat_fallback: dict = {}
+    opt_params = db.query(StrategyBacktestParam).filter(StrategyBacktestParam.is_optimal == True).all()
+    for s in opt_params:
+        strat_fallback[s.strategy_id] = {
+            "strategy_win_rate": s.win_rate_test,
+            "strategy_avg_return": s.avg_return_test,
+        }
+
     result = []
     for p in picks:
         perf = stock_perf.get(p.stock_id, {
@@ -210,11 +219,22 @@ def get_today_picks(db: Session = Depends(get_db)):
             "stock_trade_count": 0,
             "stock_best_dim": None,
         })
-        # 個股績效：樣本不足時清空（僅供前端顯示參考，不再用於過濾）
         trade_count = perf.get("stock_trade_count", 0)
         if trade_count < 10:
             perf["stock_win_rate"] = None
             perf["stock_avg_return"] = None
+        else:
+            avg = perf.get("stock_avg_return")
+            if avg is not None and avg < 0:
+                continue
+
+        # 策略級 fallback（排除無效的 0 值）
+        dim = p.time_dimension or '20d'
+        direction = getattr(p, 'direction', 'long') or 'long'
+        strat_key = f"{dim}_short" if direction == 'short' else dim
+        fb = strat_fallback.get(strat_key, {})
+        if fb.get("strategy_win_rate") in (None, 0, 0.0):
+            fb = {}
 
         result.append({
             "pick_date": p.pick_date.isoformat(),
@@ -233,6 +253,7 @@ def get_today_picks(db: Session = Depends(get_db)):
                 else live_reasons.get(p.stock_id, [])
             ),
             **perf,
+            **fb,
         })
     return result
 

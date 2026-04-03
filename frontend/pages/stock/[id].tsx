@@ -46,7 +46,6 @@ export default function StockDetail() {
   const [loading, setLoading] = useState(false)
   const [subChart, setSubChart] = useState<'volume' | 'rsi' | 'bias'>('volume')
   const [chipData, setChipData] = useState<any[]>([])
-  const [strategyPick, setStrategyPick] = useState<any>(null)
   const [alphaSignals, setAlphaSignals] = useState<any[]>([])
   const [funTrends, setFunTrends] = useState<any>(null)
   const [showAlphaSignals, setShowAlphaSignals] = useState(false)
@@ -65,13 +64,6 @@ export default function StockDetail() {
     api.get(`/stocks/${id}/chip-data?days=10`)
       .then(r => setChipData(r.data ?? []))
       .catch(() => setChipData([]))
-    api.get('/strategy-miner/picks/today')
-      .then(r => {
-        const picks: any[] = r.data ?? []
-        const match = picks.find(p => p.stock_id === id)
-        setStrategyPick(match ?? null)
-      })
-      .catch(() => setStrategyPick(null))
     api.get(`/alpha-miner/trades/stock/${id}`)
       .then(r => setAlphaSignals(r.data ?? []))
       .catch(() => setAlphaSignals([]))
@@ -244,38 +236,6 @@ export default function StockDetail() {
             </div>
           </div>
 
-          {/* Strategy Miner 策略選股 badge */}
-          {strategyPick && (() => {
-            const tpPct = Math.round(strategyPick.take_profit_pct * 100)
-            const slPct = Math.round(strategyPick.stop_loss_pct * 100)
-            return (
-            <div className="mt-2 mb-1">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 bg-rose-500/15 border border-rose-500/30 text-rose-400">
-                  <svg viewBox="0 0 24 24" width="12" height="12" className="fill-current shrink-0">
-                    <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
-                  </svg>
-                  {`${nextTradingDay ?? todayLabel()} 策略選股`}
-                </span>
-                <span className="text-xs text-zinc-500 font-mono">
-                  參考買入 <span className="text-zinc-300">{strategyPick.entry_price?.toLocaleString()}</span>
-                  <span className="text-rose-400 ml-2">▲停利 +{tpPct}%</span>
-                  <span className="text-emerald-400 ml-2">▼停損 -{slPct}%</span>
-                  <span className="text-zinc-600 ml-2">持{strategyPick.hold_days_max}天</span>
-                </span>
-              </div>
-              {strategyPick.buy_reasons?.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {(strategyPick.buy_reasons as string[]).filter((r: string) => !r.includes('個策略共同')).map((r: string, i: number) => (
-                    <span key={i} className="text-[10px] font-medium rounded-full px-2 py-0.5 leading-none whitespace-nowrap text-amber-400/80 bg-amber-500/10 border border-amber-500/20">
-                      {r}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            )
-          })()}
           <div className="-mx-4 sm:mx-0 border-t border-zinc-800/60 mb-0" />
           <div className="grid grid-cols-4 gap-2 pt-3">
             <div>

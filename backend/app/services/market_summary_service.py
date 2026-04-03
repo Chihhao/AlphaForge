@@ -6,7 +6,7 @@
 - 成交量反映市場參與的活躍程度，量比 > 1 代表今天比平均更活躍
 - 上漲/下跌家數的比例可以判斷整體市場是偏多還是偏空
 """
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy import func
 
 from app.schemas.market import MarketSummary
@@ -48,9 +48,15 @@ class MarketSummaryService:
             latest_db = taiex_prices_db[-1]
             
             # --- 即時回退邏輯 ---
-            now = datetime.now()
-            # 台灣時間平日 09:00 - 14:30 (含收盤後清算時間)
-            is_trading_hour = (now.weekday() < 5) and (9 <= now.hour < 15)
+            tw_tz = timezone(timedelta(hours=8))
+            now = datetime.now(tw_tz)
+            is_weekday = now.weekday() < 5
+            # 台股 09:00-13:30 為盤中交易時間
+            is_market_open = is_weekday and (
+                (9 <= now.hour < 13) or (now.hour == 13 and now.minute < 30)
+            )
+            # 15:00 前都嘗試抓即時數據（含收盤後清算）
+            is_trading_hour = is_weekday and (9 <= now.hour < 15)
             is_live = False
             last_updated = now.strftime("%H:%M:%S")
             
@@ -78,15 +84,23 @@ class MarketSummaryService:
                                 taiex_price = round(float(z_price), 2)
                                 if y_price and y_price != "-":
                                     prev_close = float(y_price)
-                                
-                                # 使用交易所提供的報價時間
-                                if item.get("t"):
+
+                                # 解析 TWSE 回傳的實際交易日期 (格式: 20260402)
+                                twse_date_str = item.get("d", "")
+                                if len(twse_date_str) == 8:
+                                    twse_date = date(int(twse_date_str[:4]), int(twse_date_str[4:6]), int(twse_date_str[6:8]))
+                                    data_date = twse_date
+                                else:
+                                    data_date = now.date()
+
+                                # 只有 TWSE 資料日期是今天 且 盤中時間才標記即時
+                                is_today_data = (data_date == now.date())
+                                if is_today_data and item.get("t"):
                                     last_updated = item.get("t")
                                 else:
                                     last_updated = now.strftime("%H:%M:%S")
-                                
-                                data_date = now.date()
-                                if is_trading_hour:
+
+                                if is_market_open and is_today_data:
                                     is_live = True
                                 twse_success = True
                     
@@ -111,13 +125,13 @@ class MarketSummaryService:
                                 # 使用 yf 的最新時間
                                 last_updated = now.strftime("%H:%M:%S") # yf 沒有秒級 quote time，用目前時間
                                 data_date = yf_date  # 使用 yfinance 實際資料日期，而非今天
-                                if is_trading_hour:
+                                if is_market_open and yf_date == now.date():
                                     is_live = True
                 except Exception as yfe:
                     print(f"[MarketSummaryService] index live fallback failed: {yfe}")
-            
-            # --- 額外修正：如果在交易時間內，不論 index 是否變動，都應嘗試開啟 is_live 以更新成分股 ---
-            if is_trading_hour:
+
+            # --- 額外修正：只有在確認今天有交易數據時才標記即時 ---
+            if is_market_open and data_date == now.date():
                 is_live = True
             
             taiex_change = round(taiex_price - prev_close, 2)

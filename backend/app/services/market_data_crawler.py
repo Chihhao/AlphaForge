@@ -90,9 +90,8 @@ class MarketDataCrawler:
                 
             df = pd.DataFrame(target_table, columns=target_fields)
             
-            # 過濾只保留普通股 (代號為四碼純數字)
-            # 移除 ETF(00開頭)、特別股等
-            df = df[df['證券代號'].str.match(r'^[1-9]\d{3}$', na=False)]
+            # 過濾：普通股 (四碼純數字) + 0050 (大盤 regime filter 用)
+            df = df[df['證券代號'].str.match(r'^[1-9]\d{3}$', na=False) | (df['證券代號'] == '0050')]
             
             # 標準化欄位名稱
             result_df = pd.DataFrame()

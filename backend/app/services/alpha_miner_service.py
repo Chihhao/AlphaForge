@@ -83,40 +83,29 @@ FACTOR_LABELS: Dict[str, str] = {
     'dealer_buy_20d':   '自營商20日累積',
 }
 
-# ─── 訓練用因子（15 個：11 穩定 + 4 反向投信）──────────────────────────────
-# Walk-forward V3 驗證：加入反向投信後 IC 100% 為正（7 窗口全正）
-# 投信買超是穩定的反向指標（IC -0.02~-0.03），取反後成為正 IC 因子
-# 搭配 threshold=3% → 5/7 窗口 PASS，Sharpe=1.83
+# ─── 訓練用因子（9 個：基本面 4 + 營收衍生 2 + 穩定籌碼 3）─────────────────
+# 2026-04-03 Long-Short 驗證：E 組合 7/7 窗口全勝 A（現行 15 因子）
+#   E: IC=0.169, L-S Sharpe=2.65, MaxDD=-1.4%
+#   A: IC=0.037, L-S Sharpe=0.65, MaxDD=-6.7%
+# 移除不穩定籌碼因子（foreign_buy/net_buy、trust 系列、price_vs_high20）
+# 這些因子在外資撤退期（2026-03）IC 急劇惡化，拖累模型預測力
 TRAINING_FACTORS: Dict[str, str] = {
     # 基本面 — 全期穩定正 IC
     'roe':                  'ROE',
     'yield_rate':           '殖利率',
     'pb_ratio':             '股淨比',
     'revenue_yoy':          '營收YoY',
-    # 營收衍生 — IC 0.15+，12季 100% 正（2026-04-03 研究驗證）
+    # 營收衍生 — IC 0.15+，穩定性最高
     'rev_surprise':         '營收驚喜',
     'rev_accel':            '營收加速度',
-    # 外資動向 — 穩定正 IC
+    # 穩定籌碼 — 長期 IC 正且不隨市場風格反轉
     'foreign_hold_chg_5d':  '外資持股5日變化',
-    'foreign_net_buy':      '外資買超',
-    'foreign_buy_5d':       '外資5日累積',
-    # 次穩定 — 補充預測力
     'dealer_buy_20d':       '自營商20日累積',
     'vol_ratio':            '量比',
-    'foreign_buy_10d':      '外資10日累積',
-    'price_vs_high20':      '距高點乖離',
-    # 反向投信（取反後 IC 穩定正：散戶逆向指標）
-    'neg_trust_net_buy':    '投信反向(日)',
-    'neg_trust_buy_5d':     '投信反向(5日)',
-    'neg_trust_buy_10d':    '投信反向(10日)',
-    'neg_trust_buy_20d':    '投信反向(20日)',
 }
 
-# 只載入訓練需要的欄位 + 原始 trust 因子（用於計算 neg_trust），減少記憶體消耗
-_TRUST_SRC_COLS = ['trust_net_buy', 'trust_buy_5d', 'trust_buy_10d', 'trust_buy_20d']
-_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + [
-    f for f in TRAINING_FACTORS.keys() if not f.startswith('neg_')
-] + _TRUST_SRC_COLS
+# 只載入訓練需要的欄位，減少記憶體消耗
+_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(TRAINING_FACTORS.keys())
 
 # Bonferroni 校正：6 個維度（3 持有期 × 2 方向）
 _BONFERRONI_N = 1  # 只剩 20d 一個維度
