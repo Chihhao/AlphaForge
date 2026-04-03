@@ -198,7 +198,14 @@ export default function StrategyMinerPreview() {
           }
         })
         // 策略選股前 3（首頁預覽精簡版）
-        const combined = all.filter(p => p.direction === 'long').slice(0, 3)
+        // 過濾掉預計報酬為負的股票（個股歷史平均虧損不應推薦）
+        const combined = all
+          .filter(p => p.direction === 'long')
+          .filter(p => {
+            const ret = p.stock_avg_return ?? p.strategy_avg_return
+            return ret === null || ret >= 0
+          })
+          .slice(0, 3)
 
         setPicks(combined)  // 先顯示，報價到了再更新
 
