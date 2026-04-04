@@ -103,7 +103,11 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
       <span className="text-cyan-400 font-mono font-bold text-xs w-4 shrink-0 text-center">{rank}</span>
       <div className="flex flex-col min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="shrink-0 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1 py-0.5 leading-none">多</span>
+          <span className={`shrink-0 text-[9px] font-bold rounded px-1 py-0.5 leading-none border ${
+            pick.direction === 'short'
+              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+              : 'text-rose-400 bg-rose-500/10 border-rose-500/25'
+          }`}>{pick.direction === 'short' ? '空' : '多'}</span>
           <span className="text-sm font-semibold text-zinc-100">{pick.stock_name}</span>
           <span className="text-xs text-zinc-500 font-mono">{pick.stock_id}</span>
           {isMultiDim && (
@@ -151,7 +155,19 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   )
 }
 
-const DIM_LABEL: Record<string, string> = { '20d': '20日' }
+const DIM_LABEL: Record<string, string> = { '5d': '5d', '10d': '10d', '20d': '20d' }
+
+interface DimensionRec {
+  dimension: string; forward_days: number; signal_date: string
+  long_picks: Array<{ rank: number; stock_id: string; stock_name: string; score: number; trigger_factors: string[]; is_stable: boolean }>
+  long_win_rate: number; long_avg_return: number
+  short_picks: Array<{ rank: number; stock_id: string; stock_name: string; score: number; trigger_factors: string[]; is_stable: boolean }>
+  short_win_rate: number; short_avg_return: number
+  ic: number; is_significant: boolean; confidence: string
+}
+interface RecTable { dimensions: DimensionRec[]; last_trained: string; train_period: string; test_period: string }
+
+const fixDim = (d: string | null | undefined) => d === '30d' ? '20d' : (d ?? null)
 
 export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
@@ -165,56 +181,93 @@ export default function StrategyMinerPreview() {
     Promise.all([
       api.get<TodayPick[]>('/strategy-miner/picks/today'),
       api.get<{ strategies: StrategyInfo[] }>('/alpha-miner/strategies'),
+      api.get<RecTable>('/alpha-miner/recommendations?top_n=3').catch(() => ({ data: null })),
       api.get<{ label: string }>('/market/next-trading-day').catch(() => ({ data: null })),
-    ]).then(([picksRes, stratRes, ntdRes]) => {
+    ]).then(([picksRes, stratRes, recRes, ntdRes]) => {
         if (cancelled) return
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
         if (ntdRes.data?.label) setNextTradingDay(ntdRes.data.label)
 
-        // 建立策略勝率 lookup（lgb_20d → win_rate）
         const stratMap: Record<string, StrategyInfo> = {}
         for (const s of stratRes.data?.strategies ?? []) {
           stratMap[s.strategy_id] = s
         }
 
-        const all = (picksRes.data || []).map(p => {
-          // 找對應策略的勝率做 fallback
-          const dimKey = p.time_dimension?.replace('d', '') ? `lgb_${p.time_dimension}` : ''
-          const strat = stratMap[dimKey]
+        // Strategy Miner picks（30d→20d）
+        const minerPicks: PickPreview[] = (picksRes.data || []).map(p => {
+          const dim = fixDim(p.time_dimension) || '20d'
+          const strat = stratMap[`lgb_${dim}`]
           return {
-            stock_id: p.stock_id,
-            stock_name: p.stock_name,
-            entry_price: p.entry_price,
-            take_profit_pct: p.take_profit_pct,
-            stop_loss_pct: p.stop_loss_pct,
-            hold_days_max: p.hold_days_max,
-            weighted_score: p.weighted_score,
-            time_dimension: p.time_dimension,
+            stock_id: p.stock_id, stock_name: p.stock_name,
+            entry_price: p.entry_price, take_profit_pct: p.take_profit_pct,
+            stop_loss_pct: p.stop_loss_pct, hold_days_max: p.hold_days_max,
+            weighted_score: p.weighted_score, time_dimension: dim,
             direction: p.direction || 'long',
-            dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
+            dims: (() => { try { return JSON.parse(p.strategy_ids).map(fixDim) } catch { return [dim] } })(),
             buy_reasons: p.buy_reasons ?? [],
             stock_win_rate: p.stock_win_rate ?? null,
             stock_avg_return: (p as any).stock_avg_return ?? null,
-            stock_best_dim: (p as any).stock_best_dim ?? null,
+            stock_best_dim: fixDim((p as any).stock_best_dim),
             strategy_win_rate: strat?.win_rate_positive ?? null,
             strategy_avg_return: strat?.avg_return_top ?? null,
           }
         })
-        // 策略選股前 3（首頁預覽精簡版）
-        // 過濾掉預計報酬為負的股票（個股歷史平均虧損不應推薦）
-        const combined = all
-          .filter(p => p.direction === 'long')
-          .filter(p => {
-            const ret = p.stock_avg_return ?? p.strategy_avg_return
-            return ret === null || ret >= 0
-          })
-          .slice(0, 3)
 
-        setPicks(combined)  // 先顯示，報價到了再更新
+        // 推薦 picks 合併（去重）
+        const existingIds = new Set(minerPicks.map(p => p.stock_id))
+        const recPicks: PickPreview[] = []
+        const recData = recRes.data
+        if (recData?.dimensions) {
+          for (const dim of recData.dimensions) {
+            for (const p of dim.long_picks) {
+              if (existingIds.has(p.stock_id)) continue
+              existingIds.add(p.stock_id)
+              recPicks.push({
+                stock_id: p.stock_id, stock_name: p.stock_name,
+                entry_price: 0, take_profit_pct: 0, stop_loss_pct: 0,
+                hold_days_max: dim.forward_days, weighted_score: p.score * 100,
+                time_dimension: dim.dimension, direction: 'long',
+                dims: [dim.dimension], buy_reasons: [],
+                stock_win_rate: null, stock_avg_return: null, stock_best_dim: null,
+                strategy_win_rate: dim.long_win_rate / 100,
+                strategy_avg_return: dim.long_avg_return,
+              })
+            }
+            for (const p of dim.short_picks) {
+              if (existingIds.has(`short_${p.stock_id}`)) continue
+              existingIds.add(`short_${p.stock_id}`)
+              recPicks.push({
+                stock_id: p.stock_id, stock_name: p.stock_name,
+                entry_price: 0, take_profit_pct: 0, stop_loss_pct: 0,
+                hold_days_max: dim.forward_days, weighted_score: (1 - p.score) * 100,
+                time_dimension: dim.dimension, direction: 'short',
+                dims: [dim.dimension], buy_reasons: [],
+                stock_win_rate: null, stock_avg_return: null, stock_best_dim: null,
+                strategy_win_rate: dim.short_win_rate / 100,
+                strategy_avg_return: dim.short_avg_return,
+              })
+            }
+          }
+        }
+
+        const all = [...minerPicks, ...recPicks]
+        // 按勝率排序
+        all.sort((a, b) => {
+          const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
+          const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
+          return wrB - wrA
+        })
+        // 做多前 3 + 做空前 3
+        const longTop3 = all.filter(p => p.direction === 'long').slice(0, 3)
+        const shortTop3 = all.filter(p => p.direction === 'short').slice(0, 3)
+        const combined = [...longTop3, ...shortTop3]
+
+        setPicks(combined)
 
         // 批次查報價
+        const ids = combined.map(p => p.stock_id)
         Promise.allSettled(
-          combined.map(p => api.get(`/stocks/${p.stock_id}/quote`))
+          ids.map(id => api.get(`/stocks/${id}/quote`))
         ).then(results => {
           if (cancelled) return
           const withQuotes = combined.map((p, i) => {
@@ -273,9 +326,32 @@ export default function StrategyMinerPreview() {
       ) : picks.length === 0 ? (
         <div className="py-4 text-center text-xs text-zinc-400">{nextTradingDay ?? todayLabel()} 暫無推薦</div>
       ) : (
-        picks.map((pick, i) => (
-          <PickRow key={pick.stock_id} pick={pick} rank={i + 1} />
-        ))
+        <>
+          {picks.filter(p => p.direction === 'long').length > 0 && (
+            <>
+              <div className="flex items-center gap-2 px-2 pt-1 pb-1">
+                <span className="w-1 h-1 rounded-full bg-rose-400" />
+                <span className="text-xs font-semibold text-zinc-400">做多</span>
+                <div className="flex-1 h-px bg-zinc-800/40" />
+              </div>
+              {picks.filter(p => p.direction === 'long').map((pick, i) => (
+                <PickRow key={pick.stock_id} pick={pick} rank={i + 1} />
+              ))}
+            </>
+          )}
+          {picks.filter(p => p.direction === 'short').length > 0 && (
+            <>
+              <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                <span className="text-xs font-semibold text-zinc-400">做空</span>
+                <div className="flex-1 h-px bg-zinc-800/40" />
+              </div>
+              {picks.filter(p => p.direction === 'short').map((pick, i) => (
+                <PickRow key={`short_${pick.stock_id}`} pick={pick} rank={i + 1} />
+              ))}
+            </>
+          )}
+        </>
       )}
 
     </div>
