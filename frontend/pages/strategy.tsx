@@ -1067,40 +1067,48 @@ const StrategyPage = () => {
                         <p className="text-zinc-400 text-xs mt-1">模型尚未完成今日掃描，或今日無符合條件標的</p>
                     </div>
                 )}
-                {!loading && picks.filter(p => p.direction === 'long').length > 0 && (
-                    <>
-                        <div className="flex items-center gap-3 px-1">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                <span className="text-sm font-semibold text-zinc-300">做多</span>
-                            </div>
-                            <span className="text-xs font-mono text-zinc-500">{picks.filter(p => p.direction === 'long').length} 檔</span>
-                            <div className="flex-1 h-px bg-zinc-800" />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            {picks.filter(p => p.direction === 'long').map((pick, i) => (
-                                <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
-                            ))}
-                        </div>
-                    </>
-                )}
-                {!loading && picks.filter(p => p.direction === 'short').length > 0 && (
-                    <>
-                        <div className="flex items-center gap-3 px-1">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                <span className="text-sm font-semibold text-zinc-300">做空</span>
-                            </div>
-                            <span className="text-xs font-mono text-zinc-500">{picks.filter(p => p.direction === 'short').length} 檔</span>
-                            <div className="flex-1 h-px bg-zinc-800" />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            {picks.filter(p => p.direction === 'short').map((pick, i) => (
-                                <PickCard key={`short_${pick.stock_id}`} pick={pick} rank={i + 1} />
-                            ))}
-                        </div>
-                    </>
-                )}
+                {(() => {
+                    const longPicks = picks.filter(p => p.direction === 'long').slice(0, 5)
+                    const shortPicks = picks.filter(p => p.direction === 'short').slice(0, 5)
+                    return !loading && (
+                        <>
+                            {longPicks.length > 0 && (
+                                <>
+                                    <div className="flex items-center gap-3 px-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                            <span className="text-sm font-semibold text-zinc-300">做多</span>
+                                        </div>
+                                        <span className="text-xs font-mono text-zinc-500">{longPicks.length} 檔</span>
+                                        <div className="flex-1 h-px bg-zinc-800" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        {longPicks.map((pick, i) => (
+                                            <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                            {shortPicks.length > 0 && (
+                                <>
+                                    <div className="flex items-center gap-3 px-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                            <span className="text-sm font-semibold text-zinc-300">做空</span>
+                                        </div>
+                                        <span className="text-xs font-mono text-zinc-500">{shortPicks.length} 檔</span>
+                                        <div className="flex-1 h-px bg-zinc-800" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        {shortPicks.map((pick, i) => (
+                                            <PickCard key={`short_${pick.stock_id}`} pick={pick} rank={i + 1} />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    )
+                })()}
                 {/* ── 近期精選歷史（折疊）─────────────────────────────── */}
                 <div className="border border-zinc-800/60 rounded-2xl overflow-hidden">
                     <button
