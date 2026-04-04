@@ -42,6 +42,9 @@ class StrategyRanking(BaseModel):
     market_loss_rate_hi: float = 0.0    # 全市場基準：< -threshold_high
     win_rate_positive: float = 0.0   # Top20% 報酬 > 0% 的比例（真實勝率）
     avg_return_top: float = 0.0     # Top20% 平均報酬（%）
+    # 做空端指標（Bot20%）
+    short_win_rate: float = 0.0     # Bot20% 報酬 < 0% 的比例（做空勝率）
+    avg_return_bottom: float = 0.0  # Bot20% 平均報酬（%，負=下跌）
     ic: float                   # Spearman IC（測試集）
     p_value: float
     p_value_corrected: float    # Bonferroni 校正後
@@ -114,3 +117,37 @@ class TradeHistoryItem(BaseModel):
     exit_reason: str          # take_profit / stop_loss / time_limit
     return_pct: float         # percentage e.g. 7.9
     hold_days: int
+
+
+# ─── 多維度推薦清單 ─────────────────────────────────────────────────
+
+class RecommendationPick(BaseModel):
+    rank: int
+    stock_id: str
+    stock_name: str
+    score: float                    # Ensemble 分數（0~1）
+    trigger_factors: List[str]      # 前 3 關鍵因子
+    is_stable: bool = False         # ivol_20d < 中位數
+
+class DimensionRecommendation(BaseModel):
+    dimension: str                  # "5d" | "10d" | "20d"
+    forward_days: int
+    signal_date: str
+    # 做多
+    long_picks: List[RecommendationPick]
+    long_win_rate: float            # Top20% 正報酬比例（%）
+    long_avg_return: float          # Top20% 平均報酬（%）
+    # 做空
+    short_picks: List[RecommendationPick]
+    short_win_rate: float           # Bot20% 下跌比例（%）
+    short_avg_return: float         # Bot20% 平均報酬（%，負=下跌）
+    # 模型品質
+    ic: float
+    is_significant: bool
+    confidence: str                 # "high" | "medium" | "low"
+
+class RecommendationTable(BaseModel):
+    dimensions: List[DimensionRecommendation]
+    last_trained: str
+    train_period: str
+    test_period: str

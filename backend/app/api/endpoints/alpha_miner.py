@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
 from app.services.alpha_miner_service import AlphaMinerService
-from app.schemas.alpha_miner import AlphaMinerResult, StrategyDetail, TodaySignal, SignalHistoryItem
+from app.schemas.alpha_miner import (
+    AlphaMinerResult, StrategyDetail, TodaySignal, SignalHistoryItem, RecommendationTable,
+)
 from typing import List
 
 router = APIRouter(prefix="/alpha-miner", tags=["alpha-miner"])
@@ -35,6 +37,12 @@ def get_strategy_detail(strategy_id: str, db: Session = Depends(get_db)):
     if detail is None:
         raise HTTPException(status_code=404, detail="Strategy not found")
     return detail
+
+
+@router.get("/recommendations", response_model=RecommendationTable)
+def get_recommendations(top_n: int = 5, db: Session = Depends(get_db)):
+    """回傳多維度推薦清單：5d/10d/20d × 看漲/看跌 × Top N"""
+    return AlphaMinerService.get_recommendations(db, top_n=top_n)
 
 
 @router.get("/signals/today", response_model=List[TodaySignal])

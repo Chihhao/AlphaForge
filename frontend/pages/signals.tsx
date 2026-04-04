@@ -5,6 +5,184 @@ import api from '../lib/api'
 import { todayLabel } from '../lib/formatters'
 import { useWatchlist } from '../lib/useWatchlist'
 
+// ─── 推薦清單類型 ─────────────────────────────────────────────────
+
+interface RecommendationPick {
+    rank: number
+    stock_id: string
+    stock_name: string
+    score: number
+    trigger_factors: string[]
+    is_stable: boolean
+}
+
+interface DimensionRecommendation {
+    dimension: string
+    forward_days: number
+    signal_date: string
+    long_picks: RecommendationPick[]
+    long_win_rate: number
+    long_avg_return: number
+    short_picks: RecommendationPick[]
+    short_win_rate: number
+    short_avg_return: number
+    ic: number
+    is_significant: boolean
+    confidence: 'high' | 'medium' | 'low'
+}
+
+interface RecommendationTable {
+    dimensions: DimensionRecommendation[]
+    last_trained: string
+    train_period: string
+    test_period: string
+}
+
+const CONFIDENCE_STYLE: Record<string, { bg: string; text: string; label: string }> = {
+    high:   { bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-400', label: '高' },
+    medium: { bg: 'bg-zinc-700/30 border-zinc-600/30',   text: 'text-zinc-300',  label: '中' },
+    low:    { bg: 'bg-zinc-800/30 border-zinc-700/30',   text: 'text-zinc-500',  label: '低' },
+}
+
+const DIM_LABELS: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日' }
+
+function PickRow({ pick, direction }: { pick: RecommendationPick; direction: 'long' | 'short' }) {
+    const isLong = direction === 'long'
+    return (
+        <tr className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
+            <td className="py-2 pr-2 text-zinc-500 text-xs w-6">{pick.rank}</td>
+            <td className="py-2 pr-2">
+                <Link href={`/stock/${pick.stock_id}`} className="flex items-center gap-1.5 group">
+                    <span className="text-zinc-200 text-xs font-semibold group-hover:text-amber-400 transition-colors">
+                        {pick.stock_id}
+                    </span>
+                    <span className="text-zinc-500 text-xs truncate max-w-[5rem]">{pick.stock_name}</span>
+                    {pick.is_stable && (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">穩定</span>
+                    )}
+                </Link>
+            </td>
+            <td className="py-2 text-right">
+                <div className="flex flex-wrap justify-end gap-0.5">
+                    {pick.trigger_factors.slice(0, 2).map((f, i) => (
+                        <span key={i} className={`text-[10px] px-1 py-0.5 rounded ${
+                            isLong ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
+                        }`}>{f}</span>
+                    ))}
+                </div>
+            </td>
+        </tr>
+    )
+}
+
+function DimensionCard({ dim }: { dim: DimensionRecommendation }) {
+    const conf = CONFIDENCE_STYLE[dim.confidence] ?? CONFIDENCE_STYLE.low
+    const label = DIM_LABELS[dim.dimension] ?? dim.dimension
+
+    return (
+        <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-zinc-800/40 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="text-zinc-200 font-bold text-sm">{label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${conf.bg} ${conf.text}`}>
+                        IC {dim.ic > 0 ? '+' : ''}{(dim.ic * 100).toFixed(1)} · 信心{conf.label}
+                    </span>
+                </div>
+                <span className="text-zinc-600 text-[10px] font-mono">{dim.signal_date}</span>
+            </div>
+
+            <div className="grid grid-cols-2 divide-x divide-zinc-800/40">
+                {/* 看漲 */}
+                <div className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-rose-400 text-xs font-semibold flex items-center gap-1">
+                            <svg viewBox="0 0 24 24" width={12} height={12} className="fill-current">
+                                <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
+                            </svg>
+                            看漲 Top 5
+                        </span>
+                        <span className="text-zinc-500 text-[10px]">
+                            WR {dim.long_win_rate.toFixed(0)}% · {dim.long_avg_return >= 0 ? '+' : ''}{dim.long_avg_return.toFixed(1)}%
+                        </span>
+                    </div>
+                    <table className="w-full">
+                        <tbody>
+                            {dim.long_picks.map(p => <PickRow key={p.stock_id} pick={p} direction="long" />)}
+                            {dim.long_picks.length === 0 && (
+                                <tr><td colSpan={3} className="py-4 text-center text-zinc-600 text-xs">訓練中</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* 看跌 */}
+                <div className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
+                            <svg viewBox="0 0 24 24" width={12} height={12} className="fill-current">
+                                <path d="M16,18L18.29,15.71L13.42,10.83L9.42,14.83L2,7.41L3.41,6L9.42,12L13.42,8L19.71,14.29L22,12V18H16Z" />
+                            </svg>
+                            看跌 Top 5
+                        </span>
+                        <span className="text-zinc-500 text-[10px]">
+                            WR {dim.short_win_rate.toFixed(0)}% · {dim.short_avg_return >= 0 ? '+' : ''}{dim.short_avg_return.toFixed(1)}%
+                        </span>
+                    </div>
+                    <table className="w-full">
+                        <tbody>
+                            {dim.short_picks.map(p => <PickRow key={p.stock_id} pick={p} direction="short" />)}
+                            {dim.short_picks.length === 0 && (
+                                <tr><td colSpan={3} className="py-4 text-center text-zinc-600 text-xs">訓練中</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function RecommendationSection({ data }: { data: RecommendationTable | null }) {
+    if (!data || data.dimensions.length === 0) {
+        return (
+            <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-6 text-center">
+                <p className="text-zinc-500 text-sm">推薦清單產生中，請稍候...</p>
+                <p className="text-zinc-600 text-xs mt-1">模型每日 17:30 重新訓練</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" width={16} height={16} className="fill-amber-400 shrink-0">
+                        <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
+                    </svg>
+                    <h2 className="text-zinc-200 text-sm font-bold">每日推薦清單</h2>
+                </div>
+                <span className="text-zinc-600 text-[10px]">
+                    訓練期 {data.train_period} · 測試期 {data.test_period}
+                </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                {data.dimensions.map(dim => (
+                    <DimensionCard key={dim.dimension} dim={dim} />
+                ))}
+            </div>
+
+            <p className="text-zinc-600 text-[10px] px-1 leading-relaxed">
+                WR = 歷史勝率（做多=正報酬比例，做空=負報酬比例）。報酬為 Top/Bot 20% 平均報酬。
+                看漲看跌各顯示模型分數最高/最低的 5 檔。以上為量化模型回測結果，非投資建議。
+            </p>
+        </div>
+    )
+}
+
+// ─── 原有類型 ─────────────────────────────────────────────────────
+
 interface TodaySignal {
     stock_id: string
     stock_name: string
@@ -27,8 +205,10 @@ interface TodaySignal {
     is_stable: boolean
 }
 
-type DimKey = '20d'
+type DimKey = '5d' | '10d' | '20d'
 const DIM_CONFIG: Record<DimKey, { label: string; shortLabel: string; desc: string }> = {
+    '5d':  { label: '5日持有',  shortLabel: '5日',  desc: '門檻 2% / 3%' },
+    '10d': { label: '10日持有', shortLabel: '10日', desc: '門檻 3% / 5%' },
     '20d': { label: '20日持有', shortLabel: '20日', desc: '門檻 3% / 5%' },
 }
 
@@ -110,7 +290,7 @@ interface DayGroup {
     hitCount: number   // actual_return > threshold_low
 }
 
-const HISTORY_THR: Record<DimKey, number> = { '20d': 0.03 }
+const HISTORY_THR: Record<DimKey, number> = { '5d': 0.02, '10d': 0.03, '20d': 0.03 }
 
 function SignalHistorySection({ history, dim }: { history: SignalHistoryItem[]; dim: DimKey }) {
     if (history.length === 0) return null
@@ -209,15 +389,18 @@ export default function SignalsPage() {
     const [dim, setDim] = useState<DimKey>('20d')
     const { toggle, has } = useWatchlist()
     const [dimStats, setDimStats] = useState<Record<DimKey, { posIc: number; totalSig: number }>>({
+        '5d':  { posIc: 0, totalSig: 0 },
+        '10d': { posIc: 0, totalSig: 0 },
         '20d': { posIc: 0, totalSig: 0 },
     })
     const [history, setHistory] = useState<SignalHistoryItem[]>([])
+    const [recommendations, setRecommendations] = useState<RecommendationTable | null>(null)
 
-    // 一次性載入策略資料，計算各維度模型健康度
+    // 一次性載入策略資料 + 推薦清單
     useEffect(() => {
         api.get('/alpha-miner/strategies').then(r => {
             const strats: StrategyItem[] = r.data?.strategies ?? []
-            const stats = { '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
+            const stats = { '5d': { posIc: 0, totalSig: 0 }, '10d': { posIc: 0, totalSig: 0 }, '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
             strats.forEach(s => {
                 const d = s.time_dimension as DimKey
                 if (!stats[d] || !s.is_significant) return
@@ -226,6 +409,10 @@ export default function SignalsPage() {
             })
             setDimStats(stats)
         }).catch(() => {})
+
+        api.get('/alpha-miner/recommendations?top_n=5')
+            .then(r => setRecommendations(r.data))
+            .catch(() => {})
     }, [])
 
     useEffect(() => {
@@ -284,6 +471,9 @@ export default function SignalsPage() {
 
                     </div>
                 </div>
+
+                {/* ── Recommendation Table ────────────────────────────── */}
+                <RecommendationSection data={recommendations} />
 
                 {/* ── Model Health Banner ─────────────────────────────── */}
                 <ModelHealthBanner posIc={dimStats[dim].posIc} totalSig={dimStats[dim].totalSig} />

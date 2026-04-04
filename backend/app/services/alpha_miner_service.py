@@ -85,11 +85,9 @@ FACTOR_LABELS: Dict[str, str] = {
     'ivol_20d':         '特異波動率',
 }
 
-# ─── 訓練用因子（10 個：基本面 4 + 營收衍生 2 + 穩定籌碼 3 + 波動率 1）────
-# 2026-04-04 全方位因子篩選（40 因子）：
-#   neg_ivol_20d IC +15% 改善 (0.144→0.165)，p=0.026 顯著
-#   Partial IC 0.096（控制 9 因子後保留 83%），高度正交
-#   LightGBM 自動學習「低波動 → 高預測報酬」的方向
+# ─── 訓練用因子（每個維度可用不同因子集）────────────────────────────
+# 2026-04-04 全方位因子篩選（40 因子）→ 10 因子 baseline
+# 2026-04-04 多維度研究：5d/10d/20d walk-forward 驗證
 TRAINING_FACTORS: Dict[str, str] = {
     # 基本面 — 全期穩定正 IC
     'roe':                  'ROE',
@@ -107,11 +105,40 @@ TRAINING_FACTORS: Dict[str, str] = {
     'ivol_20d':             '特異波動率',
 }
 
-# 只載入訓練需要的欄位，減少記憶體消耗
-_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + list(TRAINING_FACTORS.keys())
+# 5d 專用因子：基本面 + 短線指標（research IC=0.019，L-S +0.51%）
+TRAINING_FACTORS_5D: Dict[str, str] = {
+    'roe':                  'ROE',
+    'yield_rate':           '殖利率',
+    'pb_ratio':             '股淨比',
+    'revenue_yoy':          '營收YoY',
+    'rsi2':                 'RSI(2)',
+    'vol_ratio':            '量比',
+    'neg_bias5':            '反向乖離5日',
+}
 
-# Bonferroni 校正：6 個維度（3 持有期 × 2 方向）
-_BONFERRONI_N = 1  # 只剩 20d 一個維度
+# 20d 專用因子：10 因子 + 反向投信（research IC +18%: 0.029→0.034）
+TRAINING_FACTORS_20D: Dict[str, str] = {
+    **TRAINING_FACTORS,
+    'neg_trust_net_buy':    '反向投信',
+}
+
+# 每個維度使用的因子
+DIMENSION_FACTORS: Dict[str, Dict[str, str]] = {
+    '5d':  TRAINING_FACTORS_5D,
+    '10d': TRAINING_FACTORS,
+    '20d': TRAINING_FACTORS_20D,
+}
+
+# 收集所有維度需要的原始欄位（去重）
+_ALL_FACTOR_COLS = set()
+for _fmap in DIMENSION_FACTORS.values():
+    for _f in _fmap.keys():
+        _ALL_FACTOR_COLS.add(_f.replace('neg_', '') if _f.startswith('neg_') else _f)
+
+_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + sorted(_ALL_FACTOR_COLS)
+
+# Bonferroni 校正：3 個維度
+_BONFERRONI_N = 3
 
 # ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────
 _PROGRESS_FILE = '/tmp/alpha_miner_progress.json'
@@ -197,13 +224,15 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 維度設定：20d 主力 + 10d 共振過濾
-    # 20d: 主要推薦維度（Sharpe 1.79，IC>0 86%）
-    # 10d: 僅用於共振過濾（Long-Short 分辨力強，L-S +1.65%），不單獨推薦
-    # 共振策略：兩者同時 Top10% 的股票，報酬 +3.62%（20d 單獨 +2.05%）
+    # 維度設定：5d/10d/20d 三維度獨立模型
+    # 2026-04-04 多維度研究驗證：
+    #   5d: IC=0.019, L-S=0.51%, 做空WR=53% — 參考級（受交易成本限制）
+    #  10d: IC=0.020, L-S=1.45%, 做空WR=55% — 可用（Bot10%為負）
+    #  20d: IC=0.034, L-S=3.34%, 做空WR=58% — 主力（+反向投信 IC +18%）
     DIMENSIONS = [
+        {"key": "5d",  "forward_days": 5,  "threshold_low": 0.02, "threshold_high": 0.03, "direction": "long"},
+        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
         {"key": "20d", "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
-        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long", "resonance_only": True},
     ]
 
     # ─── 公開介面 ──────────────────────────────────────────────────────────────
@@ -348,6 +377,122 @@ class AlphaMinerService:
         return signals[:20]
 
     @classmethod
+    def get_recommendations(cls, db: Session, top_n: int = 5) -> 'RecommendationTable':
+        """產生多維度多空推薦清單（5d/10d/20d × 看漲/看跌 × Top N）"""
+        from app.schemas.alpha_miner import (
+            RecommendationPick, DimensionRecommendation, RecommendationTable,
+        )
+        from app.models.stock_feature import StockFeature
+
+        result = cls.get_strategies(db)
+        if result.is_training or not result.strategies:
+            return RecommendationTable(
+                dimensions=[], last_trained=result.last_trained,
+                train_period=result.train_period, test_period=result.test_period,
+            )
+
+        # 低波動 Overlay
+        latest_feat_date = db.query(func.max(StockFeature.date)).scalar()
+        ivol_map: Dict[str, float] = {}
+        ivol_median: float = float('inf')
+        if latest_feat_date:
+            feat_rows = db.query(
+                StockFeature.stock_id, StockFeature.ivol_20d
+            ).filter(
+                StockFeature.date == latest_feat_date,
+                StockFeature.ivol_20d.isnot(None),
+            ).all()
+            ivol_map = {r.stock_id: r.ivol_20d for r in feat_rows}
+            if ivol_map:
+                ivol_median = float(sorted(ivol_map.values())[len(ivol_map) // 2])
+
+        dimensions = []
+        for ranking in result.strategies:
+            dim_key = ranking.time_dimension
+            strategy_id = ranking.strategy_id
+            detail = cls._details.get(strategy_id)
+            if not detail or not detail.recent_signals:
+                continue
+
+            dim_factors = DIMENSION_FACTORS.get(dim_key, TRAINING_FACTORS)
+            # 分離做多/做空訊號（按 predicted_prob 分）
+            all_sigs = detail.recent_signals
+            if not all_sigs:
+                continue
+
+            # 中位數作為分界：高於中位數 = 做多候選，低於 = 做空候選
+            probs = [s.predicted_prob for s in all_sigs]
+            median_prob = sorted(probs)[len(probs) // 2]
+
+            long_sigs = sorted(
+                [s for s in all_sigs if s.predicted_prob >= median_prob],
+                key=lambda s: s.predicted_prob, reverse=True
+            )[:top_n]
+
+            # 做空：最低分排前面
+            short_sigs = sorted(
+                [s for s in all_sigs if s.predicted_prob < median_prob],
+                key=lambda s: s.predicted_prob
+            )[:top_n]
+
+            def _to_picks(sigs: list, is_short: bool = False) -> List[RecommendationPick]:
+                picks = []
+                for i, sig in enumerate(sigs):
+                    stock_ivol = ivol_map.get(sig.stock_id)
+                    is_stable = stock_ivol is not None and stock_ivol <= ivol_median
+                    top_labels = [
+                        dim_factors.get(f, TRAINING_FACTORS.get(f, FACTOR_LABELS.get(f, f)))
+                        for f in sig.trigger_factors[:3]
+                    ]
+                    picks.append(RecommendationPick(
+                        rank=i + 1,
+                        stock_id=sig.stock_id,
+                        stock_name=sig.stock_name,
+                        score=round(sig.predicted_prob, 4),
+                        trigger_factors=top_labels,
+                        is_stable=is_stable,
+                    ))
+                return picks
+
+            signal_date = long_sigs[0].signal_date if long_sigs else (short_sigs[0].signal_date if short_sigs else '')
+
+            # 信心等級
+            if ranking.ic > 0.03 and ranking.is_significant:
+                confidence = "high"
+            elif ranking.ic > 0.015:
+                confidence = "medium"
+            else:
+                confidence = "low"
+
+            dim_config = next((d for d in cls.DIMENSIONS if d['key'] == dim_key), {})
+            forward_days = dim_config.get('forward_days', 20)
+
+            dimensions.append(DimensionRecommendation(
+                dimension=dim_key,
+                forward_days=forward_days,
+                signal_date=signal_date,
+                long_picks=_to_picks(long_sigs),
+                long_win_rate=round(ranking.win_rate_positive * 100, 1),
+                long_avg_return=round(ranking.avg_return_top, 2),
+                short_picks=_to_picks(short_sigs, is_short=True),
+                short_win_rate=round(ranking.short_win_rate * 100, 1),
+                short_avg_return=round(ranking.avg_return_bottom, 2),
+                ic=round(ranking.ic, 4),
+                is_significant=ranking.is_significant,
+                confidence=confidence,
+            ))
+
+        # 按 forward_days 排序（5d → 10d → 20d）
+        dimensions.sort(key=lambda d: d.forward_days)
+
+        return RecommendationTable(
+            dimensions=dimensions,
+            last_trained=result.last_trained,
+            train_period=result.train_period,
+            test_period=result.test_period,
+        )
+
+    @classmethod
     def invalidate_cache(cls) -> None:
         if cls._process is not None and cls._process.is_alive():
             cls._process.terminate()
@@ -414,9 +559,7 @@ class AlphaMinerService:
             ranking, detail = cls._train_dimension(
                 df_dim, train_end, test_start, dim)
             if ranking is not None:
-                # resonance_only 維度不加入排行榜（僅用於共振過濾）
-                if not dim.get('resonance_only'):
-                    all_rankings.append(ranking)
+                all_rankings.append(ranking)
                 all_details[ranking.strategy_id] = detail  # type: ignore[arg-type]
 
         all_rankings.sort(key=lambda x: x.ic, reverse=True)
@@ -515,14 +658,15 @@ class AlphaMinerService:
         if df.empty:
             return df
         df['date'] = pd.to_datetime(df['date'])
-        # 反向投信因子：投信買超是穩定的反向指標（IC -0.02~-0.03），
-        # 取反後成為正 IC 因子（散戶逆向）
-        for src, dst in [
-            ('trust_net_buy', 'neg_trust_net_buy'),
-            ('trust_buy_5d',  'neg_trust_buy_5d'),
-            ('trust_buy_10d', 'neg_trust_buy_10d'),
-            ('trust_buy_20d', 'neg_trust_buy_20d'),
-        ]:
+        # 衍生反向因子（neg_ = 取負數）
+        neg_map = {
+            'trust_net_buy':  'neg_trust_net_buy',
+            'trust_buy_5d':   'neg_trust_buy_5d',
+            'trust_buy_10d':  'neg_trust_buy_10d',
+            'trust_buy_20d':  'neg_trust_buy_20d',
+            'bias5':          'neg_bias5',
+        }
+        for src, dst in neg_map.items():
             if src in df.columns:
                 df[dst] = -df[src].fillna(0)
         return df
@@ -547,8 +691,11 @@ class AlphaMinerService:
 
     @classmethod
     def _compute_quantile_ranks(cls, df: pd.DataFrame) -> pd.DataFrame:
-        # 只計算 TRAINING_FACTORS 的分位數排名（節省記憶體，避免 NAS OOM）
-        for factor in TRAINING_FACTORS.keys():
+        # 計算所有維度因子的分位數排名
+        all_factors = set()
+        for fmap in DIMENSION_FACTORS.values():
+            all_factors.update(fmap.keys())
+        for factor in all_factors:
             if factor in df.columns:
                 df[f'{factor}_rank'] = (
                     df.groupby('date')[factor]
@@ -581,7 +728,10 @@ class AlphaMinerService:
         dim_direction = dim.get('direction', 'long')
         forward_days = dim.get('forward_days', 5)
 
-        factors = list(TRAINING_FACTORS.keys())
+        # 每個維度使用自己的因子集
+        dim_key = dim['key']
+        dim_factors = DIMENSION_FACTORS.get(dim_key, TRAINING_FACTORS)
+        factors = list(dim_factors.keys())
         rank_cols = [f'{f}_rank' for f in factors]
         # 只留存在於 DataFrame 中的因子
         available = [(f, rc) for f, rc in zip(factors, rank_cols) if rc in df.columns]
@@ -596,9 +746,9 @@ class AlphaMinerService:
         test_df = df[df['date'] >= pd.Timestamp(test_start)].dropna(
             subset=['label', 'forward_return'])
 
-        # MA60 趨勢過濾：僅 30d 使用（回測 IC 從 0.025→0.10）
-        # 10d 不過濾（回測 IC 無差異，移除後樣本更多）
-        if 'ma60' in df.columns and forward_days >= 30:
+        # MA60 趨勢過濾：僅 20d+ 使用（回測 IC 從 0.025→0.10）
+        # 5d/10d 不過濾（回測 IC 無差異，移除後樣本更多）
+        if 'ma60' in df.columns and forward_days >= 20:
             if dim_direction == 'long':
                 train_df = train_df[train_df['close'] > train_df['ma60']].copy()
                 test_df = test_df[test_df['close'] > test_df['ma60']].copy()
@@ -695,6 +845,18 @@ class AlphaMinerService:
         avg_return_top = (
             float(np.nanmean(top_returns) * 100) if len(top_returns) > 0 else 0.0
         )
+
+        # 做空端指標（Bottom 20%）：模型分數最低的股票
+        bot_threshold = np.percentile(prob_test, 20)
+        bot_test_mask = prob_test <= bot_threshold
+        bot_returns = test_df['forward_return'].values[bot_test_mask]
+        short_win_rate = (
+            float((bot_returns < 0).mean()) if len(bot_returns) > 0 else 0.0
+        )
+        avg_return_bottom = (
+            float(np.nanmean(bot_returns) * 100) if len(bot_returns) > 0 else 0.0
+        )
+
         odds_ratio    = round(win_rate_outsample    / max(loss_rate_outsample,    0.001), 2)
         odds_ratio_hi = round(win_rate_outsample_hi / max(loss_rate_outsample_hi, 0.001), 2)
 
@@ -748,7 +910,7 @@ class AlphaMinerService:
         factor_weights = [
             FactorWeight(
                 factor=factors[i],
-                factor_label=TRAINING_FACTORS.get(factors[i], FACTOR_LABELS.get(factors[i], factors[i])),
+                factor_label=dim_factors.get(factors[i], TRAINING_FACTORS.get(factors[i], FACTOR_LABELS.get(factors[i], factors[i]))),
                 coefficient=float(importances[i]),
                 direction="bullish",  # LightGBM 無法直接判定方向，統一標 bullish
             )
@@ -779,6 +941,8 @@ class AlphaMinerService:
             market_loss_rate_hi=round(market_loss_rate_hi, 4),
             win_rate_positive=round(win_rate_positive, 4),
             avg_return_top=round(avg_return_top, 2),
+            short_win_rate=round(short_win_rate, 4),
+            avg_return_bottom=round(avg_return_bottom, 2),
             ic=ic,
             p_value=p_value,
             p_value_corrected=p_value_corrected,
@@ -844,51 +1008,60 @@ class AlphaMinerService:
         p_clf = clf.predict_proba(X)[:, 1]
         p_reg = np.clip((reg.predict(X) - reg_min) / reg_range, 0, 1)
         prob = 0.5 * p_clf + 0.5 * p_reg
-        # Top 10% 作為訊號門檻
-        threshold = np.percentile(prob, 90)
+        # Top 10% + Bottom 10% 都作為訊號
+        threshold_top = np.percentile(prob, 90)
+        threshold_bot = np.percentile(prob, 10)
         recent = recent.copy()
         recent['_prob'] = prob
-        top_recent = recent[recent['_prob'] >= threshold].sort_values('_prob', ascending=False).head(50)
+        top_recent = recent[recent['_prob'] >= threshold_top].sort_values('_prob', ascending=False).head(50)
+        # 做空訊號：分數最低的股票（預期下跌）
+        bot_recent = recent[recent['_prob'] <= threshold_bot].sort_values('_prob', ascending=True).head(50)
 
-        if top_recent.empty:
+        if top_recent.empty and bot_recent.empty:
             return []
 
-        # 用 pred_contrib 取得每支股票的因子貢獻
-        X_top = top_recent[rank_cols].values
-        try:
-            # pred_contrib 回傳 shape (n_samples, n_features + 1)，最後一欄是 bias
-            contribs = clf.booster_.predict(X_top, pred_contrib=True)
-            # 只取因子欄位（去掉 bias）
-            factor_contribs = contribs[:, :-1]
-        except Exception:
-            # fallback：如果 pred_contrib 失敗，用全域 feature importance
-            factor_contribs = None
+        def _extract_signals(subset: pd.DataFrame, is_short: bool = False) -> List[RecentAlphaSignal]:
+            if subset.empty:
+                return []
+            X_sub = subset[rank_cols].values
+            try:
+                contribs = clf.booster_.predict(X_sub, pred_contrib=True)[:, :-1]
+            except Exception:
+                contribs = None
 
-        result: List[RecentAlphaSignal] = []
-        for idx_enum, (_, row) in enumerate(top_recent.iterrows()):
-            stock_id = str(row['stock_id'])
-            name = cls._lookup_name(stock_id)
+            signals_list: List[RecentAlphaSignal] = []
+            for idx_enum, (_, row) in enumerate(subset.iterrows()):
+                stock_id = str(row['stock_id'])
+                name = cls._lookup_name(stock_id)
 
-            # 取該股票貢獻最大的因子（正貢獻）作為 trigger_factors
-            if factor_contribs is not None:
-                contrib_row = factor_contribs[idx_enum]
-                # 正貢獻因子，按貢獻大小降序
-                positive_indices = np.where(contrib_row > 0)[0]
-                sorted_pos = positive_indices[np.argsort(contrib_row[positive_indices])[::-1]]
-                trigger = [factors[i] for i in sorted_pos[:3]]
-            else:
-                # fallback：feature importance 前 3
-                importances = clf.feature_importances_
-                top_idx = np.argsort(importances)[::-1][:3]
-                trigger = [factors[i] for i in top_idx]
+                if contribs is not None:
+                    contrib_row = contribs[idx_enum]
+                    if is_short:
+                        # 做空：取「負貢獻」最大的因子（拉低分數的因子）
+                        negative_indices = np.where(contrib_row < 0)[0]
+                        sorted_neg = negative_indices[np.argsort(contrib_row[negative_indices])]
+                        trigger = [factors[i] for i in sorted_neg[:3]]
+                    else:
+                        positive_indices = np.where(contrib_row > 0)[0]
+                        sorted_pos = positive_indices[np.argsort(contrib_row[positive_indices])[::-1]]
+                        trigger = [factors[i] for i in sorted_pos[:3]]
+                else:
+                    importances = clf.feature_importances_
+                    top_idx = np.argsort(importances)[::-1][:3]
+                    trigger = [factors[i] for i in top_idx]
 
-            result.append(RecentAlphaSignal(
-                stock_id=stock_id,
-                stock_name=name,
-                signal_date=latest_date.strftime('%Y-%m-%d'),
-                predicted_prob=round(float(row['_prob']), 6),
-                trigger_factors=trigger,
-            ))
+                signals_list.append(RecentAlphaSignal(
+                    stock_id=stock_id,
+                    stock_name=name,
+                    signal_date=latest_date.strftime('%Y-%m-%d'),
+                    predicted_prob=round(float(row['_prob']), 6),
+                    trigger_factors=trigger,
+                ))
+            return signals_list
+
+        # 合併：先 top（正序）再 bot（反序），前端用 predicted_prob 區分多空
+        result = _extract_signals(top_recent, is_short=False)
+        result += _extract_signals(bot_recent, is_short=True)
         return result
 
     # ─── 訊號歷史：儲存 / 回填 / 查詢 ────────────────────────────────────────
