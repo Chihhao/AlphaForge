@@ -78,6 +78,7 @@ class TodaySignal(BaseModel):
     weighted_market_win_rate_hi: float = 0.0
     weighted_market_loss_rate: float = 0.0
     weighted_market_loss_rate_hi: float = 0.0
+    is_stable: bool = False             # 低波動 overlay：ivol_20d < 中位數
 
 
 class AlphaMinerResult(BaseModel):

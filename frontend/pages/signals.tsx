@@ -24,6 +24,7 @@ interface TodaySignal {
     weighted_market_win_rate_hi: number
     weighted_market_loss_rate: number
     weighted_market_loss_rate_hi: number
+    is_stable: boolean
 }
 
 type DimKey = '20d'
@@ -386,6 +387,11 @@ export default function SignalsPage() {
                                                     <p className="text-zinc-500 text-xs font-mono shrink-0">{s.stock_id}</p>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 shrink-0">
+                                                    {s.is_stable && (
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-900/40 text-cyan-400 border border-cyan-800/50">
+                                                            穩定
+                                                        </span>
+                                                    )}
                                                     <span className="px-2.5 py-1 rounded-full text-xs font-normal bg-zinc-700/60 text-zinc-400 border border-zinc-700 shrink-0">
                                                         {DIM_CONFIG[dim].shortLabel}後
                                                     </span>

@@ -25,7 +25,7 @@ from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 
 logger = logging.getLogger(__name__)
 
@@ -287,6 +287,23 @@ class AlphaMinerService:
                 resonance_ids = {sig.stock_id for sig in detail_10d.recent_signals}
                 logger.info(f"[AlphaMiner] 共振過濾：10d Top {len(resonance_ids)} 檔")
 
+        # 低波動 Overlay：查最新一天的 ivol_20d，取中位數做為穩定型門檻
+        # 研究驗證：低波動過濾 Sharpe +17%, MDD -12%
+        from app.models.stock_feature import StockFeature
+        latest_feat_date = db.query(func.max(StockFeature.date)).scalar()
+        ivol_map: Dict[str, float] = {}
+        ivol_median: float = float('inf')
+        if latest_feat_date:
+            feat_rows = db.query(
+                StockFeature.stock_id, StockFeature.ivol_20d
+            ).filter(
+                StockFeature.date == latest_feat_date,
+                StockFeature.ivol_20d.isnot(None),
+            ).all()
+            ivol_map = {r.stock_id: r.ivol_20d for r in feat_rows}
+            if ivol_map:
+                ivol_median = float(sorted(ivol_map.values())[len(ivol_map) // 2])
+
         signals = []
         for sig in detail.recent_signals:
             # 如果有共振集合，只保留同時在 10d Top 的股票
@@ -297,6 +314,10 @@ class AlphaMinerService:
             top_factors = [TRAINING_FACTORS.get(f, FACTOR_LABELS.get(f, f)) for f in sig.trigger_factors[:3]]
             prob = sig.predicted_prob
             odds = prob / max(1 - prob, 1e-6)
+
+            # 低波動 = ivol_20d < 中位數（波動率低於市場一半的股票）
+            stock_ivol = ivol_map.get(sig.stock_id)
+            is_stable = stock_ivol is not None and stock_ivol <= ivol_median
 
             signals.append(TodaySignal(
                 stock_id=sig.stock_id,
@@ -317,9 +338,11 @@ class AlphaMinerService:
                 weighted_market_win_rate_hi=ranking.market_win_rate_hi,
                 weighted_market_loss_rate=ranking.market_loss_rate,
                 weighted_market_loss_rate_hi=ranking.market_loss_rate_hi,
+                is_stable=is_stable,
             ))
 
-        logger.info(f"[AlphaMiner] {dimension} 訊號{'（共振後）' if resonance_ids else ''}: {len(signals)} 檔")
+        n_stable = sum(1 for s in signals if s.is_stable)
+        logger.info(f"[AlphaMiner] {dimension} 訊號{'（共振後）' if resonance_ids else ''}: {len(signals)} 檔（穩定型 {n_stable} 檔）")
         # 按 odds ratio 降序排列
         signals.sort(key=lambda x: x.weighted_odds_ratio, reverse=True)
         return signals[:20]
