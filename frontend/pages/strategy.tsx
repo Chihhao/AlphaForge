@@ -43,100 +43,50 @@ interface RecommendationTableData {
     test_period: string
 }
 
-const CONF_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-    high:   { bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-400', label: '高' },
-    medium: { bg: 'bg-zinc-700/30 border-zinc-600/30',   text: 'text-zinc-300',  label: '中' },
-    low:    { bg: 'bg-zinc-800/30 border-zinc-700/30',   text: 'text-zinc-500',  label: '低' },
+const DIM_NAMES: Record<string, string> = { '5d': '5d', '10d': '10d', '20d': '20d' }
+
+// 將各維度推薦攤平成統一列表，每筆標記來源維度
+interface FlatPick {
+    stock_id: string
+    stock_name: string
+    dimension: string
+    win_rate: number
+    avg_return: number
+    is_stable: boolean
 }
 
-const DIM_NAMES: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日' }
-
-function RecPickRow({ pick, direction }: { pick: RecommendationPick; direction: 'long' | 'short' }) {
+function RecPickCard({ pick, rank, direction }: { pick: FlatPick; rank: number; direction: 'long' | 'short' }) {
     const isLong = direction === 'long'
+    const dimLabel = DIM_NAMES[pick.dimension] ?? pick.dimension
+    const badge = isLong ? '多' : '空'
+    const badgeClass = isLong
+        ? 'text-rose-400 bg-rose-500/10 border-rose-500/25'
+        : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+    const wrColor = pick.win_rate >= 50 ? 'text-rose-400' : 'text-zinc-400'
+    const retColor = pick.avg_return >= 0 ? 'text-rose-400' : 'text-emerald-400'
+
     return (
-        <tr className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
-            <td className="py-2 pr-2 text-zinc-500 text-xs w-6">{pick.rank}</td>
-            <td className="py-2 pr-2">
-                <Link href={`/stock/${pick.stock_id}`} className="flex items-center gap-1.5 group">
-                    <span className="text-zinc-200 text-xs font-semibold group-hover:text-amber-400 transition-colors">
-                        {pick.stock_id}
-                    </span>
-                    <span className="text-zinc-500 text-xs truncate max-w-[5rem]">{pick.stock_name}</span>
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-3 py-3">
+            <div className="flex items-start gap-1.5">
+                <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
+                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span className={`text-[10px] font-bold border rounded px-1.5 py-0.5 leading-none ${badgeClass}`}>{badge}</span>
+                    <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
+                        {pick.stock_name}
+                    </Link>
+                    <span className="text-zinc-500 text-sm">{pick.stock_id}</span>
                     {pick.is_stable && (
                         <span className="text-[10px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">穩定</span>
                     )}
-                </Link>
-            </td>
-            <td className="py-2 text-right">
-                <div className="flex flex-wrap justify-end gap-0.5">
-                    {pick.trigger_factors.slice(0, 2).map((f, i) => (
-                        <span key={i} className={`text-[10px] px-1 py-0.5 rounded ${
-                            isLong ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
-                        }`}>{f}</span>
-                    ))}
-                </div>
-            </td>
-        </tr>
-    )
-}
-
-function DimCard({ dim }: { dim: DimensionRecommendation }) {
-    const conf = CONF_STYLE[dim.confidence] ?? CONF_STYLE.low
-    const label = DIM_NAMES[dim.dimension] ?? dim.dimension
-
-    return (
-        <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800/40 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="text-zinc-200 font-bold text-sm">{label}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${conf.bg} ${conf.text}`}>
-                        IC {dim.ic > 0 ? '+' : ''}{(dim.ic * 100).toFixed(1)} · 信心{conf.label}
-                    </span>
-                </div>
-                <span className="text-zinc-600 text-[10px] font-mono">{dim.signal_date}</span>
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-zinc-800/40">
-                <div className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-rose-400 text-xs font-semibold flex items-center gap-1">
-                            <svg viewBox="0 0 24 24" width={12} height={12} className="fill-current">
-                                <path d="M16,6L18.29,8.29L13.42,13.17L9.42,9.17L2,16.59L3.41,18L9.42,12L13.42,16L19.71,9.71L22,12V6H16Z" />
-                            </svg>
-                            看漲 Top 5
+                    <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span className={`font-mono text-xs ${wrColor}`}>
+                            {dimLabel}勝率 {pick.win_rate.toFixed(0)}%
                         </span>
-                        <span className="text-zinc-500 text-[10px]">
-                            WR {dim.long_win_rate.toFixed(0)}% · {dim.long_avg_return >= 0 ? '+' : ''}{dim.long_avg_return.toFixed(1)}%
+                        <span className="text-zinc-700">|</span>
+                        <span className={`font-mono text-xs ${retColor}`}>
+                            預計報酬 {pick.avg_return >= 0 ? '+' : ''}{pick.avg_return.toFixed(1)}%
                         </span>
                     </div>
-                    <table className="w-full">
-                        <tbody>
-                            {dim.long_picks.map(p => <RecPickRow key={p.stock_id} pick={p} direction="long" />)}
-                            {dim.long_picks.length === 0 && (
-                                <tr><td colSpan={3} className="py-4 text-center text-zinc-600 text-xs">訓練中</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
-                            <svg viewBox="0 0 24 24" width={12} height={12} className="fill-current">
-                                <path d="M16,18L18.29,15.71L13.42,10.83L9.42,14.83L2,7.41L3.41,6L9.42,12L13.42,8L19.71,14.29L22,12V18H16Z" />
-                            </svg>
-                            看跌 Top 5
-                        </span>
-                        <span className="text-zinc-500 text-[10px]">
-                            WR {dim.short_win_rate.toFixed(0)}% · {dim.short_avg_return >= 0 ? '+' : ''}{dim.short_avg_return.toFixed(1)}%
-                        </span>
-                    </div>
-                    <table className="w-full">
-                        <tbody>
-                            {dim.short_picks.map(p => <RecPickRow key={p.stock_id} pick={p} direction="short" />)}
-                            {dim.short_picks.length === 0 && (
-                                <tr><td colSpan={3} className="py-4 text-center text-zinc-600 text-xs">訓練中</td></tr>
-                            )}
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>
@@ -144,38 +94,69 @@ function DimCard({ dim }: { dim: DimensionRecommendation }) {
 }
 
 function RecommendationSection({ data }: { data: RecommendationTableData | null }) {
-    if (!data || data.dimensions.length === 0) {
-        return (
-            <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-6 text-center">
-                <p className="text-zinc-500 text-sm">推薦清單產生中，請稍候...</p>
-                <p className="text-zinc-600 text-xs mt-1">模型每日 17:30 重新訓練</p>
-            </div>
-        )
+    if (!data || data.dimensions.length === 0) return null
+
+    // 攤平：每個維度的 picks 加上維度標記
+    const longPicks: FlatPick[] = []
+    const shortPicks: FlatPick[] = []
+    for (const dim of data.dimensions) {
+        for (const p of dim.long_picks) {
+            longPicks.push({
+                stock_id: p.stock_id, stock_name: p.stock_name,
+                dimension: dim.dimension,
+                win_rate: dim.long_win_rate, avg_return: dim.long_avg_return,
+                is_stable: p.is_stable,
+            })
+        }
+        for (const p of dim.short_picks) {
+            shortPicks.push({
+                stock_id: p.stock_id, stock_name: p.stock_name,
+                dimension: dim.dimension,
+                win_rate: dim.short_win_rate, avg_return: dim.short_avg_return,
+                is_stable: p.is_stable,
+            })
+        }
     }
 
+    if (longPicks.length === 0 && shortPicks.length === 0) return null
+
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" width={16} height={16} className="fill-amber-400 shrink-0">
-                        <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
-                    </svg>
-                    <h2 className="text-zinc-200 text-sm font-bold">每日推薦清單</h2>
-                </div>
-                <span className="text-zinc-600 text-[10px]">
-                    訓練期 {data.train_period} · 測試期 {data.test_period}
-                </span>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                {data.dimensions.map(dim => (
-                    <DimCard key={dim.dimension} dim={dim} />
-                ))}
-            </div>
-            <p className="text-zinc-600 text-[10px] px-1 leading-relaxed">
-                WR = 歷史勝率（做多=正報酬比例，做空=負報酬比例）。報酬為 Top/Bot 20% 平均報酬。
-                看漲看跌各顯示模型分數最高/最低的 5 檔。以上為量化模型回測結果，非投資建議。
-            </p>
-        </div>
+        <>
+            {longPicks.length > 0 && (
+                <>
+                    <div className="flex items-center gap-3 px-1">
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                            <span className="text-sm font-semibold text-zinc-300">做多</span>
+                        </div>
+                        <span className="text-xs font-mono text-zinc-500">{longPicks.length} 檔</span>
+                        <div className="flex-1 h-px bg-zinc-800" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        {longPicks.map((p, i) => (
+                            <RecPickCard key={`${p.dimension}-${p.stock_id}`} pick={p} rank={i + 1} direction="long" />
+                        ))}
+                    </div>
+                </>
+            )}
+            {shortPicks.length > 0 && (
+                <>
+                    <div className="flex items-center gap-3 px-1 mt-2">
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <span className="text-sm font-semibold text-zinc-300">做空</span>
+                        </div>
+                        <span className="text-xs font-mono text-zinc-500">{shortPicks.length} 檔</span>
+                        <div className="flex-1 h-px bg-zinc-800" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        {shortPicks.map((p, i) => (
+                            <RecPickCard key={`${p.dimension}-${p.stock_id}`} pick={p} rank={i + 1} direction="short" />
+                        ))}
+                    </div>
+                </>
+            )}
+        </>
     )
 }
 
