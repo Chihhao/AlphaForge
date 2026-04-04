@@ -846,12 +846,15 @@ const StrategyPage = () => {
                     stratMap[s.strategy_id] = { wr: s.win_rate_positive, avg: s.avg_return_top }
                 }
 
-                // 30d → 20d 映射（舊資料清理）
-                const fixDim = (d: string | null | undefined) => d === '30d' ? '20d' : (d ?? null)
+                const VALID_DIMS = new Set(['5d', '10d', '20d'])
+                // 舊的 30d 維度已棄用，stock_best_dim 為 30d 時忽略，用 time_dimension
+                const cleanDim = (d: string | null | undefined) => (d && VALID_DIMS.has(d)) ? d : null
 
-                // 先收集 Strategy Miner picks
-                const minerPicks: StrategyPick[] = data.map(p => {
-                    const dim = fixDim(p.time_dimension) || '20d'
+                // 先收集 Strategy Miner picks（過濾掉已棄用的 30d）
+                const minerPicks: StrategyPick[] = data
+                    .filter(p => VALID_DIMS.has(p.time_dimension))
+                    .map(p => {
+                    const dim = p.time_dimension
                     const dimKey = `lgb_${dim}`
                     const strat = stratMap[dimKey]
                     return {
@@ -864,12 +867,13 @@ const StrategyPage = () => {
                         weighted_score: p.weighted_score,
                         time_dimension: dim,
                         direction: p.direction || 'long',
-                        dims: (() => { try { return JSON.parse(p.strategy_ids).map(fixDim) } catch { return [dim] } })(),
+                        dims: (() => { try { return JSON.parse(p.strategy_ids).filter((d: string) => VALID_DIMS.has(d)) } catch { return [dim] } })(),
                         buy_reasons: p.buy_reasons ?? [],
                         stock_win_rate: p.stock_win_rate ?? null,
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
                         stock_trade_count: p.stock_trade_count ?? 0,
-                        stock_best_dim: fixDim(p.stock_best_dim),
+                        // stock_best_dim 若為已棄用維度（30d），忽略，用 time_dimension
+                        stock_best_dim: cleanDim(p.stock_best_dim) ?? dim,
                         strategy_win_rate: strat?.wr ?? null,
                         strategy_avg_return: strat?.avg ?? null,
                     }

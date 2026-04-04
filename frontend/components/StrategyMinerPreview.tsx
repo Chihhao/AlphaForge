@@ -167,7 +167,8 @@ interface DimensionRec {
 }
 interface RecTable { dimensions: DimensionRec[]; last_trained: string; train_period: string; test_period: string }
 
-const fixDim = (d: string | null | undefined) => d === '30d' ? '20d' : (d ?? null)
+const VALID_DIMS = new Set(['5d', '10d', '20d'])
+const cleanDim = (d: string | null | undefined) => (d && VALID_DIMS.has(d)) ? d : null
 
 export default function StrategyMinerPreview() {
   const [picks, setPicks] = useState<PickPreview[]>([])
@@ -193,9 +194,11 @@ export default function StrategyMinerPreview() {
           stratMap[s.strategy_id] = s
         }
 
-        // Strategy Miner picks（30d→20d）
-        const minerPicks: PickPreview[] = (picksRes.data || []).map(p => {
-          const dim = fixDim(p.time_dimension) || '20d'
+        // Strategy Miner picks（過濾掉已棄用的 30d）
+        const minerPicks: PickPreview[] = (picksRes.data || [])
+          .filter(p => VALID_DIMS.has(p.time_dimension))
+          .map(p => {
+          const dim = p.time_dimension
           const strat = stratMap[`lgb_${dim}`]
           return {
             stock_id: p.stock_id, stock_name: p.stock_name,
@@ -203,11 +206,11 @@ export default function StrategyMinerPreview() {
             stop_loss_pct: p.stop_loss_pct, hold_days_max: p.hold_days_max,
             weighted_score: p.weighted_score, time_dimension: dim,
             direction: p.direction || 'long',
-            dims: (() => { try { return JSON.parse(p.strategy_ids).map(fixDim) } catch { return [dim] } })(),
+            dims: (() => { try { return JSON.parse(p.strategy_ids).filter((d: string) => VALID_DIMS.has(d)) } catch { return [dim] } })(),
             buy_reasons: p.buy_reasons ?? [],
             stock_win_rate: p.stock_win_rate ?? null,
             stock_avg_return: (p as any).stock_avg_return ?? null,
-            stock_best_dim: fixDim((p as any).stock_best_dim),
+            stock_best_dim: cleanDim((p as any).stock_best_dim) ?? dim,
             strategy_win_rate: strat?.win_rate_positive ?? null,
             strategy_avg_return: strat?.avg_return_top ?? null,
           }
