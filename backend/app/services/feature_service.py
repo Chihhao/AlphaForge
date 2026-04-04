@@ -351,6 +351,13 @@ class FeatureService:
         df['atr20'] = IndicatorService.calculate_atr_vec(df, 20)
         df['atr_pct'] = df['atr20'] / df['close'].replace(0, np.nan) * 100
 
+        # 特異波動率（Phase 8）：日報酬減去市場中位數後的 20 日標準差
+        market_median_ret = df.groupby('date')['change_pct'].transform('median')
+        df['_excess_ret'] = df['change_pct'] - market_median_ret
+        df['ivol_20d'] = df.groupby('stock_id')['_excess_ret'].transform(
+            lambda x: x.rolling(20, min_periods=10).std()
+        )
+
         # 產業相對強度（Phase 6A）：在全市場 df 上向量化計算
         df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
         industry_map = {r.stock_id: r.industry for r in db.query(Stock.stock_id, Stock.industry).all()}
@@ -373,6 +380,37 @@ class FeatureService:
             lambda sid: getattr(fund_map.get(sid), 'pb_ratio', None))
         backfill_df['revenue_yoy'] = backfill_df['stock_id'].map(
             lambda sid: getattr(fund_map.get(sid), 'revenue_growth_yoy', None))
+
+        # 營收衍生因子（rev_surprise, rev_accel）
+        from app.models.stock_revenue import StockMonthlyRevenue
+        rev_rows = db.query(StockMonthlyRevenue).filter(
+            StockMonthlyRevenue.revenue > 0
+        ).order_by(StockMonthlyRevenue.stock_id, StockMonthlyRevenue.year, StockMonthlyRevenue.month).all()
+
+        surprise_map: dict = {}
+        accel_map: dict = {}
+        if rev_rows:
+            rev_data: dict = {}
+            for r in rev_rows:
+                rev_data.setdefault(r.stock_id, []).append((r.year, r.month, r.revenue, r.revenue_yoy))
+            for sid, records in rev_data.items():
+                if len(records) < 2:
+                    continue
+                latest = records[-1]
+                rev_val = latest[2]
+                yoy_val = latest[3]
+                prev_revs = [r[2] for r in records[-4:-1] if r[2] and r[2] > 0]
+                if prev_revs:
+                    ma3 = sum(prev_revs) / len(prev_revs)
+                    if ma3 > 0:
+                        surprise_map[sid] = (rev_val - ma3) / ma3 * 100
+                if yoy_val is not None and len(records) >= 2:
+                    prev_yoy = records[-2][3]
+                    if prev_yoy is not None:
+                        accel_map[sid] = yoy_val - prev_yoy
+
+        backfill_df['rev_surprise'] = backfill_df['stock_id'].map(surprise_map)
+        backfill_df['rev_accel'] = backfill_df['stock_id'].map(accel_map)
 
         # 籌碼面：讀取回補期間 + 前 10 天的籌碼資料
         chip_warmup = start_date - timedelta(days=30)
@@ -529,6 +567,7 @@ class FeatureService:
                     dealer_buy_20d=_safe_float(row.get('dealer_buy_20d')),
                     atr20=_safe_float(row.get('atr20')),
                     atr_pct=_safe_float(row.get('atr_pct')),
+                    ivol_20d=_safe_float(row.get('ivol_20d')),
                     market_breadth=_safe_float(row.get('market_breadth')),
                     market_trend=_safe_float(row.get('market_trend')),
                 ))
