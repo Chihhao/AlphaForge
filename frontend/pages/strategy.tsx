@@ -216,7 +216,7 @@ interface StrategyPick {
     change_percent?: number | null    // 漲跌幅 (%)
 }
 
-const DIM_LABEL: Record<string, string> = { '20d': '20日' }
+const DIM_LABEL: Record<string, string> = { '5d': '5d', '10d': '10d', '20d': '20d' }
 
 const toStars = (score: number) => {
     const n = score >= 20 ? 5 : score >= 15 ? 4 : score >= 10 ? 3 : score >= 5 ? 2 : 1
@@ -251,7 +251,11 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             <div className="flex items-start gap-1.5">
                 <span className="text-zinc-600 font-mono text-xs shrink-0 w-5 mt-1">#{rank}</span>
                 <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded px-1.5 py-0.5 leading-none">多</span>
+                    <span className={`text-[10px] font-bold rounded px-1.5 py-0.5 leading-none border ${
+                        pick.direction === 'short'
+                            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+                            : 'text-rose-400 bg-rose-500/10 border-rose-500/25'
+                    }`}>{pick.direction === 'short' ? '空' : '多'}</span>
                     <Link href={`/stock/${pick.stock_id}`} className="text-white font-bold text-xl leading-none hover:text-amber-300 transition-colors">
                         {pick.stock_name}
                     </Link>
@@ -748,14 +752,6 @@ const StrategyPage = () => {
             .catch(() => {})
     }, [])
 
-    const [recommendations, setRecommendations] = useState<RecommendationTableData | null>(null)
-
-    useEffect(() => {
-        api.get('/alpha-miner/recommendations?top_n=5')
-            .then(r => setRecommendations(r.data))
-            .catch(() => {})
-    }, [])
-
     const [alphaExpanded, setAlphaExpanded] = useState(false)
     const [alphaData, setAlphaData] = useState<AlphaMinerResult | null>(null)
     const [alphaLoading, setAlphaLoading] = useState(false)
@@ -836,23 +832,25 @@ const StrategyPage = () => {
     useEffect(() => {
         const loadPicks = async () => {
             try {
-                // 優先使用 Strategy Miner 推薦清單（含真實優化停利停損）
-                const [picksRes, stratRes] = await Promise.all([
+                // 同時載入 Strategy Miner + 推薦清單
+                const [picksRes, stratRes, recRes] = await Promise.all([
                     api.get('/strategy-miner/picks/today'),
-                    api.get<{ strategies: Array<{ strategy_id: string; win_rate_positive: number; avg_return_top: number }> }>('/alpha-miner/strategies').catch(() => ({ data: { strategies: [] } })),
+                    api.get<{ strategies: Array<{ strategy_id: string; win_rate_positive: number; avg_return_top: number; short_win_rate?: number; avg_return_bottom?: number }> }>('/alpha-miner/strategies').catch(() => ({ data: { strategies: [] } })),
+                    api.get<RecommendationTableData>('/alpha-miner/recommendations?top_n=5').catch(() => ({ data: null })),
                 ])
                 const data: StrategyMinerPick[] = picksRes.data ?? []
 
-                // 建立策略級 fallback lookup
+                // 建立策略級 lookup
                 const stratMap: Record<string, { wr: number; avg: number }> = {}
                 for (const s of stratRes.data?.strategies ?? []) {
                     stratMap[s.strategy_id] = { wr: s.win_rate_positive, avg: s.avg_return_top }
                 }
 
-                if (data.length > 0) {
-                    setSignalDate(data[0].pick_date)
-                    setPicks(data.map(p => {
-                        const dimKey = p.time_dimension?.replace('d', '') ? `lgb_${p.time_dimension}` : ''
+                // 先收集 Strategy Miner picks（過濾掉 30d，只留 5d/10d/20d）
+                const minerPicks: StrategyPick[] = data
+                    .filter(p => ['5d', '10d', '20d'].includes(p.time_dimension))
+                    .map(p => {
+                        const dimKey = p.time_dimension ? `lgb_${p.time_dimension}` : ''
                         const strat = stratMap[dimKey]
                         return {
                             stock_id: p.stock_id,
@@ -873,14 +871,65 @@ const StrategyPage = () => {
                             strategy_win_rate: strat?.wr ?? null,
                             strategy_avg_return: strat?.avg ?? null,
                         }
-                    }))
+                    })
+
+                // 合併推薦清單 picks（去除已在 Strategy Miner 中的股票）
+                const existingIds = new Set(minerPicks.map(p => p.stock_id))
+                const recData = recRes.data
+                const recPicks: StrategyPick[] = []
+                if (recData?.dimensions) {
+                    const DIM_DAYS_MAP: Record<string, number> = { '5d': 5, '10d': 10, '20d': 20 }
+                    for (const dim of recData.dimensions) {
+                        // 做多 picks
+                        for (const p of dim.long_picks) {
+                            if (existingIds.has(p.stock_id)) continue
+                            existingIds.add(p.stock_id)
+                            recPicks.push({
+                                stock_id: p.stock_id,
+                                stock_name: p.stock_name,
+                                entry_price: 0,
+                                take_profit_pct: dim.dimension === '5d' ? 3 : 5,
+                                stop_loss_pct: dim.dimension === '5d' ? 2 : 3,
+                                hold_days_max: DIM_DAYS_MAP[dim.dimension] ?? 20,
+                                weighted_score: p.score * 100,
+                                time_dimension: dim.dimension,
+                                direction: 'long',
+                                strategy_win_rate: dim.long_win_rate / 100,
+                                strategy_avg_return: dim.long_avg_return,
+                            })
+                        }
+                        // 做空 picks
+                        for (const p of dim.short_picks) {
+                            if (existingIds.has(`short_${p.stock_id}`)) continue
+                            existingIds.add(`short_${p.stock_id}`)
+                            recPicks.push({
+                                stock_id: p.stock_id,
+                                stock_name: p.stock_name,
+                                entry_price: 0,
+                                take_profit_pct: dim.dimension === '5d' ? 2 : 3,
+                                stop_loss_pct: dim.dimension === '5d' ? 3 : 5,
+                                hold_days_max: DIM_DAYS_MAP[dim.dimension] ?? 20,
+                                weighted_score: (1 - p.score) * 100,
+                                time_dimension: dim.dimension,
+                                direction: 'short',
+                                strategy_win_rate: dim.short_win_rate / 100,
+                                strategy_avg_return: dim.short_avg_return,
+                            })
+                        }
+                    }
+                }
+
+                const combined = [...minerPicks, ...recPicks]
+                if (combined.length > 0) {
+                    setSignalDate(data[0]?.pick_date ?? recData?.dimensions?.[0]?.signal_date ?? '')
+                    setPicks(combined)
                     setLoading(false)
-                    // 非同步載入即時報價
-                    enrichWithQuotes(data.map(p => p.stock_id))
+                    const allIds = combined.filter(p => p.entry_price === 0).map(p => p.stock_id)
+                    if (allIds.length > 0) enrichWithQuotes(allIds)
                     return
                 }
 
-                // Fallback：Strategy Miner 尚無資料，使用 Alpha Miner 訊號（硬碼參數）
+                // Fallback：都沒資料，使用 Alpha Miner 訊號
                 setUsingFallback(true)
                 await loadFallback()
             } catch {
@@ -995,9 +1044,6 @@ const StrategyPage = () => {
                     </div>
                 </div>
 
-                {/* ── 每日推薦清單（5d/10d/20d 多空 Top5）──────────── */}
-                <RecommendationSection data={recommendations} />
-
                 {error && (
                     <div className="bg-rose-900/20 border border-rose-800/50 rounded-2xl p-4 text-rose-400 text-sm">
                         載入失敗：{error}
@@ -1034,6 +1080,23 @@ const StrategyPage = () => {
                         <div className="flex flex-col gap-2">
                             {picks.filter(p => p.direction === 'long').map((pick, i) => (
                                 <PickCard key={pick.stock_id} pick={pick} rank={i + 1} />
+                            ))}
+                        </div>
+                    </>
+                )}
+                {!loading && picks.filter(p => p.direction === 'short').length > 0 && (
+                    <>
+                        <div className="flex items-center gap-3 px-1">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                <span className="text-sm font-semibold text-zinc-300">做空</span>
+                            </div>
+                            <span className="text-xs font-mono text-zinc-500">{picks.filter(p => p.direction === 'short').length} 檔</span>
+                            <div className="flex-1 h-px bg-zinc-800" />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            {picks.filter(p => p.direction === 'short').map((pick, i) => (
+                                <PickCard key={`short_${pick.stock_id}`} pick={pick} rank={i + 1} />
                             ))}
                         </div>
                     </>
