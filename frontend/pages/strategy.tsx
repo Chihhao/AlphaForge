@@ -846,32 +846,34 @@ const StrategyPage = () => {
                     stratMap[s.strategy_id] = { wr: s.win_rate_positive, avg: s.avg_return_top }
                 }
 
-                // 先收集 Strategy Miner picks（過濾掉 30d，只留 5d/10d/20d）
-                const minerPicks: StrategyPick[] = data
-                    .filter(p => ['5d', '10d', '20d'].includes(p.time_dimension))
-                    .map(p => {
-                        const dimKey = p.time_dimension ? `lgb_${p.time_dimension}` : ''
-                        const strat = stratMap[dimKey]
-                        return {
-                            stock_id: p.stock_id,
-                            stock_name: p.stock_name,
-                            entry_price: p.entry_price,
-                            take_profit_pct: Math.round(p.take_profit_pct * 100),
-                            stop_loss_pct: Math.round(p.stop_loss_pct * 100),
-                            hold_days_max: p.hold_days_max,
-                            weighted_score: p.weighted_score,
-                            time_dimension: p.time_dimension,
-                            direction: p.direction || 'long',
-                            dims: (() => { try { return JSON.parse(p.strategy_ids) } catch { return [p.time_dimension] } })(),
-                            buy_reasons: p.buy_reasons ?? [],
-                            stock_win_rate: p.stock_win_rate ?? null,
-                            stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
-                            stock_trade_count: p.stock_trade_count ?? 0,
-                            stock_best_dim: p.stock_best_dim ?? null,
-                            strategy_win_rate: strat?.wr ?? null,
-                            strategy_avg_return: strat?.avg ?? null,
-                        }
-                    })
+                // 30d → 20d 映射（舊資料清理）
+                const fixDim = (d: string | null | undefined) => d === '30d' ? '20d' : (d ?? null)
+
+                // 先收集 Strategy Miner picks
+                const minerPicks: StrategyPick[] = data.map(p => {
+                    const dim = fixDim(p.time_dimension) || '20d'
+                    const dimKey = `lgb_${dim}`
+                    const strat = stratMap[dimKey]
+                    return {
+                        stock_id: p.stock_id,
+                        stock_name: p.stock_name,
+                        entry_price: p.entry_price,
+                        take_profit_pct: Math.round(p.take_profit_pct * 100),
+                        stop_loss_pct: Math.round(p.stop_loss_pct * 100),
+                        hold_days_max: p.hold_days_max,
+                        weighted_score: p.weighted_score,
+                        time_dimension: dim,
+                        direction: p.direction || 'long',
+                        dims: (() => { try { return JSON.parse(p.strategy_ids).map(fixDim) } catch { return [dim] } })(),
+                        buy_reasons: p.buy_reasons ?? [],
+                        stock_win_rate: p.stock_win_rate ?? null,
+                        stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
+                        stock_trade_count: p.stock_trade_count ?? 0,
+                        stock_best_dim: fixDim(p.stock_best_dim),
+                        strategy_win_rate: strat?.wr ?? null,
+                        strategy_avg_return: strat?.avg ?? null,
+                    }
+                })
 
                 // 合併推薦清單 picks（去除已在 Strategy Miner 中的股票）
                 const existingIds = new Set(minerPicks.map(p => p.stock_id))
@@ -924,8 +926,8 @@ const StrategyPage = () => {
                     setSignalDate(data[0]?.pick_date ?? recData?.dimensions?.[0]?.signal_date ?? '')
                     setPicks(combined)
                     setLoading(false)
-                    const allIds = combined.filter(p => p.entry_price === 0).map(p => p.stock_id)
-                    if (allIds.length > 0) enrichWithQuotes(allIds)
+                    // 所有 picks 都載入即時報價
+                    enrichWithQuotes(combined.map(p => p.stock_id))
                     return
                 }
 
