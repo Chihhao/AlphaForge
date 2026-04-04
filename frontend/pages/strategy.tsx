@@ -924,6 +924,12 @@ const StrategyPage = () => {
                 const combined = [...minerPicks, ...recPicks]
                 if (combined.length > 0) {
                     setSignalDate(data[0]?.pick_date ?? recData?.dimensions?.[0]?.signal_date ?? '')
+                    // 按勝率排序：做多用正報酬勝率，做空用負報酬勝率
+                    combined.sort((a, b) => {
+                        const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
+                        const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
+                        return wrB - wrA
+                    })
                     setPicks(combined)
                     setLoading(false)
                     // 所有 picks 都載入即時報價
