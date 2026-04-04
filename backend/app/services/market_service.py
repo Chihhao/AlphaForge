@@ -71,19 +71,30 @@ class MarketService:
         """從資料庫讀取全市場最後兩個交易日數據"""
         db = SessionLocal()
         try:
-            # 最近兩個有資料的交易日（用個股數據偵測，避免依賴 ^TWII 同步）
+            # 最近幾個有資料的交易日（取多筆以跳過假日寫入的異常資料）
             from sqlalchemy import func, distinct
-            latest_dates = db.query(StockPrice.date).filter(
+            latest_dates = db.query(
+                StockPrice.date,
+                func.count(distinct(StockPrice.stock_id)).label('cnt')
+            ).filter(
                 ~StockPrice.stock_id.startswith("^")
             ).group_by(StockPrice.date).having(
                 func.count(distinct(StockPrice.stock_id)) > 100
-            ).order_by(StockPrice.date.desc()).limit(2).all()
+            ).order_by(StockPrice.date.desc()).limit(7).all()
 
             if not latest_dates or len(latest_dates) < 2:
                 return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
 
-            today_date = latest_dates[0][0]
-            yesterday_date = latest_dates[1][0]
+            # 跳過假日寫入的異常資料：正常交易日約 1800+ 檔，
+            # 假日 crawler 可能寫入前一天舊價格（僅 800~900 檔），導致漲跌幅全為 0%
+            max_cnt = max(row.cnt for row in latest_dates)
+            normal_dates = [row.date for row in latest_dates if row.cnt >= max_cnt * 0.7]
+
+            if len(normal_dates) < 2:
+                return MarketRankingResponse(top_gainers=[], top_losers=[], top_volume=[])
+
+            today_date = normal_dates[0]
+            yesterday_date = normal_dates[1]
 
             # 批次撈 stock_fundamentals 名稱（補 twstock 沒有的股票）
             fund_names: Dict[str, str] = {
