@@ -81,14 +81,15 @@ FACTOR_LABELS: Dict[str, str] = {
     'trust_buy_20d':    '投信20日累積',
     'dealer_buy_10d':   '自營商10日累積',
     'dealer_buy_20d':   '自營商20日累積',
+    # Phase 8 波動率
+    'ivol_20d':         '特異波動率',
 }
 
-# ─── 訓練用因子（9 個：基本面 4 + 營收衍生 2 + 穩定籌碼 3）─────────────────
-# 2026-04-03 Long-Short 驗證：E 組合 7/7 窗口全勝 A（現行 15 因子）
-#   E: IC=0.169, L-S Sharpe=2.65, MaxDD=-1.4%
-#   A: IC=0.037, L-S Sharpe=0.65, MaxDD=-6.7%
-# 移除不穩定籌碼因子（foreign_buy/net_buy、trust 系列、price_vs_high20）
-# 這些因子在外資撤退期（2026-03）IC 急劇惡化，拖累模型預測力
+# ─── 訓練用因子（10 個：基本面 4 + 營收衍生 2 + 穩定籌碼 3 + 波動率 1）────
+# 2026-04-04 全方位因子篩選（40 因子）：
+#   neg_ivol_20d IC +15% 改善 (0.144→0.165)，p=0.026 顯著
+#   Partial IC 0.096（控制 9 因子後保留 83%），高度正交
+#   LightGBM 自動學習「低波動 → 高預測報酬」的方向
 TRAINING_FACTORS: Dict[str, str] = {
     # 基本面 — 全期穩定正 IC
     'roe':                  'ROE',
@@ -102,6 +103,8 @@ TRAINING_FACTORS: Dict[str, str] = {
     'foreign_hold_chg_5d':  '外資持股5日變化',
     'dealer_buy_20d':       '自營商20日累積',
     'vol_ratio':            '量比',
+    # 波動率 — 低特異波動率溢酬，獨立於基本面和籌碼（Phase 8）
+    'ivol_20d':             '特異波動率',
 }
 
 # 只載入訓練需要的欄位，減少記憶體消耗

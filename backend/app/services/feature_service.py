@@ -96,6 +96,14 @@ class FeatureService:
         df['atr20'] = IndicatorService.calculate_atr_vec(df, 20)
         df['atr_pct'] = df['atr20'] / df['close'].replace(0, np.nan) * 100
 
+        # 特異波動率（Phase 8）：日報酬減去市場中位數後的 20 日標準差
+        daily_ret = df.groupby('stock_id')['close'].pct_change()
+        market_median_ret = df.groupby('date')['change_pct'].transform('median')
+        df['_excess_ret'] = df['change_pct'] - market_median_ret
+        df['ivol_20d'] = df.groupby('stock_id')['_excess_ret'].transform(
+            lambda x: x.rolling(20, min_periods=10).std()
+        )
+
         # 產業相對強度（Phase 6A）：需在全市場 df 上計算再切 target_date
         df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
 
@@ -280,6 +288,7 @@ class FeatureService:
                 dealer_buy_20d=_safe_float(row.get('dealer_buy_20d')),
                 atr20=_safe_float(row.get('atr20')),
                 atr_pct=_safe_float(row.get('atr_pct')),
+                ivol_20d=_safe_float(row.get('ivol_20d')),
                 market_breadth=_safe_float(row.get('market_breadth')),
                 market_trend=_safe_float(row.get('market_trend')),
             ))

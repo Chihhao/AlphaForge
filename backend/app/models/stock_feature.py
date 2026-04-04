@@ -97,6 +97,7 @@ class StockFeature(Base):
     # --- 波動率（Phase 7）---
     atr20   = Column(Float, nullable=True)    # 20日 Average True Range
     atr_pct = Column(Float, nullable=True)    # ATR / close × 100（波動率百分比）
+    ivol_20d = Column(Float, nullable=True)   # 20日特異波動率（日報酬 - 市場中位數報酬的標準差）
 
     # --- 市場狀態（Phase 7）---
     market_breadth = Column(Float, nullable=True)  # 全市場站上 MA20 的股票比例 (0~1)
