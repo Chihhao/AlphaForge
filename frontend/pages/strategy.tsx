@@ -882,14 +882,9 @@ const StrategyPage = () => {
                 if (recData?.dimensions) {
                     const DIM_DAYS_MAP: Record<string, number> = { '5d': 5, '10d': 10, '20d': 20 }
                     for (const dim of recData.dimensions) {
-                        // 做多 picks：用個股 ensemble score 作為勝率估計
-                        // score 越高 = 模型越有信心會漲，用 score 映射到合理勝率區間
                         for (const p of dim.long_picks) {
                             if (existingIds.has(p.stock_id)) continue
                             existingIds.add(p.stock_id)
-                            // 個股勝率：以 score 相對強度估計（base win rate ± 個股偏離）
-                            const baseWr = dim.long_win_rate / 100
-                            const stockWr = baseWr + (p.score - 0.5) * 0.4  // score 0.5→base, 0.7→+8%
                             recPicks.push({
                                 stock_id: p.stock_id,
                                 stock_name: p.stock_name,
@@ -900,16 +895,13 @@ const StrategyPage = () => {
                                 weighted_score: p.score * 100,
                                 time_dimension: dim.dimension,
                                 direction: 'long',
-                                strategy_win_rate: Math.min(stockWr, 0.95),
-                                strategy_avg_return: dim.long_avg_return * (p.score / 0.5),
+                                strategy_win_rate: dim.long_win_rate / 100,
+                                strategy_avg_return: dim.long_avg_return,
                             })
                         }
-                        // 做空 picks
                         for (const p of dim.short_picks) {
                             if (existingIds.has(`short_${p.stock_id}`)) continue
                             existingIds.add(`short_${p.stock_id}`)
-                            const baseWr = dim.short_win_rate / 100
-                            const stockWr = baseWr + (0.5 - p.score) * 0.4  // score 越低 = 越看空
                             recPicks.push({
                                 stock_id: p.stock_id,
                                 stock_name: p.stock_name,
@@ -920,8 +912,8 @@ const StrategyPage = () => {
                                 weighted_score: (1 - p.score) * 100,
                                 time_dimension: dim.dimension,
                                 direction: 'short',
-                                strategy_win_rate: Math.min(stockWr, 0.95),
-                                strategy_avg_return: dim.short_avg_return * ((1 - p.score) / 0.5),
+                                strategy_win_rate: dim.short_win_rate / 100,
+                                strategy_avg_return: dim.short_avg_return,
                             })
                         }
                     }
