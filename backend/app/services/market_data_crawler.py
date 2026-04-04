@@ -242,11 +242,35 @@ class MarketDataCrawler:
             msg = f"未找到 {target_date_str} 的資料，今日可能非交易日或資料尚未發佈。"
             SystemLogger.warning(msg, category="crawler")
             return {
-                "status": "warning", 
+                "status": "warning",
                 "message": msg,
                 "inserted": 0
             }
-        
+
+        # 假日防護：TWSE 假日可能回傳前一天舊價格（僅部分股票），
+        # 正常交易日約 1800+ 檔，若抓到的股票數不足 DB 最近交易日的 70%，視為假日資料跳過
+        db_check = SessionLocal()
+        try:
+            from sqlalchemy import func, distinct
+            prev_count = db_check.query(
+                func.count(distinct(StockPrice.stock_id))
+            ).filter(
+                ~StockPrice.stock_id.startswith("^"),
+                StockPrice.date < target_date,
+            ).group_by(StockPrice.date).order_by(
+                StockPrice.date.desc()
+            ).first()
+            if prev_count and prev_count[0] > 0:
+                ratio = total_fetched / prev_count[0]
+                if ratio < 0.7:
+                    msg = (f"{target_date_str} 抓取 {total_fetched} 檔，"
+                           f"僅為前一交易日 {prev_count[0]} 檔的 {ratio:.0%}，"
+                           f"疑似假日舊資料，跳過寫入。")
+                    SystemLogger.warning(msg, category="crawler")
+                    return {"status": "skipped", "message": msg, "inserted": 0}
+        finally:
+            db_check.close()
+
         SystemLogger.info(f"資料抓取成功：上市 {len(twse_df)} 檔，上櫃 {len(tpex_df)} 檔。", category="crawler")
             
         # 2. Combine data
