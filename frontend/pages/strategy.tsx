@@ -146,7 +146,7 @@ function RecommendationSection({ data }: { data: RecommendationTableData | null 
                 </div>
                 <div className="flex-1 h-px bg-zinc-800" />
             </div>
-            <p className="text-zinc-500 text-xs px-1">目前無做空推薦 — 回測顯示做空端尚不穩定，暫不提供</p>
+            <p className="text-zinc-500 text-xs px-1">目前無推薦</p>
         </>
     )
 }
@@ -1097,7 +1097,7 @@ const StrategyPage = () => {
                                 </div>
                                 <div className="flex-1 h-px bg-zinc-800" />
                             </div>
-                            <p className="text-zinc-500 text-xs px-1">目前無做空推薦 — 回測顯示做空端尚不穩定，暫不提供</p>
+                            <p className="text-zinc-500 text-xs px-1">目前無推薦</p>
                         </>
                     )
                 })()}
