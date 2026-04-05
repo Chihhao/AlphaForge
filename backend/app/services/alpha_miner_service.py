@@ -224,13 +224,13 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 維度設定：10d（做空）+ 20d（做多做空）
-    # 2026-04-04 NAS 重訓結果：
-    #   5d: IC=-0.010, p=0.38 → 砍掉（無預測力）
-    #  10d: IC=0.019, p=0.03, 做多WR=47.5%（<50%）, 做空WR=58.1% → 只做空
-    #  20d: IC=0.089, p<0.001, 做多WR=53%, 做空WR=60.7% → 主力
+    # 維度設定：目前只有 20d 有效
+    # 2026-04-05 完整 2 年資料重訓結果：
+    #   5d: IC 為負 → 待研究新方法
+    #  10d: IC=-0.003（補完資料後失效）→ 待研究新方法
+    #  20d: IC=0.067, 做多WR=53.2%, 做空WR=59.4% → 唯一有效維度
+    # TODO: 研究 5d/10d 的新因子組合，目標是找到有效的短線 alpha
     DIMENSIONS = [
-        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
         {"key": "20d", "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
     ]
 
@@ -466,18 +466,13 @@ class AlphaMinerService:
             dim_config = next((d for d in cls.DIMENSIONS if d['key'] == dim_key), {})
             forward_days = dim_config.get('forward_days', 20)
 
-            # 10d 做多勝率 <50%，只回傳做空
-            dim_long = _to_picks(long_sigs) if dim_key != '10d' else []
-            dim_long_wr = round(ranking.win_rate_positive * 100, 1) if dim_key != '10d' else 0.0
-            dim_long_ret = round(ranking.avg_return_top, 2) if dim_key != '10d' else 0.0
-
             dimensions.append(DimensionRecommendation(
                 dimension=dim_key,
                 forward_days=forward_days,
                 signal_date=signal_date,
-                long_picks=dim_long,
-                long_win_rate=dim_long_wr,
-                long_avg_return=dim_long_ret,
+                long_picks=_to_picks(long_sigs),
+                long_win_rate=round(ranking.win_rate_positive * 100, 1),
+                long_avg_return=round(ranking.avg_return_top, 2),
                 short_picks=_to_picks(short_sigs, is_short=True),
                 short_win_rate=round(ranking.short_win_rate * 100, 1),
                 short_avg_return=round(ranking.avg_return_bottom, 2),
