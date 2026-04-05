@@ -139,23 +139,14 @@ function RecommendationSection({ data }: { data: RecommendationTableData | null 
                     </div>
                 </>
             )}
-            {shortPicks.length > 0 && (
-                <>
-                    <div className="flex items-center gap-3 px-1 mt-2">
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            <span className="text-sm font-semibold text-zinc-300">做空</span>
-                        </div>
-                        <span className="text-xs font-mono text-zinc-500">{shortPicks.length} 檔</span>
-                        <div className="flex-1 h-px bg-zinc-800" />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        {shortPicks.map((p, i) => (
-                            <RecPickCard key={`${p.dimension}-${p.stock_id}`} pick={p} rank={i + 1} direction="short" />
-                        ))}
-                    </div>
-                </>
-            )}
+            <div className="flex items-center gap-3 px-1 mt-2">
+                <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-sm font-semibold text-zinc-300">做空</span>
+                </div>
+                <div className="flex-1 h-px bg-zinc-800" />
+            </div>
+            <p className="text-zinc-500 text-xs px-1">目前無做空推薦 — 回測顯示做空端尚不穩定，暫不提供</p>
         </>
     )
 }
@@ -1099,23 +1090,14 @@ const StrategyPage = () => {
                                     </div>
                                 </>
                             )}
-                            {shortPicks.length > 0 && (
-                                <>
-                                    <div className="flex items-center gap-3 px-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                            <span className="text-sm font-semibold text-zinc-300">做空</span>
-                                        </div>
-                                        <span className="text-xs font-mono text-zinc-500">{shortPicks.length} 檔</span>
-                                        <div className="flex-1 h-px bg-zinc-800" />
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        {shortPicks.map((pick, i) => (
-                                            <PickCard key={`short_${pick.stock_id}`} pick={pick} rank={i + 1} />
-                                        ))}
-                                    </div>
-                                </>
-                            )}
+                            <div className="flex items-center gap-3 px-1">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                    <span className="text-sm font-semibold text-zinc-300">做空</span>
+                                </div>
+                                <div className="flex-1 h-px bg-zinc-800" />
+                            </div>
+                            <p className="text-zinc-500 text-xs px-1">目前無做空推薦 — 回測顯示做空端尚不穩定，暫不提供</p>
                         </>
                     )
                 })()}

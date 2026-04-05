@@ -342,18 +342,12 @@ export default function StrategyMinerPreview() {
               ))}
             </>
           )}
-          {picks.filter(p => p.direction === 'short').length > 0 && (
-            <>
-              <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                <span className="text-xs font-semibold text-zinc-400">做空</span>
-                <div className="flex-1 h-px bg-zinc-800/40" />
-              </div>
-              {picks.filter(p => p.direction === 'short').map((pick, i) => (
-                <PickRow key={`short_${pick.stock_id}`} pick={pick} rank={i + 1} />
-              ))}
-            </>
-          )}
+          <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+            <span className="w-1 h-1 rounded-full bg-emerald-400" />
+            <span className="text-xs font-semibold text-zinc-400">做空</span>
+            <div className="flex-1 h-px bg-zinc-800/40" />
+          </div>
+          <p className="text-zinc-500 text-xs px-2 pb-1">目前無推薦</p>
         </>
       )}
 
