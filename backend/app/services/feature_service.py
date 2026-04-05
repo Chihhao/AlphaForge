@@ -207,7 +207,7 @@ class FeatureService:
                         'foreign_buy_10d', 'foreign_buy_20d',
                         'trust_net_buy', 'trust_buy_5d',
                         'trust_buy_10d', 'trust_buy_20d',
-                        'margin_chg_5d',
+                        'margin_chg_5d', 'short_chg_5d',
                         'dealer_net_buy', 'dealer_buy_5d',
                         'dealer_buy_10d', 'dealer_buy_20d',
                         'foreign_hold_pct', 'foreign_hold_chg_5d'):
@@ -272,6 +272,7 @@ class FeatureService:
                 trust_net_buy=_safe_float(row.get('trust_net_buy')),
                 trust_buy_5d=_safe_float(row.get('trust_buy_5d')),
                 margin_chg_5d=_safe_float(row.get('margin_chg_5d')),
+                short_chg_5d=_safe_float(row.get('short_chg_5d')),
                 dealer_net_buy=_safe_float(row.get('dealer_net_buy')),
                 dealer_buy_5d=_safe_float(row.get('dealer_buy_5d')),
                 price_vs_high20=_safe_float(row.get('price_vs_high20')),
@@ -431,6 +432,7 @@ class FeatureService:
                 'trust_net_buy': c.trust_net_buy,
                 'dealer_net_buy': c.dealer_net_buy,
                 'margin_balance': c.margin_balance,
+                'short_balance': c.short_balance,
                 'foreign_hold_pct': getattr(c, 'foreign_hold_pct', None),
             } for c in chip_rows])
             chip_all = chip_all.sort_values(['stock_id', 'date'])
@@ -446,7 +448,7 @@ class FeatureService:
                     'foreign_buy_10d', 'foreign_buy_20d',
                     'trust_net_buy', 'trust_buy_5d',
                     'trust_buy_10d', 'trust_buy_20d',
-                    'margin_chg_5d',
+                    'margin_chg_5d', 'short_chg_5d',
                     'dealer_net_buy', 'dealer_buy_5d',
                     'dealer_buy_10d', 'dealer_buy_20d',
                     'foreign_hold_pct', 'foreign_hold_chg_5d'):
@@ -551,6 +553,7 @@ class FeatureService:
                     trust_net_buy=_safe_float(row.get('trust_net_buy')),
                     trust_buy_5d=_safe_float(row.get('trust_buy_5d')),
                     margin_chg_5d=_safe_float(row.get('margin_chg_5d')),
+                    short_chg_5d=_safe_float(row.get('short_chg_5d')),
                     dealer_net_buy=_safe_float(row.get('dealer_net_buy')),
                     dealer_buy_5d=_safe_float(row.get('dealer_buy_5d')),
                     price_vs_high20=_safe_float(row.get('price_vs_high20')),
@@ -619,6 +622,7 @@ class FeatureService:
                 'trust_net_buy': c.trust_net_buy,
                 'dealer_net_buy': c.dealer_net_buy,
                 'margin_balance': c.margin_balance,
+                'short_balance': c.short_balance,
                 'foreign_hold_pct': getattr(c, 'foreign_hold_pct', None),
             } for c in chip_rows])
 
@@ -655,6 +659,17 @@ class FeatureService:
         else:
             raw['margin_chg_5d'] = None
 
+        # ── 融券餘額 5 日變化率（軋空因子，Phase 9）──
+        if 'short_balance' in raw.columns:
+            short_shift = raw.groupby('stock_id')['short_balance'].transform(lambda x: x.shift(4))
+            raw['short_chg_5d'] = (
+                (raw['short_balance'] - short_shift)
+                / short_shift.replace(0, np.nan).abs()
+                * 100
+            )
+        else:
+            raw['short_chg_5d'] = None
+
         # ── 外資持股比率 5 日變化（百分點差）──
         if 'foreign_hold_pct' in raw.columns:
             hold_shift = raw.groupby('stock_id')['foreign_hold_pct'].transform(lambda x: x.shift(4))
@@ -673,6 +688,7 @@ class FeatureService:
             'trust_net_buy',
             'trust_buy_5d', 'trust_buy_10d', 'trust_buy_20d',
             'margin_chg_5d',
+            'short_chg_5d',
             'dealer_net_buy',
             'dealer_buy_5d', 'dealer_buy_10d', 'dealer_buy_20d',
             'foreign_hold_pct', 'foreign_hold_chg_5d',

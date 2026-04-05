@@ -83,6 +83,8 @@ FACTOR_LABELS: Dict[str, str] = {
     'dealer_buy_20d':   '自營商20日累積',
     # Phase 8 波動率
     'ivol_20d':         '特異波動率',
+    # Phase 9 融券軋空
+    'short_chg_5d':     '融券5日增',
 }
 
 # ─── 訓練用因子（每個維度可用不同因子集）────────────────────────────
@@ -116,10 +118,11 @@ TRAINING_FACTORS_5D: Dict[str, str] = {
     'neg_bias5':            '反向乖離5日',
 }
 
-# 20d 專用因子：10 因子 + 反向投信（research IC +18%: 0.029→0.034）
+# 20d 專用因子：10 因子 + 反向投信 + 融券軋空（research p=0.011）
 TRAINING_FACTORS_20D: Dict[str, str] = {
     **TRAINING_FACTORS,
     'neg_trust_net_buy':    '反向投信',
+    'short_chg_5d':         '融券5日增（軋空）',
 }
 
 # 每個維度使用的因子

@@ -94,6 +94,9 @@ class StockFeature(Base):
     dealer_buy_10d  = Column(Float, nullable=True)   # 自營商10日累積淨買超（張）
     dealer_buy_20d  = Column(Float, nullable=True)   # 自營商20日累積淨買超（張）
 
+    # --- 融券（Phase 9）---
+    short_chg_5d = Column(Float, nullable=True)  # 融券餘額5日變化率（%），軋空因子
+
     # --- 波動率（Phase 7）---
     atr20   = Column(Float, nullable=True)    # 20日 Average True Range
     atr_pct = Column(Float, nullable=True)    # ATR / close × 100（波動率百分比）
