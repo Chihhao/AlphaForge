@@ -170,6 +170,17 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 17:00 同步全球指數（美股前一日收盤）---
+    scheduler.add_job(
+        lambda: run_with_db(lambda db: __import__(
+            'subprocess'
+        ).run(['python', 'scripts/backfill_global_index.py', '--days', '7'], capture_output=True)),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=17, minute=0),
+        id="sync_global_index",
+        name="Daily global index sync (US markets)",
+        replace_existing=True
+    )
+
     # --- 第四梯次：17:20 計算每日特徵快照 (Alpha Miner 數據基礎) ---
     # 需在基本面最終同步（17:00，含重試最多 15 分鐘）完成後執行
     # ⚠️ 使用 run_on_trading_day：國定假日無交易資料時自動跳過

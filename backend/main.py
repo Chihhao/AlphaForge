@@ -23,6 +23,7 @@ from app.models.stock_ai_analysis import StockAIAnalysis
 from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
 from app.models.strategy_miner_pick import StrategyMinerPick
+from app.models.global_index import GlobalIndex
 from app.core.scheduler import start_scheduler, stop_scheduler
 
 
