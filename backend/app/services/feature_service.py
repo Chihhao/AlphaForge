@@ -486,7 +486,7 @@ class FeatureService:
                          'foreign_buy_10d', 'foreign_buy_20d',
                          'trust_net_buy', 'trust_buy_5d',
                          'trust_buy_10d', 'trust_buy_20d',
-                         'margin_chg_5d',
+                         'margin_chg_5d', 'short_chg_5d',
                          'dealer_net_buy', 'dealer_buy_5d',
                          'dealer_buy_10d', 'dealer_buy_20d',
                          'foreign_hold_pct', 'foreign_hold_chg_5d']
