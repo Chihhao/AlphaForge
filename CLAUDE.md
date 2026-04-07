@@ -77,7 +77,7 @@ API 端點 (backend/app/api/endpoints/)
 - `market_data_crawler.py` — TWSE/TPEx 每日數據抓取
 - `indicator_service.py` — 技術指標計算（MA、RSI、KD、MACD、布林通道）
 
-背景排程透過 APScheduler（`backend/app/core/scheduler.py`）：每日 15:30 與 17:00 同步市場數據，17:05 計算特徵指標。
+背景排程透過 APScheduler（`backend/app/core/scheduler.py`）：15:30 市場行情 → 16:30 籌碼 → 17:00 基本面 → 17:20 特徵計算 → 17:30 模型重訓 → 18:10 訊號儲存 → 21:00 融券晚間補抓（MI_MARGN 延遲對應）。
 
 ### 前端：頁面 + 元件
 ```
