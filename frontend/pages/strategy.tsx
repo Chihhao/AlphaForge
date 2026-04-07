@@ -916,7 +916,9 @@ const StrategyPage = () => {
 
                 const combined = [...minerPicks, ...recPicks]
                 if (combined.length > 0) {
-                    setSignalDate(data[0]?.pick_date ?? recData?.last_trained ?? '')
+                    const pickD = data[0]?.pick_date ?? ''
+                    const recD = recData?.last_trained ?? ''
+                    setSignalDate(pickD > recD ? pickD : recD)
                     // 按勝率排序：做多用正報酬勝率，做空用負報酬勝率
                     combined.sort((a, b) => {
                         const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
