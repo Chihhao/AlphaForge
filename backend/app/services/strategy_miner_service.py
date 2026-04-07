@@ -400,20 +400,7 @@ class StrategyMinerService:
             .order_by(StrategyMinerPick.weighted_score.desc())
             .all()
         )
-        if not picks:
-            # fallback: 最近一次 picks
-            latest = (
-                db.query(StrategyMinerPick.pick_date)
-                .order_by(StrategyMinerPick.pick_date.desc())
-                .first()
-            )
-            if latest:
-                picks = (
-                    db.query(StrategyMinerPick)
-                    .filter(StrategyMinerPick.pick_date == latest.pick_date)
-                    .order_by(StrategyMinerPick.weighted_score.desc())
-                    .all()
-                )
+        # 今天沒有推薦就回傳空清單（可能是大盤 < MA20 暫停推薦）
         return picks
 
     @classmethod
