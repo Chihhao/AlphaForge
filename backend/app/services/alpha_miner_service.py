@@ -138,7 +138,7 @@ for _fmap in DIMENSION_FACTORS.values():
     for _f in _fmap.keys():
         _ALL_FACTOR_COLS.add(_f.replace('neg_', '') if _f.startswith('neg_') else _f)
 
-_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60'] + sorted(_ALL_FACTOR_COLS)
+_LOAD_COLS = ['stock_id', 'date', 'close', 'ma60', 'volume'] + sorted(_ALL_FACTOR_COLS)
 
 # Bonferroni 校正：3 個維度
 _BONFERRONI_N = 3
@@ -655,11 +655,15 @@ class AlphaMinerService:
         from sqlalchemy import text
         cutoff = (date.today() - timedelta(days=365 * 2)).isoformat()
         cols = ", ".join(_LOAD_COLS)
-        sql = text(f"SELECT {cols} FROM stock_features WHERE date >= :cutoff")
+        sql = text(f"SELECT {cols} FROM stock_features WHERE date >= :cutoff"
+                   " AND stock_id ~ '^[1-9][0-9]{3}$'")
         df = pd.read_sql(sql, engine, params={"cutoff": cutoff})
         if df.empty:
             return df
         df['date'] = pd.to_datetime(df['date'])
+        # 流動性過濾：排除日均成交量 < 500 張的冷門股（保經、證券、創新板等）
+        if 'volume' in df.columns:
+            df = df[df['volume'] >= 500_000].copy()  # 500張 = 500,000股
         # 衍生反向因子（neg_ = 取負數）
         neg_map = {
             'trust_net_buy':  'neg_trust_net_buy',
