@@ -824,10 +824,9 @@ const StrategyPage = () => {
         const loadPicks = async () => {
             try {
                 // 同時載入 Strategy Miner + 推薦清單
-                const [picksRes, stratRes, recRes] = await Promise.all([
+                const [picksRes, stratRes] = await Promise.all([
                     api.get('/strategy-miner/picks/today'),
                     api.get<{ strategies: Array<{ strategy_id: string; win_rate_positive: number; avg_return_top: number; short_win_rate?: number; avg_return_bottom?: number }> }>('/alpha-miner/strategies').catch(() => ({ data: { strategies: [] } })),
-                    api.get<RecommendationTableData>('/alpha-miner/recommendations?top_n=5').catch(() => ({ data: null })),
                 ])
                 const data: StrategyMinerPick[] = picksRes.data ?? []
 
@@ -870,55 +869,9 @@ const StrategyPage = () => {
                     }
                 })
 
-                // 合併推薦清單 picks（去除已在 Strategy Miner 中的股票）
-                const existingIds = new Set(minerPicks.map(p => p.stock_id))
-                const recData = recRes.data
-                const recPicks: StrategyPick[] = []
-                if (recData?.dimensions) {
-                    const DIM_DAYS_MAP: Record<string, number> = { '5d': 5, '10d': 10, '20d': 20 }
-                    for (const dim of recData.dimensions) {
-                        for (const p of dim.long_picks) {
-                            if (existingIds.has(p.stock_id)) continue
-                            existingIds.add(p.stock_id)
-                            recPicks.push({
-                                stock_id: p.stock_id,
-                                stock_name: p.stock_name,
-                                entry_price: 0,
-                                take_profit_pct: dim.dimension === '5d' ? 3 : 5,
-                                stop_loss_pct: dim.dimension === '5d' ? 2 : 3,
-                                hold_days_max: DIM_DAYS_MAP[dim.dimension] ?? 20,
-                                weighted_score: p.score * 100,
-                                time_dimension: dim.dimension,
-                                direction: 'long',
-                                strategy_win_rate: dim.long_win_rate / 100,
-                                strategy_avg_return: dim.long_avg_return,
-                            })
-                        }
-                        for (const p of dim.short_picks) {
-                            if (existingIds.has(`short_${p.stock_id}`)) continue
-                            existingIds.add(`short_${p.stock_id}`)
-                            recPicks.push({
-                                stock_id: p.stock_id,
-                                stock_name: p.stock_name,
-                                entry_price: 0,
-                                take_profit_pct: dim.dimension === '5d' ? 2 : 3,
-                                stop_loss_pct: dim.dimension === '5d' ? 3 : 5,
-                                hold_days_max: DIM_DAYS_MAP[dim.dimension] ?? 20,
-                                weighted_score: (1 - p.score) * 100,
-                                time_dimension: dim.dimension,
-                                direction: 'short',
-                                strategy_win_rate: dim.short_win_rate / 100,
-                                strategy_avg_return: dim.short_avg_return,
-                            })
-                        }
-                    }
-                }
-
-                const combined = [...minerPicks, ...recPicks]
+                const combined = minerPicks
                 if (combined.length > 0) {
-                    const pickD = data[0]?.pick_date ?? ''
-                    const recD = recData?.last_trained ?? ''
-                    setSignalDate(pickD > recD ? pickD : recD)
+                    setSignalDate(data[0]?.pick_date ?? '')
                     // 按勝率排序：做多用正報酬勝率，做空用負報酬勝率
                     combined.sort((a, b) => {
                         const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0

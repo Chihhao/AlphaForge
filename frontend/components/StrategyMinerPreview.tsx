@@ -182,13 +182,10 @@ export default function StrategyMinerPreview() {
     Promise.all([
       api.get<TodayPick[]>('/strategy-miner/picks/today'),
       api.get<{ strategies: StrategyInfo[] }>('/alpha-miner/strategies'),
-      api.get<RecTable>('/alpha-miner/recommendations?top_n=3').catch(() => ({ data: null })),
       api.get<{ label: string }>('/market/next-trading-day').catch(() => ({ data: null })),
-    ]).then(([picksRes, stratRes, recRes, ntdRes]) => {
+    ]).then(([picksRes, stratRes, ntdRes]) => {
         if (cancelled) return
-        const pickD = picksRes.data?.[0]?.pick_date ?? ''
-        const recD = recRes.data?.last_trained ?? ''
-        setPickDate(pickD > recD ? pickD : recD)
+        if (picksRes.data?.[0]?.pick_date) setPickDate(picksRes.data[0].pick_date)
         if (ntdRes.data?.label) setNextTradingDay(ntdRes.data.label)
 
         const stratMap: Record<string, StrategyInfo> = {}
@@ -196,8 +193,8 @@ export default function StrategyMinerPreview() {
           stratMap[s.strategy_id] = s
         }
 
-        // Strategy Miner picks（過濾掉已棄用的 30d）
-        const minerPicks: PickPreview[] = (picksRes.data || [])
+        // 只用 Strategy Miner picks（過濾掉已棄用的 30d）
+        const combined: PickPreview[] = (picksRes.data || [])
           .filter(p => VALID_DIMS.has(p.time_dimension))
           .map(p => {
           const dim = p.time_dimension
@@ -218,59 +215,18 @@ export default function StrategyMinerPreview() {
           }
         })
 
-        // 推薦 picks 合併（去重）
-        const existingIds = new Set(minerPicks.map(p => p.stock_id))
-        const recPicks: PickPreview[] = []
-        const recData = recRes.data
-        if (recData?.dimensions) {
-          for (const dim of recData.dimensions) {
-            for (const p of dim.long_picks) {
-              if (existingIds.has(p.stock_id)) continue
-              existingIds.add(p.stock_id)
-              recPicks.push({
-                stock_id: p.stock_id, stock_name: p.stock_name,
-                entry_price: 0, take_profit_pct: 0, stop_loss_pct: 0,
-                hold_days_max: dim.forward_days, weighted_score: p.score * 100,
-                time_dimension: dim.dimension, direction: 'long',
-                dims: [dim.dimension], buy_reasons: [],
-                stock_win_rate: null, stock_avg_return: null, stock_best_dim: null,
-                strategy_win_rate: dim.long_win_rate / 100,
-                strategy_avg_return: dim.long_avg_return,
-              })
-            }
-            for (const p of dim.short_picks) {
-              if (existingIds.has(`short_${p.stock_id}`)) continue
-              existingIds.add(`short_${p.stock_id}`)
-              recPicks.push({
-                stock_id: p.stock_id, stock_name: p.stock_name,
-                entry_price: 0, take_profit_pct: 0, stop_loss_pct: 0,
-                hold_days_max: dim.forward_days, weighted_score: (1 - p.score) * 100,
-                time_dimension: dim.dimension, direction: 'short',
-                dims: [dim.dimension], buy_reasons: [],
-                stock_win_rate: null, stock_avg_return: null, stock_best_dim: null,
-                strategy_win_rate: dim.short_win_rate / 100,
-                strategy_avg_return: dim.short_avg_return,
-              })
-            }
-          }
-        }
-
-        const all = [...minerPicks, ...recPicks]
-        // 按勝率排序
-        all.sort((a, b) => {
+        // 按勝率排序，做多前 3
+        combined.sort((a, b) => {
           const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
           const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
           return wrB - wrA
         })
-        // 做多前 3 + 做空前 3
-        const longTop3 = all.filter(p => p.direction === 'long').slice(0, 3)
-        const shortTop3 = all.filter(p => p.direction === 'short').slice(0, 3)
-        const combined = [...longTop3, ...shortTop3]
+        const longTop3 = combined.filter(p => p.direction === 'long').slice(0, 3)
 
-        setPicks(combined)
+        setPicks(longTop3)
 
         // 批次查報價
-        const ids = combined.map(p => p.stock_id)
+        const ids = longTop3.map(p => p.stock_id)
         Promise.allSettled(
           ids.map(id => api.get(`/stocks/${id}/quote`))
         ).then(results => {
