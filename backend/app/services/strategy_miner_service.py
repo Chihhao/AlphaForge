@@ -109,33 +109,8 @@ class StrategyMinerService:
                 logger.error(f"[StrategyMiner] {dim}/short 尋優失敗: {e}", exc_info=True)
 
     @classmethod
-    def _check_market_regime(cls, db: Session) -> bool:
-        """檢查大盤 regime：0050 收盤 > MA20 才允許推薦（做多）"""
-        prices = (
-            db.query(StockPrice.date, StockPrice.close)
-            .filter(StockPrice.stock_id == '0050')
-            .order_by(StockPrice.date.desc())
-            .limit(25)
-            .all()
-        )
-        if len(prices) < 20:
-            logger.warning("[StrategyMiner] 0050 價格不足 20 筆，跳過 regime check")
-            return True  # 資料不足時不阻擋
-        latest_close = float(prices[0].close)
-        ma20 = sum(float(p.close) for p in prices[:20]) / 20
-        above = latest_close > ma20
-        logger.info(f"[StrategyMiner] Regime check: 0050={latest_close:.1f}, MA20={ma20:.1f}, "
-                    f"{'PASS' if above else 'BLOCKED'}")
-        return above
-
-    @classmethod
     def run_daily(cls, db: Session) -> int:
         """生成今日推薦清單，存入 strategy_miner_picks。回傳寫入筆數。"""
-        # 大盤 regime filter：0050 < MA20 時暫停做多推薦
-        if not cls._check_market_regime(db):
-            logger.info("[StrategyMiner] 大盤 < MA20，暫停推薦")
-            return 0
-
         # 查最新訊號日期
         latest_row = (
             db.query(AlphaSignalHistory.signal_date)
