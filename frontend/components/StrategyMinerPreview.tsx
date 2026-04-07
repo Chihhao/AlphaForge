@@ -187,6 +187,7 @@ export default function StrategyMinerPreview() {
     ]).then(([picksRes, stratRes, recRes, ntdRes]) => {
         if (cancelled) return
         if (picksRes.data?.length > 0) setPickDate(picksRes.data[0].pick_date)
+        if (!picksRes.data?.length && recRes.data?.last_trained) setPickDate(recRes.data.last_trained)
         if (ntdRes.data?.label) setNextTradingDay(ntdRes.data.label)
 
         const stratMap: Record<string, StrategyInfo> = {}
