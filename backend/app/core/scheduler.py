@@ -301,6 +301,54 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # --- 第十梯次：21:00 融資融券晚間補抓 + 重算 ---
+    # MI_MARGN 融資融券數據通常 19:00~20:00 才發布，16:30 的 chip 排程抓不到
+    # 21:00 確保融券數據已入庫，重算 features 讓 short_chg_5d 有值
+    def late_margin_retry(db):
+        from datetime import date as dt_date
+        from sqlalchemy import text
+        today = dt_date.today()
+
+        # 檢查今日 short_balance 是否已有值
+        has_short = db.execute(
+            text("SELECT COUNT(*) FROM stock_chip_data WHERE date = :d AND short_balance IS NOT NULL"),
+            {"d": today},
+        ).scalar()
+        if has_short > 100:
+            logger.info(f"[Scheduler][LateMargin] 融券已有 {has_short} 筆，跳過")
+            return
+
+        logger.info("[Scheduler][LateMargin] 融券數據不足，重新抓取...")
+        sync_daily_chip_data(db, today)
+
+        # 重算 features（刪舊 → 重算）
+        db.execute(text("DELETE FROM stock_features WHERE date = :d"), {"d": today})
+        db.commit()
+        FeatureService.compute_daily(db, today)
+        logger.info("[Scheduler][LateMargin] 特徵重算完成")
+
+        # 重訓 Alpha Miner
+        from sqlalchemy import delete as sa_delete
+        from app.models.alpha_miner_snapshot import AlphaMinerSnapshot
+        db.execute(sa_delete(AlphaMinerSnapshot))
+        db.commit()
+        AlphaMinerService.invalidate_cache()
+        AlphaMinerService.get_strategies(db)
+        logger.info("[Scheduler][LateMargin] Alpha Miner 重訓完成")
+
+        # 儲存訊號
+        for dim in ["20d"]:
+            AlphaMinerService.save_today_signals(db, dim, 'long')
+        logger.info("[Scheduler][LateMargin] 訊號儲存完成")
+
+    scheduler.add_job(
+        lambda: run_on_trading_day(late_margin_retry),
+        trigger=CronTrigger(day_of_week='mon-fri', hour=21, minute=0),
+        id="late_margin_retry",
+        name="Late margin data retry + retrain (MI_MARGN delayed)",
+        replace_existing=True
+    )
+
     scheduler.start()
     logger.info("Scheduler started and daily sync job added.")
 
