@@ -674,7 +674,7 @@ class AlphaMinerService:
         }
         for src, dst in neg_map.items():
             if src in df.columns:
-                df[dst] = -df[src].fillna(0)
+                df[dst] = -df[src]
         return df
 
     # ─── 特徵工程 ──────────────────────────────────────────────────────────────

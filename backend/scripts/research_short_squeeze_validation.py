@@ -103,7 +103,7 @@ def load_data() -> pd.DataFrame:
 
 
 def train_models(train: pd.DataFrame, factors: List[str]):
-    t = train.dropna(subset=factors + ["fwd_ret"]).copy()
+    t = train.dropna(subset=["fwd_ret"]).copy()
     if len(t) < 500:
         return None
 
@@ -125,7 +125,7 @@ def train_models(train: pd.DataFrame, factors: List[str]):
 
 
 def predict_day(clf, reg, rank_cols, factors, day_data):
-    s = day_data.dropna(subset=factors).copy()
+    s = day_data.copy()
     if len(s) < 50:
         return None
 
