@@ -736,12 +736,13 @@ const StrategyPage = () => {
 
     const [nextTradingDay, setNextTradingDay] = useState<string | null>(null)
 
-    // 取得下一交易日
+    // 取得下一交易日（根據 pick_date 計算，而非今天）
     useEffect(() => {
-        api.get<{ label: string }>('/market/next-trading-day')
+        if (!signalDate) return
+        api.get<{ label: string }>(`/market/next-trading-day?from_date=${signalDate}`)
             .then(r => { if (r.data?.label) setNextTradingDay(r.data.label) })
             .catch(() => {})
-    }, [])
+    }, [signalDate])
 
     const [alphaExpanded, setAlphaExpanded] = useState(false)
     const [alphaData, setAlphaData] = useState<AlphaMinerResult | null>(null)

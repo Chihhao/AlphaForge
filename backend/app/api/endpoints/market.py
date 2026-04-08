@@ -74,9 +74,10 @@ def _next_trading_day(from_date=None) -> date:
 
 
 @router.get("/next-trading-day")
-def get_next_trading_day():
+def get_next_trading_day(from_date: str = None):
     """回傳下一個交易日（TWSE 日曆），供前端顯示操作建議日期"""
-    ntd = _next_trading_day()
+    base = date.fromisoformat(from_date) if from_date else None
+    ntd = _next_trading_day(base)
     return {
         "date": ntd.isoformat(),
         "label": f"{ntd.month}/{ntd.day}",

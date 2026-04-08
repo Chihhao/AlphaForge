@@ -182,11 +182,15 @@ export default function StrategyMinerPreview() {
     Promise.all([
       api.get<TodayPick[]>('/strategy-miner/picks/today'),
       api.get<{ strategies: StrategyInfo[] }>('/alpha-miner/strategies'),
-      api.get<{ label: string }>('/market/next-trading-day').catch(() => ({ data: null })),
-    ]).then(([picksRes, stratRes, ntdRes]) => {
+    ]).then(([picksRes, stratRes]) => {
         if (cancelled) return
-        if (picksRes.data?.[0]?.pick_date) setPickDate(picksRes.data[0].pick_date)
-        if (ntdRes.data?.label) setNextTradingDay(ntdRes.data.label)
+        const pd = picksRes.data?.[0]?.pick_date
+        if (pd) {
+          setPickDate(pd)
+          api.get<{ label: string }>(`/market/next-trading-day?from_date=${pd}`)
+            .then(r => { if (!cancelled && r.data?.label) setNextTradingDay(r.data.label) })
+            .catch(() => {})
+        }
 
         const stratMap: Record<string, StrategyInfo> = {}
         for (const s of stratRes.data?.strategies ?? []) {
