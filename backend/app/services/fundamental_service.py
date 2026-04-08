@@ -42,9 +42,9 @@ class FundamentalService:
                 
                 # 欄位映射依據今日測試: 3:殖利率, 5:本益比, 6:股價淨值比
                 def _clean(val):
-                    if val in ['-', 'N/A', '']: return 0.0
+                    if val in ['-', 'N/A', '', None]: return None
                     try: return float(str(val).replace(',', ''))
-                    except: return 0.0
+                    except: return None
 
                 yield_rate = _clean(row[3])
                 pe_ratio = _clean(row[5])
@@ -59,9 +59,9 @@ class FundamentalService:
                 fundamental.yield_rate = yield_rate
                 fundamental.pe_ratio = pe_ratio
                 fundamental.pb_ratio = pb_ratio
-                
+
                 # 計算 ROE (ROE = PB / PE * 100)
-                if pe_ratio > 0:
+                if pe_ratio and pe_ratio > 0 and pb_ratio is not None:
                     fundamental.roe_latest = round((pb_ratio / pe_ratio) * 100, 2)
                 else:
                     fundamental.roe_latest = None
@@ -99,25 +99,25 @@ class FundamentalService:
                 stock_name = row[1]
                 
                 def _clean(val):
-                    if val in ['-', 'N/A', '']: return 0.0
+                    if val in ['-', 'N/A', '', None]: return None
                     try: return float(str(val).replace(',', ''))
-                    except: return 0.0
+                    except: return None
 
                 # OTC 欄位: 2:本益比, 5:殖利率, 6:股價淨值比
                 pe_ratio = _clean(row[2])
                 yield_rate = _clean(row[5])
                 pb_ratio = _clean(row[6])
-                
+
                 fundamental = db.query(StockFundamental).filter(StockFundamental.stock_id == stock_id).first()
                 if not fundamental:
                     fundamental = StockFundamental(stock_id=stock_id, stock_name=stock_name)
                     db.add(fundamental)
-                
+
                 fundamental.yield_rate = yield_rate
                 fundamental.pe_ratio = pe_ratio
                 fundamental.pb_ratio = pb_ratio
-                
-                if pe_ratio > 0:
+
+                if pe_ratio and pe_ratio > 0 and pb_ratio is not None:
                     fundamental.roe_latest = round((pb_ratio / pe_ratio) * 100, 2)
                 else:
                     fundamental.roe_latest = None
@@ -433,10 +433,12 @@ class FundamentalService:
                 else: # 代表是 5.0 這種格式
                     stock.yield_rate = round(raw_yield, 2)
                 
-                stock.pb_ratio = round(info.get('priceToBook') or 0.0, 2)
-                stock.pe_ratio = round(info.get('trailingPE') or 0.0, 2)
-                if stock.pe_ratio > 0:
-                    stock.roe_latest = round((stock.pb_ratio / stock.pe_ratio) * 100, 2)
+                pb_raw = info.get('priceToBook')
+                pe_raw = info.get('trailingPE')
+                stock.pb_ratio = round(pb_raw, 2) if pb_raw else None
+                stock.pe_ratio = round(pe_raw, 2) if pe_raw else None
+                if pe_raw and pe_raw > 0 and pb_raw:
+                    stock.roe_latest = round((pb_raw / pe_raw) * 100, 2)
                 else:
                     stock.roe_latest = None
                 stock.last_revenue = round((info.get('totalRevenue') or 0.0) / 100000000.0, 2) # 轉億
