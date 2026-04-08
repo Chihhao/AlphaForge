@@ -235,7 +235,7 @@ export default function StrategyMinerPreview() {
           ids.map(id => api.get(`/stocks/${id}/quote`))
         ).then(results => {
           if (cancelled) return
-          const withQuotes = combined.map((p, i) => {
+          const withQuotes = longTop3.map((p, i) => {
             const r = results[i]
             if (r.status === 'fulfilled' && r.value.data) {
               return { ...p, current_price: r.value.data.current_price, change_pct: r.value.data.change_percent }
