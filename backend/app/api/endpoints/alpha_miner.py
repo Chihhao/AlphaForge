@@ -41,7 +41,7 @@ def get_strategy_detail(strategy_id: str, db: Session = Depends(get_db)):
 
 @router.get("/recommendations", response_model=RecommendationTable)
 def get_recommendations(top_n: int = 5, db: Session = Depends(get_db)):
-    """回傳多維度推薦清單：5d/10d/20d × 看漲/看跌 × Top N"""
+    """回傳推薦清單：20d × 看漲/看跌 × Top N"""
     return AlphaMinerService.get_recommendations(db, top_n=top_n)
 
 

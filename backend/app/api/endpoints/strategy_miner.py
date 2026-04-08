@@ -23,7 +23,7 @@ router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 def _load_stock_perf_map(db: Session, stock_ids: list[str], direction: str = 'long') -> dict:
     """載入指定股票的回測交易績效（strategy_miner_trades），
-    按維度(5d/10d/30d)分別計算勝率，回傳最高勝率維度的績效。
+    按維度計算勝率，回傳最高勝率維度的績效。
     direction 決定只取做多或放空的 trades。
     回傳 {stock_id: {win_rate, avg_return, trade_count, best_dim}}"""
     if not stock_ids:
@@ -64,8 +64,7 @@ def _load_stock_perf_map(db: Session, stock_ids: list[str], direction: str = 'lo
 
 
 def _load_market_baselines(db: Session) -> dict:
-    """從 Alpha Miner snapshot 取各維度市場基準勝率。
-    回傳 {'5d': 0.194, '10d': 0.244, '30d': 0.261}"""
+    """從 Alpha Miner snapshot 取各維度市場基準勝率。"""
     snap = (
         db.query(AlphaMinerSnapshot)
         .order_by(AlphaMinerSnapshot.train_date.desc())

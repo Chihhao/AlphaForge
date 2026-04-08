@@ -2,8 +2,8 @@
 AlphaMinerService — LightGBM 多因子模型
 
 設計原則：
-- 每個時間維度訓練一個 LightGBM 模型，使用 11 個穩定因子（基本面+外資動向）
-- Walk-forward 驗證：11 因子 IC 100% 為正，34 因子只有 71%（技術指標是噪音）
+- 訓練一個 LightGBM 模型（20d 維度），使用 12 個穩定因子（基本面+籌碼+波動率）
+- Walk-forward 驗證篩選因子，技術指標 IC 不穩定已排除
 - 分位數排名消除跨股票量綱差異
 - 時間衰減權重（近期資料比舊資料重要）
 - 訓練/測試嚴格時間切割，留一個月空白期避免標籤洩漏
@@ -87,9 +87,8 @@ FACTOR_LABELS: Dict[str, str] = {
     'short_chg_5d':     '融券5日增',
 }
 
-# ─── 訓練用因子（每個維度可用不同因子集）────────────────────────────
-# 2026-04-04 全方位因子篩選（40 因子）→ 10 因子 baseline
-# 2026-04-04 多維度研究：5d/10d/20d walk-forward 驗證
+# ─── 訓練用因子（20d 唯一維度）──────────────────────────────────────
+# 2026-04-04 全方位因子篩選（40 因子）→ 12 因子
 TRAINING_FACTORS: Dict[str, str] = {
     # 基本面 — 全期穩定正 IC
     'roe':                  'ROE',
@@ -105,43 +104,20 @@ TRAINING_FACTORS: Dict[str, str] = {
     'vol_ratio':            '量比',
     # 波動率 — 低特異波動率溢酬，獨立於基本面和籌碼（Phase 8）
     'ivol_20d':             '特異波動率',
-}
-
-# 5d 專用因子：基本面 + 短線指標（research IC=0.019，L-S +0.51%）
-TRAINING_FACTORS_5D: Dict[str, str] = {
-    'roe':                  'ROE',
-    'yield_rate':           '殖利率',
-    'pb_ratio':             '股淨比',
-    'revenue_yoy':          '營收YoY',
-    'rsi2':                 'RSI(2)',
-    'vol_ratio':            '量比',
-    'neg_bias5':            '反向乖離5日',
-}
-
-# 20d 專用因子：10 因子 + 反向投信 + 融券軋空（research p=0.011）
-TRAINING_FACTORS_20D: Dict[str, str] = {
-    **TRAINING_FACTORS,
+    # 反向投信 + 融券軋空（Partial IC 正交，p=0.011）
     'neg_trust_net_buy':    '反向投信',
     'short_chg_5d':         '融券5日增（軋空）',
 }
 
-# 每個維度使用的因子
-DIMENSION_FACTORS: Dict[str, Dict[str, str]] = {
-    '5d':  TRAINING_FACTORS_5D,
-    '10d': TRAINING_FACTORS,
-    '20d': TRAINING_FACTORS_20D,
-}
-
-# 收集所有維度需要的原始欄位（去重）
+# 收集訓練因子的原始欄位（neg_ 前綴因子取原始名稱）
 _ALL_FACTOR_COLS = set()
-for _fmap in DIMENSION_FACTORS.values():
-    for _f in _fmap.keys():
-        _ALL_FACTOR_COLS.add(_f.replace('neg_', '') if _f.startswith('neg_') else _f)
+for _f in TRAINING_FACTORS.keys():
+    _ALL_FACTOR_COLS.add(_f.replace('neg_', '') if _f.startswith('neg_') else _f)
 
 _LOAD_COLS = ['stock_id', 'date', 'close', 'ma60', 'volume'] + sorted(_ALL_FACTOR_COLS)
 
-# Bonferroni 校正：3 個維度
-_BONFERRONI_N = 3
+# 單一維度，不需 Bonferroni 校正
+_BONFERRONI_N = 1
 
 # ─── 進度檔案（跨 process 通訊）─────────────────────────────────────────────
 _PROGRESS_FILE = '/tmp/alpha_miner_progress.json'
@@ -186,7 +162,7 @@ _TRAINING_STUB = AlphaMinerResult(
 
 
 class AlphaMinerService:
-    """LightGBM 多因子模型訓練與排行榜快取（每維度一個模型，共 6 個）"""
+    """LightGBM 多因子模型訓練與排行榜快取（20d 單一維度）"""
 
     _cache: Optional[AlphaMinerResult] = None
     _cache_date: Optional[date] = None
@@ -227,12 +203,6 @@ class AlphaMinerService:
     TEST_MONTHS = 6   # 測試集保留最後幾個月
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
-    # 維度設定：目前只有 20d 有效
-    # 2026-04-05 完整 2 年資料重訓結果：
-    #   5d: IC 為負 → 待研究新方法
-    #  10d: IC=-0.003（補完資料後失效）→ 待研究新方法
-    #  20d: IC=0.067, 做多WR=53.2%, 做空WR=59.4% → 唯一有效維度
-    # TODO: 研究 5d/10d 的新因子組合，目標是找到有效的短線 alpha
     DIMENSIONS = [
         {"key": "20d", "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
     ]
@@ -283,11 +253,7 @@ class AlphaMinerService:
     def get_today_signals(
         cls, db: Session, dimension: str = "20d", direction: str = "long",
     ) -> List[TodaySignal]:
-        """從該維度的 Ensemble 模型的 recent_signals 轉換為 TodaySignal。
-
-        20d 使用「10d 共振」過濾：只推薦同時在 10d 模型 Top 訊號的股票。
-        共振回測：報酬 +3.62%（20d 單獨 +2.05%），勝率 51%（20d 47%）。
-        """
+        """從該維度的 Ensemble 模型的 recent_signals 轉換為 TodaySignal。"""
         result = cls.get_strategies(db)
         if result.is_training or not result.strategies:
             return []
@@ -310,14 +276,6 @@ class AlphaMinerService:
         if ranking is None:
             return []
 
-        # 共振過濾：取得 10d 模型的 Top 股票集合
-        resonance_ids: set = set()
-        if dimension == "20d":
-            detail_10d = cls._details.get("lgb_10d")
-            if detail_10d and detail_10d.recent_signals:
-                resonance_ids = {sig.stock_id for sig in detail_10d.recent_signals}
-                logger.info(f"[AlphaMiner] 共振過濾：10d Top {len(resonance_ids)} 檔")
-
         # 低波動 Overlay：查最新一天的 ivol_20d，取中位數做為穩定型門檻
         # 研究驗證：低波動過濾 Sharpe +17%, MDD -12%
         from app.models.stock_feature import StockFeature
@@ -337,10 +295,6 @@ class AlphaMinerService:
 
         signals = []
         for sig in detail.recent_signals:
-            # 如果有共振集合，只保留同時在 10d Top 的股票
-            if resonance_ids and sig.stock_id not in resonance_ids:
-                continue
-
             n_positive = len(sig.trigger_factors)
             top_factors = [TRAINING_FACTORS.get(f, FACTOR_LABELS.get(f, f)) for f in sig.trigger_factors[:3]]
             prob = sig.predicted_prob
@@ -373,14 +327,14 @@ class AlphaMinerService:
             ))
 
         n_stable = sum(1 for s in signals if s.is_stable)
-        logger.info(f"[AlphaMiner] {dimension} 訊號{'（共振後）' if resonance_ids else ''}: {len(signals)} 檔（穩定型 {n_stable} 檔）")
+        logger.info(f"[AlphaMiner] {dimension} 訊號: {len(signals)} 檔（穩定型 {n_stable} 檔）")
         # 按 odds ratio 降序排列
         signals.sort(key=lambda x: x.weighted_odds_ratio, reverse=True)
         return signals[:20]
 
     @classmethod
     def get_recommendations(cls, db: Session, top_n: int = 5) -> 'RecommendationTable':
-        """產生多維度多空推薦清單（5d/10d/20d × 看漲/看跌 × Top N）"""
+        """產生多空推薦清單（20d × 看漲/看跌 × Top N）"""
         from app.schemas.alpha_miner import (
             RecommendationPick, DimensionRecommendation, RecommendationTable,
         )
@@ -416,7 +370,7 @@ class AlphaMinerService:
             if not detail or not detail.recent_signals:
                 continue
 
-            dim_factors = DIMENSION_FACTORS.get(dim_key, TRAINING_FACTORS)
+            dim_factors = TRAINING_FACTORS
             # 分離做多/做空訊號（按 predicted_prob 分）
             all_sigs = detail.recent_signals
             if not all_sigs:
@@ -483,9 +437,6 @@ class AlphaMinerService:
                 is_significant=ranking.is_significant,
                 confidence=confidence,
             ))
-
-        # 按 forward_days 排序（5d → 10d → 20d）
-        dimensions.sort(key=lambda d: d.forward_days)
 
         return RecommendationTable(
             dimensions=dimensions,
@@ -697,10 +648,8 @@ class AlphaMinerService:
 
     @classmethod
     def _compute_quantile_ranks(cls, df: pd.DataFrame) -> pd.DataFrame:
-        # 計算所有維度因子的分位數排名
-        all_factors = set()
-        for fmap in DIMENSION_FACTORS.values():
-            all_factors.update(fmap.keys())
+        # 計算訓練因子的分位數排名
+        all_factors = set(TRAINING_FACTORS.keys())
         for factor in all_factors:
             if factor in df.columns:
                 df[f'{factor}_rank'] = (
@@ -734,10 +683,8 @@ class AlphaMinerService:
         dim_direction = dim.get('direction', 'long')
         forward_days = dim.get('forward_days', 5)
 
-        # 每個維度使用自己的因子集
         dim_key = dim['key']
-        dim_factors = DIMENSION_FACTORS.get(dim_key, TRAINING_FACTORS)
-        factors = list(dim_factors.keys())
+        factors = list(TRAINING_FACTORS.keys())
         rank_cols = [f'{f}_rank' for f in factors]
         # 只留存在於 DataFrame 中的因子
         available = [(f, rc) for f, rc in zip(factors, rank_cols) if rc in df.columns]
@@ -752,8 +699,7 @@ class AlphaMinerService:
         test_df = df[df['date'] >= pd.Timestamp(test_start)].dropna(
             subset=['label', 'forward_return'])
 
-        # MA60 趨勢過濾：僅 20d+ 使用（回測 IC 從 0.025→0.10）
-        # 5d/10d 不過濾（回測 IC 無差異，移除後樣本更多）
+        # MA60 趨勢過濾（回測 IC 從 0.025→0.10）
         if 'ma60' in df.columns and forward_days >= 20:
             if dim_direction == 'long':
                 train_df = train_df[train_df['close'] > train_df['ma60']].copy()
@@ -1142,7 +1088,7 @@ class AlphaMinerService:
         使用批次查詢避免 N+1。回傳成功結算筆數。
         """
         today = date.today()
-        HOLDING = {"20d": 30, "10d": 14}
+        HOLDING = {"20d": 30}
 
         pending = (
             db.query(AlphaSignalHistory)
@@ -1197,7 +1143,7 @@ class AlphaMinerService:
 
         resolved_count = 0
         for rec in expired:
-            holding_days = {"5d": 5, "10d": 10, "30d": 30}[rec.time_dimension]
+            holding_days = int(rec.time_dimension.replace('d', ''))
             entry = _find_price(rec.stock_id, rec.signal_date)
             exit_date = rec.signal_date + timedelta(days=holding_days)
             exit_price = _find_price(rec.stock_id, exit_date)
@@ -1221,7 +1167,7 @@ class AlphaMinerService:
 
     @classmethod
     def get_signal_history(
-        cls, db: Session, days: int = 14, dimension: str = "10d"
+        cls, db: Session, days: int = 14, dimension: str = "20d"
     ) -> List[SignalHistoryItem]:
         """查詢近 days 天的訊號歷史記錄"""
         cutoff = date.today() - timedelta(days=days)

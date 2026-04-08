@@ -12,10 +12,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     
-    # 数据库配置
+    # 資料庫配置（PostgreSQL on NAS）
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "sqlite:///./test.db"  # 开发环境使用 SQLite
+        "postgresql://alphaforge:alphaforge_secret@10.0.4.3:5433/alphaforge"
     )
     SQLALCHEMY_ECHO: bool = DEBUG
     

@@ -44,7 +44,7 @@ const CONFIDENCE_STYLE: Record<string, { bg: string; text: string; label: string
     low:    { bg: 'bg-zinc-800/30 border-zinc-700/30',   text: 'text-zinc-500',  label: '低' },
 }
 
-const DIM_LABELS: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日' }
+const DIM_LABELS: Record<string, string> = { '20d': '20日' }
 
 function PickRow({ pick, direction }: { pick: RecommendationPick; direction: 'long' | 'short' }) {
     const isLong = direction === 'long'
@@ -205,10 +205,8 @@ interface TodaySignal {
     is_stable: boolean
 }
 
-type DimKey = '5d' | '10d' | '20d'
+type DimKey = '20d'
 const DIM_CONFIG: Record<DimKey, { label: string; shortLabel: string; desc: string }> = {
-    '5d':  { label: '5日持有',  shortLabel: '5日',  desc: '門檻 2% / 3%' },
-    '10d': { label: '10日持有', shortLabel: '10日', desc: '門檻 3% / 5%' },
     '20d': { label: '20日持有', shortLabel: '20日', desc: '門檻 3% / 5%' },
 }
 
@@ -290,7 +288,7 @@ interface DayGroup {
     hitCount: number   // actual_return > threshold_low
 }
 
-const HISTORY_THR: Record<DimKey, number> = { '5d': 0.02, '10d': 0.03, '20d': 0.03 }
+const HISTORY_THR: Record<DimKey, number> = { '20d': 0.03 }
 
 function SignalHistorySection({ history, dim }: { history: SignalHistoryItem[]; dim: DimKey }) {
     if (history.length === 0) return null
@@ -389,8 +387,6 @@ export default function SignalsPage() {
     const [dim, setDim] = useState<DimKey>('20d')
     const { toggle, has } = useWatchlist()
     const [dimStats, setDimStats] = useState<Record<DimKey, { posIc: number; totalSig: number }>>({
-        '5d':  { posIc: 0, totalSig: 0 },
-        '10d': { posIc: 0, totalSig: 0 },
         '20d': { posIc: 0, totalSig: 0 },
     })
     const [history, setHistory] = useState<SignalHistoryItem[]>([])
@@ -400,7 +396,7 @@ export default function SignalsPage() {
     useEffect(() => {
         api.get('/alpha-miner/strategies').then(r => {
             const strats: StrategyItem[] = r.data?.strategies ?? []
-            const stats = { '5d': { posIc: 0, totalSig: 0 }, '10d': { posIc: 0, totalSig: 0 }, '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
+            const stats = { '20d': { posIc: 0, totalSig: 0 } } as Record<DimKey, { posIc: number; totalSig: number }>
             strats.forEach(s => {
                 const d = s.time_dimension as DimKey
                 if (!stats[d] || !s.is_significant) return

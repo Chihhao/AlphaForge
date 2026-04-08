@@ -43,7 +43,7 @@ interface RecommendationTableData {
     test_period: string
 }
 
-const DIM_NAMES: Record<string, string> = { '5d': '5d', '10d': '10d', '20d': '20d' }
+const DIM_NAMES: Record<string, string> = { '20d': '20d' }
 
 // 將各維度推薦攤平成統一列表，每筆標記來源維度
 interface FlatPick {
@@ -837,11 +837,9 @@ const StrategyPage = () => {
                     stratMap[s.strategy_id] = { wr: s.win_rate_positive, avg: s.avg_return_top }
                 }
 
-                const VALID_DIMS = new Set(['5d', '10d', '20d'])
-                // 舊的 30d 維度已棄用，stock_best_dim 為 30d 時忽略，用 time_dimension
+                const VALID_DIMS = new Set(['20d'])
                 const cleanDim = (d: string | null | undefined) => (d && VALID_DIMS.has(d)) ? d : null
 
-                // 先收集 Strategy Miner picks（過濾掉已棄用的 30d）
                 const minerPicks: StrategyPick[] = data
                     .filter(p => VALID_DIMS.has(p.time_dimension))
                     .map(p => {
@@ -863,7 +861,6 @@ const StrategyPage = () => {
                         stock_win_rate: p.stock_win_rate ?? null,
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
                         stock_trade_count: p.stock_trade_count ?? 0,
-                        // stock_best_dim 若為已棄用維度（30d），忽略，用 time_dimension
                         stock_best_dim: cleanDim(p.stock_best_dim) ?? dim,
                         strategy_win_rate: strat?.wr ?? null,
                         strategy_avg_return: strat?.avg ?? null,
