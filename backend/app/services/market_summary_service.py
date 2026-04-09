@@ -61,8 +61,55 @@ class MarketSummaryService:
             last_updated = now.strftime("%H:%M:%S")
             
             taiex_price = round(latest_db.close, 2)
-            prev_close = taiex_prices_db[-2].close if len(taiex_prices_db) >= 2 else taiex_price
             data_date = latest_db.date
+
+            # 以「全市場真正的上一個交易日」推導 prev_close，避免 ^TWII 單檔漏抓
+            # 造成靜默錯誤（例如 ^TWII 某日未被 yfinance 同步進來時，直接
+            # 取 taiex_prices_db[-2] 會跳到前前天，漲跌幅就會爆表）。
+            true_prev_trading_day = db.query(func.max(StockPrice.date)).filter(
+                StockPrice.date < latest_db.date,
+                StockPrice.stock_id != "^TWII",
+            ).scalar()
+
+            prev_close = None
+            if true_prev_trading_day is not None:
+                prev_row = db.query(StockPrice).filter(
+                    StockPrice.stock_id == "^TWII",
+                    StockPrice.date == true_prev_trading_day,
+                ).first()
+
+                if prev_row is not None:
+                    prev_close = prev_row.close
+                else:
+                    # ^TWII 缺了真正前一個交易日 → 立即從 yfinance 補抓並寫回 DB
+                    try:
+                        ticker = yf.Ticker("^TWII")
+                        bf_df = ticker.history(
+                            start=true_prev_trading_day.isoformat(),
+                            end=(true_prev_trading_day + timedelta(days=1)).isoformat(),
+                            auto_adjust=False,
+                        )
+                        if not bf_df.empty:
+                            bf_row = bf_df.iloc[0]
+                            prev_close = float(bf_row["Close"])
+                            db.add(StockPrice(
+                                stock_id="^TWII",
+                                date=true_prev_trading_day,
+                                open=float(bf_row["Open"]),
+                                high=float(bf_row["High"]),
+                                low=float(bf_row["Low"]),
+                                close=float(bf_row["Close"]),
+                                adj_close=float(bf_row.get("Adj Close", bf_row["Close"])),
+                                volume=int(bf_row["Volume"]) if bf_row["Volume"] == bf_row["Volume"] else 0,
+                            ))
+                            db.commit()
+                            print(f"[MarketSummaryService] auto-backfilled ^TWII {true_prev_trading_day}")
+                    except Exception as bfe:
+                        print(f"[MarketSummaryService] ^TWII backfill failed for {true_prev_trading_day}: {bfe}")
+
+            # 仍然沒抓到就退回原本倒數第二筆（至少不會 crash）
+            if prev_close is None:
+                prev_close = taiex_prices_db[-2].close if len(taiex_prices_db) >= 2 else taiex_price
             
             # 如果是交易時間，或者 DB 資料是舊的 (還沒同步到今天)
             if is_trading_hour or latest_db.date < now.date():
