@@ -63,6 +63,46 @@ def _sharpe(returns: List[float]) -> float:
     return float(arr.mean() / std)
 
 
+def _load_stock_perf_map(
+    db: Session, stock_ids: list, direction: str = 'long'
+) -> dict:
+    """載入指定股票的回測交易績效（strategy_miner_trades）。
+
+    限定於 20d 維度（DIMENSIONS = ['20d']，系統現行唯一維度）。
+    歷史殘留的 5d/10d/30d trades 不再參與，避免「少樣本高勝率」的 selection bias
+    壓過真正樣本充足的維度。
+
+    回傳 {stock_id: {stock_win_rate, stock_avg_return, stock_trade_count, stock_best_dim}}
+    """
+    if not stock_ids:
+        return {}
+    from collections import defaultdict
+    target_strategy_id = '20d_short' if direction == 'short' else '20d'
+    rows = (
+        db.query(StrategyMinerTrade)
+        .filter(
+            StrategyMinerTrade.stock_id.in_(stock_ids),
+            StrategyMinerTrade.strategy_id == target_strategy_id,
+        )
+        .all()
+    )
+    by_stock: dict = defaultdict(list)
+    for r in rows:
+        by_stock[r.stock_id].append(r.return_pct)
+    result = {}
+    for sid, rets in by_stock.items():
+        if not rets:
+            continue
+        wins = sum(1 for x in rets if x > 0)
+        result[sid] = {
+            "stock_win_rate": round(wins / len(rets), 4),
+            "stock_avg_return": round(sum(rets) / len(rets), 1),
+            "stock_trade_count": len(rets),
+            "stock_best_dim": "20d",
+        }
+    return result
+
+
 def _load_market_baselines_from_snapshot(db: Session) -> Dict[str, float]:
     """從 Alpha Miner snapshot 取各維度市場基準勝率。
     回傳 {'5d': 0.194, '10d': 0.244, '30d': 0.261}"""
@@ -226,9 +266,13 @@ class StrategyMinerService:
         price_map: Dict[str, float] = {r.stock_id: float(r.close) for r in price_rows if r.close}
 
         # 4. 分維度去重，同股票同維度保留 trigger_count 最高者
+        # 品管門檻：optimal[dim] 為 None 代表該維度沒過 baseline + 5pp 門檻，
+        # 整個維度的訊號全部跳過 — 不再 fallback 到 _default_params 偷渡 picks。
+        # 原本的 `not cls._default_params(...)` 是 dead check（永遠回 truthy tuple，
+        # 整個 if 永遠 False），等於 quality gate 完全沒擋。
         by_dim: Dict[str, Dict[str, AlphaSignalHistory]] = {}
         for r in rows:
-            if optimal.get(r.time_dimension) is None and not cls._default_params(r.time_dimension):
+            if optimal.get(r.time_dimension) is None:
                 continue
             dim_map = by_dim.setdefault(r.time_dimension, {})
             existing = dim_map.get(r.stock_id)
@@ -267,7 +311,30 @@ class StrategyMinerService:
 
         sorted_combined = sorted(
             combined.values(), key=lambda x: x['score'], reverse=True,
-        )[:max_picks]
+        )
+
+        # 6.5 全輸過濾：過去 20d 真實 trades 平均報酬為負的個股，從源頭剔除。
+        # 不論樣本數，避免歷史回測「全輸」的個股寫入 picks 表（picks 表
+        # 是歷史回溯的真相來源，不該夾雜後處理才會被砍掉的垃圾）。
+        candidate_ids = [item['primary'].stock_id for item in sorted_combined]
+        perf_map = _load_stock_perf_map(db, candidate_ids, direction=direction)
+        filtered_combined = []
+        for item in sorted_combined:
+            sid = item['primary'].stock_id
+            perf = perf_map.get(sid)
+            if perf is not None:
+                raw_count = perf.get('stock_trade_count') or 0
+                raw_avg = perf.get('stock_avg_return')
+                if raw_count > 0 and raw_avg is not None and raw_avg < 0:
+                    logger.info(
+                        f"[StrategyMiner] {dir_label} skip {sid} "
+                        f"(20d 歷史 {raw_count} 筆平均 {raw_avg:.2f}% < 0)"
+                    )
+                    continue
+            filtered_combined.append(item)
+            if len(filtered_combined) >= max_picks:
+                break
+        sorted_combined = filtered_combined
 
         # 7. 從 AlphaMinerSnapshot 建立理由 map
         reasons_map: Dict[str, List[str]] = {}
@@ -321,15 +388,13 @@ class StrategyMinerService:
         for item in sorted_combined:
             r = item['primary']
             dims = sorted(set(item['dims']))
-            opt_params = optimal.get(r.time_dimension)
+            # 步驟 4 已過濾 optimal 為 None 的維度，這裡 opt_params 必存在。
+            opt_params = optimal[r.time_dimension]
             entry_price = price_map.get(r.stock_id, 0.0)
 
-            if opt_params:
-                tp_mult = opt_params.take_profit_pct
-                sl_mult = opt_params.stop_loss_pct
-                hd = opt_params.hold_days_max
-            else:
-                tp_mult, sl_mult, hd = cls._default_params(r.time_dimension)
+            tp_mult = opt_params.take_profit_pct
+            sl_mult = opt_params.stop_loss_pct
+            hd = opt_params.hold_days_max
 
             # 查個股最新 ATR 轉換為實際百分比
             atr_row = (

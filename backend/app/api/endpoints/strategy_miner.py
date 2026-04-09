@@ -11,6 +11,7 @@ from app.db.database import get_db
 from app.services.strategy_miner_service import (
     StrategyMinerService,
     _load_market_baselines_from_snapshot,
+    _load_stock_perf_map,
 )
 from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
@@ -24,44 +25,7 @@ import json
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
-def _load_stock_perf_map(db: Session, stock_ids: list[str], direction: str = 'long') -> dict:
-    """載入指定股票的回測交易績效（strategy_miner_trades）。
-
-    限定於 20d 維度（`strategy_miner_service.DIMENSIONS = ['20d']`，系統現行唯一維度）。
-    歷史殘留的 5d/10d/30d trades 不再參與，避免「少樣本高勝率」的 selection bias
-    壓過真正樣本充足的維度。
-
-    回傳 {stock_id: {stock_win_rate, stock_avg_return, stock_trade_count, stock_best_dim}}
-    """
-    if not stock_ids:
-        return {}
-    target_strategy_id = '20d_short' if direction == 'short' else '20d'
-    rows = (
-        db.query(StrategyMinerTrade)
-        .filter(
-            StrategyMinerTrade.stock_id.in_(stock_ids),
-            StrategyMinerTrade.strategy_id == target_strategy_id,
-        )
-        .all()
-    )
-    by_stock: dict = defaultdict(list)
-    for r in rows:
-        by_stock[r.stock_id].append(r.return_pct)
-    result = {}
-    for sid, rets in by_stock.items():
-        if not rets:
-            continue
-        wins = sum(1 for x in rets if x > 0)
-        result[sid] = {
-            "stock_win_rate": round(wins / len(rets), 4),
-            "stock_avg_return": round(sum(rets) / len(rets), 1),
-            "stock_trade_count": len(rets),
-            "stock_best_dim": "20d",
-        }
-    return result
-
-
-# 共用 service 層的 _load_market_baselines_from_snapshot，避免重複定義。
+# 共用 service 層的 helper，避免重複定義。
 _load_market_baselines = _load_market_baselines_from_snapshot
 
 
