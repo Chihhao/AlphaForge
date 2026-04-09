@@ -869,7 +869,7 @@ class AlphaMinerService:
         factor_weights = [
             FactorWeight(
                 factor=factors[i],
-                factor_label=dim_factors.get(factors[i], TRAINING_FACTORS.get(factors[i], FACTOR_LABELS.get(factors[i], factors[i]))),
+                factor_label=TRAINING_FACTORS.get(factors[i], FACTOR_LABELS.get(factors[i], factors[i])),
                 coefficient=float(importances[i]),
                 direction="bullish",  # LightGBM 無法直接判定方向，統一標 bullish
             )
