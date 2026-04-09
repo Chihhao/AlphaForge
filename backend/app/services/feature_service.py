@@ -104,6 +104,18 @@ class FeatureService:
             lambda x: x.rolling(20, min_periods=10).std()
         )
 
+        # 背離因子（Phase 10）：RSI+MACD 價格相關性平均
+        df['divergence_avg'] = IndicatorService.calculate_divergence_avg_vec(df, 20)
+
+        # 流動性因子（Phase 11）：Amihud 非流動性
+        # |ret| / dollar_volume 的 20 日均值，取 log1p 壓縮極端值
+        df['_dollar_vol'] = df['close'] * df['volume']
+        df['_abs_ret_over_dvol'] = daily_ret.abs() / df['_dollar_vol'].replace(0, np.nan)
+        df['amihud_20d'] = df.groupby('stock_id')['_abs_ret_over_dvol'].transform(
+            lambda x: x.rolling(20, min_periods=15).mean()
+        )
+        df['log_amihud_20d'] = np.log1p(df['amihud_20d'] * 1e8)
+
         # 產業相對強度（Phase 6A）：需在全市場 df 上計算再切 target_date
         df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
 
@@ -290,6 +302,8 @@ class FeatureService:
                 atr20=_safe_float(row.get('atr20')),
                 atr_pct=_safe_float(row.get('atr_pct')),
                 ivol_20d=_safe_float(row.get('ivol_20d')),
+                log_amihud_20d=_safe_float(row.get('log_amihud_20d')),
+                divergence_avg=_safe_float(row.get('divergence_avg')),
                 market_breadth=_safe_float(row.get('market_breadth')),
                 market_trend=_safe_float(row.get('market_trend')),
             ))
@@ -358,6 +372,18 @@ class FeatureService:
         df['ivol_20d'] = df.groupby('stock_id')['_excess_ret'].transform(
             lambda x: x.rolling(20, min_periods=10).std()
         )
+
+        # 背離因子（Phase 10）：RSI+MACD 價格相關性平均
+        df['divergence_avg'] = IndicatorService.calculate_divergence_avg_vec(df, 20)
+
+        # 流動性因子（Phase 11）：Amihud 非流動性
+        _daily_ret = df.groupby('stock_id')['close'].pct_change()
+        df['_dollar_vol'] = df['close'] * df['volume']
+        df['_abs_ret_over_dvol'] = _daily_ret.abs() / df['_dollar_vol'].replace(0, np.nan)
+        df['amihud_20d'] = df.groupby('stock_id')['_abs_ret_over_dvol'].transform(
+            lambda x: x.rolling(20, min_periods=15).mean()
+        )
+        df['log_amihud_20d'] = np.log1p(df['amihud_20d'] * 1e8)
 
         # 產業相對強度（Phase 6A）：在全市場 df 上向量化計算
         df['ret20'] = df.groupby('stock_id')['close'].pct_change(20) * 100
@@ -571,6 +597,8 @@ class FeatureService:
                     atr20=_safe_float(row.get('atr20')),
                     atr_pct=_safe_float(row.get('atr_pct')),
                     ivol_20d=_safe_float(row.get('ivol_20d')),
+                    log_amihud_20d=_safe_float(row.get('log_amihud_20d')),
+                    divergence_avg=_safe_float(row.get('divergence_avg')),
                     market_breadth=_safe_float(row.get('market_breadth')),
                     market_trend=_safe_float(row.get('market_trend')),
                 ))

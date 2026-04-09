@@ -102,6 +102,14 @@ class StockFeature(Base):
     atr_pct = Column(Float, nullable=True)    # ATR / close × 100（波動率百分比）
     ivol_20d = Column(Float, nullable=True)   # 20日特異波動率（日報酬 - 市場中位數報酬的標準差）
 
+    # --- 流動性（Phase 11）---
+    # 20 日 Amihud 非流動性 = mean(|ret| / dollar_volume)，取 log1p(× 1e8) 壓縮極端值
+    # Walk-Forward ML 驗證 ΔIC=+0.038（p=0.0003, 100% 勝率，7/7 窗口提升）
+    log_amihud_20d = Column(Float, nullable=True)
+
+    # --- 背離因子（Phase 10）---
+    divergence_avg = Column(Float, nullable=True)  # RSI+MACD 價格相關性平均（負值=背離強）
+
     # --- 市場狀態（Phase 7）---
     market_breadth = Column(Float, nullable=True)  # 全市場站上 MA20 的股票比例 (0~1)
     market_trend   = Column(Float, nullable=True)  # 全市場中位數 20 日報酬 > 0 為 1，否則 0

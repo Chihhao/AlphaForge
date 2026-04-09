@@ -101,6 +101,30 @@ class IndicatorService:
         return atr
 
     @staticmethod
+    def calculate_divergence_avg_vec(df: pd.DataFrame, window: int = 20) -> pd.Series:
+        """向量化計算 RSI+MACD 背離強度
+
+        定義：-(RSI 日變化與價格日變化的 20d 滾動相關 + MACD DIF 日變化與價格日變化的 20d 滾動相關) / 2
+        正值 = 價格與指標方向不一致（背離越強）
+        """
+        grp = df.groupby('stock_id')
+
+        # RSI 和 MACD DIF 需在呼叫前已存在於 df 中
+        rsi_chg = grp['rsi14'].diff()
+        dif_chg = grp['macd_dif'].diff()
+        price_chg = grp['close'].pct_change()
+
+        rsi_corr = df.groupby('stock_id').apply(
+            lambda g: price_chg.loc[g.index].rolling(window, min_periods=10).corr(rsi_chg.loc[g.index])
+        ).reset_index(level=0, drop=True)
+
+        dif_corr = df.groupby('stock_id').apply(
+            lambda g: price_chg.loc[g.index].rolling(window, min_periods=10).corr(dif_chg.loc[g.index])
+        ).reset_index(level=0, drop=True)
+
+        return -(rsi_corr.fillna(0) + dif_corr.fillna(0)) / 2
+
+    @staticmethod
     def attach_indicators(df: pd.DataFrame) -> pd.DataFrame:
         """
         為包含多檔股票的原始數據一次性掛載所有常用指標。

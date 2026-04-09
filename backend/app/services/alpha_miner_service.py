@@ -85,6 +85,8 @@ FACTOR_LABELS: Dict[str, str] = {
     'ivol_20d':         '特異波動率',
     # Phase 9 融券軋空
     'short_chg_5d':     '融券5日增',
+    # Phase 10 背離因子
+    'divergence_avg':   '背離強度',
 }
 
 # ─── 訓練用因子（20d 唯一維度）──────────────────────────────────────
@@ -107,6 +109,11 @@ TRAINING_FACTORS: Dict[str, str] = {
     # 反向投信 + 融券軋空（Partial IC 正交，p=0.011）
     'neg_trust_net_buy':    '反向投信',
     'short_chg_5d':         '融券5日增（軋空）',
+    # 背離因子 — RSI+MACD 價格相關性反向（Partial IC 161%，p=0.051）
+    'neg_divergence_avg':   '背離強度（反向）',
+    # 流動性因子（Phase 11）— Amihud 非流動性
+    # Walk-Forward ML ΔIC=+0.038（p=0.0003, 7/7 窗口提升），Top10% 超額 +3.13%
+    'log_amihud_20d':       '非流動性(log Amihud)',
 }
 
 # 收集訓練因子的原始欄位（neg_ 前綴因子取原始名稱）
