@@ -279,8 +279,11 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                         const dim = pick.stock_best_dim ?? pick.time_dimension
                         const isStrategy = pick.stock_win_rate == null
                         if (wr == null) return null
+                        const tooltip = isStrategy
+                            ? '此股 20d 歷史回測樣本不足 10 筆，顯示同策略全市場 walk-forward 平均，僅供參考'
+                            : '此股 20d 歷史回測平均（含 0.6% 來回成本）'
                         return (
-                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5">
+                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5" title={tooltip}>
                                 <span className={`font-mono text-xs ${wr >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
                                     {DIM_LABEL[dim] ?? dim}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
                                 </span>
@@ -824,18 +827,14 @@ const StrategyPage = () => {
     useEffect(() => {
         const loadPicks = async () => {
             try {
-                // 同時載入 Strategy Miner + 推薦清單
-                const [picksRes, stratRes] = await Promise.all([
-                    api.get('/strategy-miner/picks/today'),
-                    api.get<{ strategies: Array<{ strategy_id: string; win_rate_positive: number; avg_return_top: number; short_win_rate?: number; avg_return_bottom?: number }> }>('/alpha-miner/strategies').catch(() => ({ data: { strategies: [] } })),
-                ])
+                // 載入今日推薦清單。
+                // strategy_win_rate / strategy_avg_return 直接使用後端 picks API
+                // 已回傳的真實 walk-forward 數字（來自 strategy_backtest_param.win_rate_test
+                // / avg_return_test，含 0.6% 來回成本），不再以 /alpha-miner/strategies
+                // 的 in-sample top-decile 統計（lgb_20d.win_rate_positive / avg_return_top）
+                // 蓋過 — 後者是訓練集 top decile 的「正報酬比」，不適合作為使用者預期的勝率。
+                const picksRes = await api.get('/strategy-miner/picks/today')
                 const data: StrategyMinerPick[] = picksRes.data ?? []
-
-                // 建立策略級 lookup
-                const stratMap: Record<string, { wr: number; avg: number }> = {}
-                for (const s of stratRes.data?.strategies ?? []) {
-                    stratMap[s.strategy_id] = { wr: s.win_rate_positive, avg: s.avg_return_top }
-                }
 
                 const VALID_DIMS = new Set(['20d'])
                 const cleanDim = (d: string | null | undefined) => (d && VALID_DIMS.has(d)) ? d : null
@@ -844,8 +843,6 @@ const StrategyPage = () => {
                     .filter(p => VALID_DIMS.has(p.time_dimension))
                     .map(p => {
                     const dim = p.time_dimension
-                    const dimKey = `lgb_${dim}`
-                    const strat = stratMap[dimKey]
                     return {
                         stock_id: p.stock_id,
                         stock_name: p.stock_name,
@@ -862,19 +859,21 @@ const StrategyPage = () => {
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
                         stock_trade_count: p.stock_trade_count ?? 0,
                         stock_best_dim: cleanDim(p.stock_best_dim) ?? dim,
-                        strategy_win_rate: strat?.wr ?? null,
-                        strategy_avg_return: strat?.avg ?? null,
+                        strategy_win_rate: (p as any).strategy_win_rate ?? null,
+                        strategy_avg_return: (p as any).strategy_avg_return ?? null,
                     }
                 })
 
                 const combined = minerPicks
                 if (combined.length > 0) {
                     setSignalDate(data[0]?.pick_date ?? '')
-                    // 按勝率排序：做多用正報酬勝率，做空用負報酬勝率
+                    // 按勝率排序；fallback 個股共用同一個 strategy_win_rate 時，
+                    // 用 weighted_score 當 tiebreaker，避免依賴 Array.sort 的穩定性 spec。
                     combined.sort((a, b) => {
                         const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
                         const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
-                        return wrB - wrA
+                        if (wrB !== wrA) return wrB - wrA
+                        return (b.weighted_score ?? 0) - (a.weighted_score ?? 0)
                     })
                     setPicks(combined)
                     setLoading(false)

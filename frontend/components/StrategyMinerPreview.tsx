@@ -19,14 +19,8 @@ interface TodayPick {
   stock_win_rate?: number | null
   stock_avg_return?: number | null
   stock_best_dim?: string | null
-}
-
-interface StrategyInfo {
-  strategy_id: string
-  win_rate_outsample: number
-  win_rate_positive: number
-  avg_return_top: number
-  ic: number
+  strategy_win_rate?: number | null
+  strategy_avg_return?: number | null
 }
 
 interface PickPreview {
@@ -121,8 +115,11 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
           const ret = pick.stock_avg_return ?? pick.strategy_avg_return
           const isStrategy = pick.stock_win_rate === null
           if (wr === null) return null
+          const tooltip = isStrategy
+            ? '此股 20d 歷史回測樣本不足 10 筆，顯示同策略全市場 walk-forward 平均，僅供參考'
+            : '此股 20d 歷史回測平均（含 0.6% 來回成本）'
           return (
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5" title={tooltip}>
               <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
                 {dimLabel}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
               </span>
@@ -179,10 +176,11 @@ export default function StrategyMinerPreview() {
   useEffect(() => {
     let cancelled = false
 
-    Promise.all([
-      api.get<TodayPick[]>('/strategy-miner/picks/today'),
-      api.get<{ strategies: StrategyInfo[] }>('/alpha-miner/strategies'),
-    ]).then(([picksRes, stratRes]) => {
+    // strategy_win_rate / strategy_avg_return 直接使用後端 picks API 已回傳的
+    // 真實 walk-forward 數字（含 0.6% 來回成本），不再以 /alpha-miner/strategies
+    // 的 in-sample top-decile 統計覆蓋。
+    api.get<TodayPick[]>('/strategy-miner/picks/today')
+      .then(picksRes => {
         if (cancelled) return
         const pd = picksRes.data?.[0]?.pick_date
         if (pd) {
@@ -192,17 +190,11 @@ export default function StrategyMinerPreview() {
             .catch(() => {})
         }
 
-        const stratMap: Record<string, StrategyInfo> = {}
-        for (const s of stratRes.data?.strategies ?? []) {
-          stratMap[s.strategy_id] = s
-        }
-
-        // 只用 Strategy Miner picks（過濾掉已棄用的 30d）
+        // 只用 Strategy Miner picks（過濾掉已棄用的非 20d 維度）
         const combined: PickPreview[] = (picksRes.data || [])
           .filter(p => VALID_DIMS.has(p.time_dimension))
           .map(p => {
           const dim = p.time_dimension
-          const strat = stratMap[`lgb_${dim}`]
           return {
             stock_id: p.stock_id, stock_name: p.stock_name,
             entry_price: p.entry_price, take_profit_pct: p.take_profit_pct,
@@ -214,16 +206,18 @@ export default function StrategyMinerPreview() {
             stock_win_rate: p.stock_win_rate ?? null,
             stock_avg_return: (p as any).stock_avg_return ?? null,
             stock_best_dim: cleanDim((p as any).stock_best_dim) ?? dim,
-            strategy_win_rate: strat?.win_rate_positive ?? null,
-            strategy_avg_return: strat?.avg_return_top ?? null,
+            strategy_win_rate: p.strategy_win_rate ?? null,
+            strategy_avg_return: p.strategy_avg_return ?? null,
           }
         })
 
-        // 按勝率排序，做多前 3
+        // 按勝率排序；fallback 個股共用同一個 strategy_win_rate 時，
+        // 用 weighted_score 當 tiebreaker，避免依賴 Array.sort 穩定性。
         combined.sort((a, b) => {
           const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
           const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
-          return wrB - wrA
+          if (wrB !== wrA) return wrB - wrA
+          return (b.weighted_score ?? 0) - (a.weighted_score ?? 0)
         })
         const longTop3 = combined.filter(p => p.direction === 'long').slice(0, 3)
 

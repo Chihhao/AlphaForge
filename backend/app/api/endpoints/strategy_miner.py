@@ -8,7 +8,10 @@ from datetime import date, timedelta
 from collections import defaultdict
 
 from app.db.database import get_db
-from app.services.strategy_miner_service import StrategyMinerService
+from app.services.strategy_miner_service import (
+    StrategyMinerService,
+    _load_market_baselines_from_snapshot,
+)
 from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
 from app.models.strategy_miner_pick import StrategyMinerPick
@@ -22,68 +25,44 @@ router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
 def _load_stock_perf_map(db: Session, stock_ids: list[str], direction: str = 'long') -> dict:
-    """載入指定股票的回測交易績效（strategy_miner_trades），
-    按維度計算勝率，回傳最高勝率維度的績效。
-    direction 決定只取做多或放空的 trades。
-    回傳 {stock_id: {win_rate, avg_return, trade_count, best_dim}}"""
+    """載入指定股票的回測交易績效（strategy_miner_trades）。
+
+    限定於 20d 維度（`strategy_miner_service.DIMENSIONS = ['20d']`，系統現行唯一維度）。
+    歷史殘留的 5d/10d/30d trades 不再參與，避免「少樣本高勝率」的 selection bias
+    壓過真正樣本充足的維度。
+
+    回傳 {stock_id: {stock_win_rate, stock_avg_return, stock_trade_count, stock_best_dim}}
+    """
     if not stock_ids:
         return {}
+    target_strategy_id = '20d_short' if direction == 'short' else '20d'
     rows = (
         db.query(StrategyMinerTrade)
-        .filter(StrategyMinerTrade.stock_id.in_(stock_ids))
+        .filter(
+            StrategyMinerTrade.stock_id.in_(stock_ids),
+            StrategyMinerTrade.strategy_id == target_strategy_id,
+        )
         .all()
     )
-    # 依方向過濾：放空的 strategy_id 含 '_short'
-    if direction == 'short':
-        rows = [r for r in rows if '_short' in r.strategy_id]
-    else:
-        rows = [r for r in rows if '_short' not in r.strategy_id]
-    # {stock_id: {dim: [return_pct, ...]}}
-    by_stock_dim: dict = defaultdict(lambda: defaultdict(list))
+    by_stock: dict = defaultdict(list)
     for r in rows:
-        dim = r.strategy_id.replace('_short', '')
-        by_stock_dim[r.stock_id][dim].append(r.return_pct)
+        by_stock[r.stock_id].append(r.return_pct)
     result = {}
-    for sid, dims in by_stock_dim.items():
-        best_dim = None
-        best_wr = -1
-        for dim, rets in dims.items():
-            wr = sum(1 for x in rets if x > 0) / len(rets) if rets else 0
-            if wr > best_wr or (wr == best_wr and len(rets) > len(dims.get(best_dim, []))):
-                best_wr = wr
-                best_dim = dim
-        rets = dims[best_dim]
+    for sid, rets in by_stock.items():
+        if not rets:
+            continue
         wins = sum(1 for x in rets if x > 0)
         result[sid] = {
             "stock_win_rate": round(wins / len(rets), 4),
             "stock_avg_return": round(sum(rets) / len(rets), 1),
             "stock_trade_count": len(rets),
-            "stock_best_dim": best_dim,
+            "stock_best_dim": "20d",
         }
     return result
 
 
-def _load_market_baselines(db: Session) -> dict:
-    """從 Alpha Miner snapshot 取各維度市場基準勝率。"""
-    snap = (
-        db.query(AlphaMinerSnapshot)
-        .order_by(AlphaMinerSnapshot.train_date.desc())
-        .first()
-    )
-    if not snap:
-        return {}
-    result_data = json.loads(snap.result_json)
-    dim_rates: dict = defaultdict(list)
-    for s in result_data.get('strategies', []):
-        dim = s['time_dimension'].replace('_short', '')
-        mwr = s.get('market_win_rate')
-        if mwr is not None:
-            dim_rates[dim].append(mwr)
-    baselines = {}
-    for dim, rates in dim_rates.items():
-        rates.sort()
-        baselines[dim] = rates[len(rates) // 2]
-    return baselines
+# 共用 service 層的 _load_market_baselines_from_snapshot，避免重複定義。
+_load_market_baselines = _load_market_baselines_from_snapshot
 
 
 def _load_buy_reasons_fallback(db: Session, picks) -> dict:
@@ -212,20 +191,27 @@ def get_today_picks(db: Session = Depends(get_db)):
 
     result = []
     for p in picks:
-        perf = stock_perf.get(p.stock_id, {
+        raw_perf = stock_perf.get(p.stock_id)
+
+        # 步驟 1：全輸過濾（不論樣本數）。只要有 trades 且平均報酬為負就剔除，
+        # 避免「歷史回測全輸的個股因樣本不足，被當成樣本不足顯示策略 fallback」
+        # 而靜默進入推薦清單。
+        if raw_perf is not None:
+            raw_count = raw_perf.get("stock_trade_count") or 0
+            raw_avg = raw_perf.get("stock_avg_return")
+            if raw_count > 0 and raw_avg is not None and raw_avg < 0:
+                continue
+
+        # 步驟 2：樣本不足時遮罩個股欄位（保留 trade_count 給前端做信心顯示）。
+        perf = dict(raw_perf) if raw_perf is not None else {
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
             "stock_best_dim": None,
-        })
-        trade_count = perf.get("stock_trade_count", 0)
-        if trade_count < 10:
+        }
+        if (perf.get("stock_trade_count") or 0) < 10:
             perf["stock_win_rate"] = None
             perf["stock_avg_return"] = None
-        else:
-            avg = perf.get("stock_avg_return")
-            if avg is not None and avg < 0:
-                continue
 
         # 策略級 fallback（排除無效的 0 值）
         dim = p.time_dimension or '20d'
@@ -551,25 +537,33 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
 
     result = []
     for p in picks:
-        perf = stock_perf.get(p.stock_id, {
+        raw_perf = stock_perf.get(p.stock_id)
+
+        # 步驟 1：全輸過濾（不論樣本數），與 /picks/today 對齊。
+        if raw_perf is not None:
+            raw_count = raw_perf.get("stock_trade_count") or 0
+            raw_avg = raw_perf.get("stock_avg_return")
+            if raw_count > 0 and raw_avg is not None and raw_avg < 0:
+                continue
+
+        # 步驟 2：樣本足夠時做 baseline 品質檢查（與原有邏輯相同）。
+        if raw_perf is not None and (raw_perf.get("stock_trade_count") or 0) >= 10:
+            dim = (p.time_dimension or '20d').replace('_short', '')
+            baseline = baselines.get(dim, 0.25)
+            raw_wr = raw_perf.get("stock_win_rate")
+            if raw_wr is not None and raw_wr <= baseline + 0.05:
+                continue
+
+        # 步驟 3：樣本不足時遮罩個股欄位。
+        perf = dict(raw_perf) if raw_perf is not None else {
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
             "stock_best_dim": None,
-        })
-        trade_count = perf.get("stock_trade_count", 0)
-        if trade_count < 10:
+        }
+        if (perf.get("stock_trade_count") or 0) < 10:
             perf["stock_win_rate"] = None
             perf["stock_avg_return"] = None
-        else:
-            dim = (p.time_dimension or '10d').replace('_short', '')
-            baseline = baselines.get(dim, 0.25)
-            wr = perf.get("stock_win_rate")
-            avg = perf.get("stock_avg_return")
-            if wr is not None and wr <= baseline + 0.05:
-                continue
-            if avg is not None and avg < 0:
-                continue
 
         result.append({
             "pick_date": p.pick_date.isoformat(),
