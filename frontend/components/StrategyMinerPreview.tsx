@@ -274,6 +274,14 @@ export default function StrategyMinerPreview() {
         </Link>
       </div>
 
+      {/* 樣本累積中警告 — 維度決策後移除 */}
+      <div className="mx-1 mb-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-start gap-1.5">
+        <span className="text-amber-400 text-xs shrink-0 mt-[1px]">⚠</span>
+        <span className="text-amber-200/80 text-xs leading-snug">
+          20d 新策略樣本累積中，勝率與報酬數字為策略整體估計值，統計效度有限，僅供參考
+        </span>
+      </div>
+
 
       {/* List */}
       {loading ? (

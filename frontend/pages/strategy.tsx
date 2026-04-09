@@ -997,6 +997,17 @@ const StrategyPage = () => {
                     </div>
                 </div>
 
+                {/* 樣本累積中警告 — 維度決策後移除 */}
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-2.5 flex items-start gap-2">
+                    <span className="text-amber-400 text-sm shrink-0 mt-[1px]">⚠</span>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-amber-200 text-xs font-semibold mb-0.5">20d 新策略樣本累積中</p>
+                        <p className="text-amber-200/75 text-xs leading-snug">
+                            目前勝率與預計報酬為策略整體估計值，20d 維度歷史 trade 樣本仍在累積（&lt; 30 筆），統計效度有限，僅供方向性參考
+                        </p>
+                    </div>
+                </div>
+
                 {error && (
                     <div className="bg-rose-900/20 border border-rose-800/50 rounded-2xl p-4 text-rose-400 text-sm">
                         載入失敗：{error}
