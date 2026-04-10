@@ -44,6 +44,7 @@ interface PickPreview {
   strategy_avg_return: number | null
   current_price?: number
   change_pct?: number
+  quote_data_date?: string
 }
 
 
@@ -84,12 +85,26 @@ function formatPrice(price: number): string {
   return Math.round(price).toString()
 }
 
+/** 判斷報價是否為過期資料（盤中時 data_date 不是今天） */
+function isQuoteStale(dataDate?: string): boolean {
+  if (!dataDate) return false
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }))
+  const day = now.getDay()
+  const hour = now.getHours()
+  const minute = now.getMinutes()
+  const isMarketOpen = day >= 1 && day <= 5 && (hour > 9 || (hour === 9 && minute >= 0)) && (hour < 13 || (hour === 13 && minute <= 30))
+  if (!isMarketOpen) return false
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return dataDate !== todayStr
+}
+
 function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
   const isMultiDim = pick.dims.length > 1
-  const price = pick.current_price || pick.entry_price
+  const stale = isQuoteStale(pick.quote_data_date)
+  const price = stale ? null : (pick.current_price || pick.entry_price)
   const dimLabel = DIM_LABEL[pick.time_dimension] ?? ''
-  const change = pick.change_pct ?? 0
-  const changeColor = change > 0 ? 'text-rose-400' : (change < 0 ? 'text-emerald-400' : 'text-zinc-400')
+  const change = stale ? null : (pick.change_pct ?? 0)
+  const changeColor = (change ?? 0) > 0 ? 'text-rose-400' : ((change ?? 0) < 0 ? 'text-emerald-400' : 'text-zinc-400')
 
   return (
     <Link
@@ -141,16 +156,22 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
       </div>
 
       <div className="flex flex-col items-end">
-        <div className="flex items-center">
-          {change > 0 && <span className="text-rose-400 text-[10px] mr-1">▲</span>}
-          {change < 0 && <span className="text-emerald-400 text-[10px] mr-1">▼</span>}
-          <span className={`${changeColor} font-mono font-bold text-sm`}>
-            {formatPrice(price)}
-          </span>
-        </div>
-        <span className={`${changeColor} text-xs font-bold font-mono`}>
-          {change === 0 ? '0.00' : (change > 0 ? '+' : '') + change.toFixed(2)}%
-        </span>
+        {price != null && change != null ? (
+          <>
+            <div className="flex items-center">
+              {change > 0 && <span className="text-rose-400 text-[10px] mr-1">▲</span>}
+              {change < 0 && <span className="text-emerald-400 text-[10px] mr-1">▼</span>}
+              <span className={`${changeColor} font-mono font-bold text-sm`}>
+                {formatPrice(price)}
+              </span>
+            </div>
+            <span className={`${changeColor} text-xs font-bold font-mono`}>
+              {change === 0 ? '0.00' : (change > 0 ? '+' : '') + change.toFixed(2)}%
+            </span>
+          </>
+        ) : (
+          <span className="text-zinc-500 font-mono text-sm">—</span>
+        )}
       </div>
     </Link>
   )
@@ -237,7 +258,7 @@ export default function StrategyMinerPreview() {
           const withQuotes = longTop3.map((p, i) => {
             const r = results[i]
             if (r.status === 'fulfilled' && r.value.data) {
-              return { ...p, current_price: r.value.data.current_price, change_pct: r.value.data.change_percent }
+              return { ...p, current_price: r.value.data.current_price, change_pct: r.value.data.change_percent, quote_data_date: r.value.data.data_date }
             }
             return p
           })

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 
 class StockBase(BaseModel):
@@ -40,6 +40,7 @@ class StockQuote(BaseModel):
     volume: int
     change_percent: float
     timestamp: datetime
+    data_date: Optional[date] = None
     
     # 基本面指標 (可選)
     pe_ratio: Optional[float] = None

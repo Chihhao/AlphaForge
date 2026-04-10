@@ -8,16 +8,32 @@ interface StockQuote {
   current_price: number
   change_percent: number
   stock_name: string
+  data_date?: string  // YYYY-MM-DD，yfinance 回傳的實際資料日期
 }
 
 interface WatchlistRowData extends WatchlistItem {
   price?: number
   change?: number
+  data_date?: string
   loading: boolean
 }
 
 interface MinerPick {
   stock_id: string
+}
+
+/** 判斷報價是否為過期資料（盤中時 data_date 不是今天） */
+function isQuoteStale(dataDate?: string): boolean {
+  if (!dataDate) return false  // 沒有 data_date 時不擋（向後相容）
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }))
+  const day = now.getDay()
+  const hour = now.getHours()
+  const minute = now.getMinutes()
+  // 只在平日 9:00~13:30 盤中時段才判斷
+  const isMarketOpen = day >= 1 && day <= 5 && (hour > 9 || (hour === 9 && minute >= 0)) && (hour < 13 || (hour === 13 && minute <= 30))
+  if (!isMarketOpen) return false
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return dataDate !== todayStr
 }
 
 export default function WatchlistWidget() {
@@ -48,6 +64,7 @@ export default function WatchlistWidget() {
                   stock_name: r.data.stock_name || row.stock_name,
                   price: r.data.current_price,
                   change: r.data.change_percent,
+                  data_date: r.data.data_date,
                   loading: false
                 }
               : row
@@ -156,7 +173,7 @@ export default function WatchlistWidget() {
                 <>
                   {row.loading ? (
                     <span className="text-zinc-500 text-xs font-mono animate-pulse">…</span>
-                  ) : row.price != null ? (
+                  ) : row.price != null && !isQuoteStale(row.data_date) ? (
                     <>
                       <span className="text-sm font-mono font-bold text-zinc-100">{formatPrice(row.price)}</span>
                       <span className={`text-xs font-mono font-bold w-16 text-right ${(row.change ?? 0) >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>

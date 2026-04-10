@@ -77,6 +77,7 @@ class StockService:
                 return None
 
             latest = hist.iloc[-1]
+            data_date = hist.index[-1].date()  # yfinance 回傳的實際資料日期
             volume = int(latest.get('Volume', 0))
 
             if len(hist) >= 2:
@@ -149,6 +150,7 @@ class StockService:
                 volume=volume,
                 change_percent=change_percent,
                 timestamp=datetime.utcnow(),
+                data_date=data_date,
                 **fundamental_data # 注入基本面欄位
             )
         except Exception as e:
