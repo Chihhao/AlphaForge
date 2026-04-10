@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # ─── 參數組合（持有天數與維度對齊）──────────────────────────────────────────────
 TP_ATR_MULTIPLIERS = [1.5, 2.5, 3.5]   # 停利 = N × ATR
 SL_ATR_MULTIPLIERS = [1.0, 1.5, 2.0]   # 停損 = M × ATR
-DIM_HOLD_DAYS = {'20d': 20}
+DIM_HOLD_DAYS = {'5d': 5, '10d': 10, '20d': 20}
 ROUND_TRIP_COST = 0.006   # 來回交易成本 ~0.6%（手續費 0.1425%×2 + 交易稅 0.3%）
 
 
@@ -45,7 +45,7 @@ def get_params_list(dimension: str) -> list:
         for sl in SL_ATR_MULTIPLIERS
     ]  # 9 combos
 
-DIMENSIONS = ['20d']
+DIMENSIONS = ['5d', '10d', '20d']
 
 # ─── 訊號品質門檻 ─────────────────────────────────────────────────────────────
 TRIGGER_COUNT_PERCENTILE = 0.70   # 觸發數需 >= 該維度 P70
@@ -68,37 +68,47 @@ def _load_stock_perf_map(
 ) -> dict:
     """載入指定股票的回測交易績效（strategy_miner_trades）。
 
-    限定於 20d 維度（DIMENSIONS = ['20d']，系統現行唯一維度）。
-    歷史殘留的 5d/10d/30d trades 不再參與，避免「少樣本高勝率」的 selection bias
-    壓過真正樣本充足的維度。
+    查詢所有活躍維度（DIMENSIONS）的 trades，每檔股票取平均報酬最高
+    的維度作為 stock_best_dim。
 
     回傳 {stock_id: {stock_win_rate, stock_avg_return, stock_trade_count, stock_best_dim}}
     """
     if not stock_ids:
         return {}
     from collections import defaultdict
-    target_strategy_id = '20d_short' if direction == 'short' else '20d'
+    target_ids = [f"{d}_short" if direction == 'short' else d for d in DIMENSIONS]
     rows = (
         db.query(StrategyMinerTrade)
         .filter(
             StrategyMinerTrade.stock_id.in_(stock_ids),
-            StrategyMinerTrade.strategy_id == target_strategy_id,
+            StrategyMinerTrade.strategy_id.in_(target_ids),
         )
         .all()
     )
-    by_stock: dict = defaultdict(list)
+    # {stock_id: {dim: [return_pct, ...]}}
+    by_stock_dim: dict = defaultdict(lambda: defaultdict(list))
     for r in rows:
-        by_stock[r.stock_id].append(r.return_pct)
+        dim = r.strategy_id.replace('_short', '')
+        by_stock_dim[r.stock_id][dim].append(r.return_pct)
     result = {}
-    for sid, rets in by_stock.items():
-        if not rets:
+    for sid, dim_rets in by_stock_dim.items():
+        best_dim = None
+        best_avg = -999.0
+        total_rets: list = []
+        for dim, rets in dim_rets.items():
+            avg = sum(rets) / len(rets) if rets else -999.0
+            if avg > best_avg:
+                best_avg = avg
+                best_dim = dim
+            total_rets.extend(rets)
+        if not total_rets:
             continue
-        wins = sum(1 for x in rets if x > 0)
+        wins = sum(1 for x in total_rets if x > 0)
         result[sid] = {
-            "stock_win_rate": round(wins / len(rets), 4),
-            "stock_avg_return": round(sum(rets) / len(rets), 1),
-            "stock_trade_count": len(rets),
-            "stock_best_dim": "20d",
+            "stock_win_rate": round(wins / len(total_rets), 4),
+            "stock_avg_return": round(sum(total_rets) / len(total_rets), 1),
+            "stock_trade_count": len(total_rets),
+            "stock_best_dim": best_dim or DIMENSIONS[0],
         }
     return result
 
@@ -313,7 +323,7 @@ class StrategyMinerService:
             combined.values(), key=lambda x: x['score'], reverse=True,
         )
 
-        # 6.5 全輸過濾：過去 20d 真實 trades 平均報酬為負的個股，從源頭剔除。
+        # 6.5 全輸過濾：歷史真實 trades 平均報酬為負的個股，從源頭剔除。
         # 不論樣本數，避免歷史回測「全輸」的個股寫入 picks 表（picks 表
         # 是歷史回溯的真相來源，不該夾雜後處理才會被砍掉的垃圾）。
         candidate_ids = [item['primary'].stock_id for item in sorted_combined]
@@ -328,7 +338,7 @@ class StrategyMinerService:
                 if raw_count > 0 and raw_avg is not None and raw_avg < 0:
                     logger.info(
                         f"[StrategyMiner] {dir_label} skip {sid} "
-                        f"(20d 歷史 {raw_count} 筆平均 {raw_avg:.2f}% < 0)"
+                        f"(歷史 {raw_count} 筆平均 {raw_avg:.2f}% < 0)"
                     )
                     continue
             filtered_combined.append(item)

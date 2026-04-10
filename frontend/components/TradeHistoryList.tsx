@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
-const DIM_LABEL: Record<string, string> = { '20d': '20日' }
-const DIM_TABS = ['20d'] as const
+const DIM_LABEL: Record<string, string> = { '5d': '5日', '10d': '10日', '20d': '20日' }
+const DIM_TABS = ['5d', '10d', '20d'] as const
 const EXIT_LABEL: Record<string, string> = { take_profit: '停利', stop_loss: '停損', time_limit: '到期' }
 
 export interface TradeItem {
@@ -26,10 +26,6 @@ export default function TradeHistoryList({ trades, defaultDim = '20d', maxVisibl
   const [dimTab, setDimTab] = useState(defaultDim)
 
   const filtered = trades.filter(t => t.time_dimension === dimTab)
-  const wins = filtered.filter(t => t.return_pct > 0).length
-  const avgRet = filtered.length > 0
-    ? filtered.reduce((s, t) => s + t.return_pct, 0) / filtered.length
-    : null
   const listVisible = showList !== false
 
   return (
@@ -55,17 +51,8 @@ export default function TradeHistoryList({ trades, defaultDim = '20d', maxVisibl
         })}
       </div>
 
-      {/* 統計 */}
-      {filtered.length === 0 ? (
+      {filtered.length === 0 && (
         <p className="text-sm text-zinc-500">尚無交易紀錄</p>
-      ) : (
-        <div className="flex items-center gap-4 text-sm mb-1">
-          <span className="text-zinc-400">歷史紀錄 <span className="text-zinc-200 font-mono font-bold">{filtered.length}</span> 筆</span>
-          <span className="text-zinc-400">勝率 <span className={`font-mono font-bold ${wins / filtered.length >= 0.5 ? 'text-rose-400' : 'text-emerald-400'}`}>{((wins / filtered.length) * 100).toFixed(0)}%</span></span>
-          {avgRet != null && (
-            <span className="text-zinc-400">均報酬 <span className={`font-mono font-bold ${avgRet >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{avgRet >= 0 ? '+' : ''}{avgRet.toFixed(1)}%</span></span>
-          )}
-        </div>
       )}
 
       {/* 逐筆明細（可捲動） */}

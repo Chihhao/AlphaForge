@@ -166,16 +166,13 @@ def get_today_picks(db: Session = Depends(get_db)):
             if raw_count > 0 and raw_avg is not None and raw_avg < 0:
                 continue
 
-        # 步驟 2：樣本不足時遮罩個股欄位（保留 trade_count 給前端做信心顯示）。
+        # 步驟 2：個股欄位（不論樣本數都回傳，由前端加 (N筆) 標注）。
         perf = dict(raw_perf) if raw_perf is not None else {
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
             "stock_best_dim": None,
         }
-        if (perf.get("stock_trade_count") or 0) < 10:
-            perf["stock_win_rate"] = None
-            perf["stock_avg_return"] = None
 
         # 策略級 fallback（排除無效的 0 值）
         dim = p.time_dimension or '20d'
@@ -518,16 +515,13 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             if raw_wr is not None and raw_wr <= baseline + 0.05:
                 continue
 
-        # 步驟 3：樣本不足時遮罩個股欄位。
+        # 步驟 3：個股欄位（不論樣本數都回傳，由前端加 (N筆) 標注）。
         perf = dict(raw_perf) if raw_perf is not None else {
             "stock_win_rate": None,
             "stock_avg_return": None,
             "stock_trade_count": 0,
             "stock_best_dim": None,
         }
-        if (perf.get("stock_trade_count") or 0) < 10:
-            perf["stock_win_rate"] = None
-            perf["stock_avg_return"] = None
 
         result.append({
             "pick_date": p.pick_date.isoformat(),

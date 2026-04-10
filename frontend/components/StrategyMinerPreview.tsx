@@ -18,6 +18,7 @@ interface TodayPick {
   buy_reasons?: string[]
   stock_win_rate?: number | null
   stock_avg_return?: number | null
+  stock_trade_count?: number
   stock_best_dim?: string | null
   strategy_win_rate?: number | null
   strategy_avg_return?: number | null
@@ -37,6 +38,7 @@ interface PickPreview {
   buy_reasons: string[]
   stock_win_rate: number | null
   stock_avg_return: number | null
+  stock_trade_count: number
   stock_best_dim: string | null
   strategy_win_rate: number | null
   strategy_avg_return: number | null
@@ -113,15 +115,17 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
         {(() => {
           const wr = pick.stock_win_rate ?? pick.strategy_win_rate
           const ret = pick.stock_avg_return ?? pick.strategy_avg_return
+          const count = pick.stock_trade_count ?? 0
           const isStrategy = pick.stock_win_rate === null
           if (wr === null) return null
           const tooltip = isStrategy
-            ? '此股 20d 歷史回測樣本不足 10 筆，顯示同策略全市場 walk-forward 平均，僅供參考'
-            : '此股 20d 歷史回測平均（含 0.6% 來回成本）'
+            ? `尚無此股個別回測紀錄，顯示 ${dimLabel || pick.time_dimension} 策略全市場 walk-forward 平均`
+            : `此股 ${dimLabel || pick.time_dimension} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`
           return (
             <div className="flex items-center gap-2 mt-0.5" title={tooltip}>
               <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
                 {dimLabel}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
+                {!isStrategy && count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
               </span>
               {ret != null && (
                 <>
@@ -190,7 +194,7 @@ export default function StrategyMinerPreview() {
             .catch(() => {})
         }
 
-        // 只用 Strategy Miner picks（過濾掉已棄用的非 20d 維度）
+        // 只用 Strategy Miner picks（過濾掉非活躍維度）
         const combined: PickPreview[] = (picksRes.data || [])
           .filter(p => VALID_DIMS.has(p.time_dimension))
           .map(p => {
@@ -205,6 +209,7 @@ export default function StrategyMinerPreview() {
             buy_reasons: p.buy_reasons ?? [],
             stock_win_rate: p.stock_win_rate ?? null,
             stock_avg_return: (p as any).stock_avg_return ?? null,
+            stock_trade_count: p.stock_trade_count ?? 0,
             stock_best_dim: cleanDim((p as any).stock_best_dim) ?? dim,
             strategy_win_rate: p.strategy_win_rate ?? null,
             strategy_avg_return: p.strategy_avg_return ?? null,
@@ -272,14 +277,6 @@ export default function StrategyMinerPreview() {
             <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" />
           </svg>
         </Link>
-      </div>
-
-      {/* 樣本累積中警告 — 維度決策後移除 */}
-      <div className="mx-1 mb-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-start gap-1.5">
-        <span className="text-amber-400 text-xs shrink-0 mt-[1px]">⚠</span>
-        <span className="text-amber-200/80 text-xs leading-snug">
-          20d 新策略樣本累積中，勝率與報酬數字為策略整體估計值，統計效度有限，僅供參考
-        </span>
       </div>
 
 

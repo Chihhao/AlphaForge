@@ -43,7 +43,7 @@ interface RecommendationTableData {
     test_period: string
 }
 
-const DIM_NAMES: Record<string, string> = { '20d': '20d' }
+const DIM_NAMES: Record<string, string> = { '5d': '5d', '10d': '10d', '20d': '20d' }
 
 // 將各維度推薦攤平成統一列表，每筆標記來源維度
 interface FlatPick {
@@ -277,15 +277,17 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                         const wr = pick.stock_win_rate ?? pick.strategy_win_rate
                         const ret = pick.stock_avg_return ?? pick.strategy_avg_return
                         const dim = pick.stock_best_dim ?? pick.time_dimension
+                        const count = pick.stock_trade_count ?? 0
                         const isStrategy = pick.stock_win_rate == null
                         if (wr == null) return null
                         const tooltip = isStrategy
-                            ? '此股 20d 歷史回測樣本不足 10 筆，顯示同策略全市場 walk-forward 平均，僅供參考'
-                            : '此股 20d 歷史回測平均（含 0.6% 來回成本）'
+                            ? `尚無此股個別回測紀錄，顯示 ${dim} 策略全市場 walk-forward 平均`
+                            : `此股 ${dim} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`
                         return (
                             <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5" title={tooltip}>
                                 <span className={`font-mono text-xs ${wr >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
                                     {DIM_LABEL[dim] ?? dim}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
+                                    {!isStrategy && count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
                                 </span>
                                 {ret != null && (
                                     <>
@@ -432,8 +434,10 @@ interface AlphaMinerResult {
     is_training: boolean
 }
 
-type DimKey = '20d'
+type DimKey = '5d' | '10d' | '20d'
 const DIM_CONFIG: Record<DimKey, { label: string; shortLabel: string; desc: string }> = {
+    '5d':  { label: '5日持有',  shortLabel: '5日',  desc: '門檻 3% / 5%' },
+    '10d': { label: '10日持有', shortLabel: '10日', desc: '門檻 3% / 5%' },
     '20d': { label: '20日持有', shortLabel: '20日', desc: '門檻 3% / 5%' },
 }
 
@@ -836,7 +840,7 @@ const StrategyPage = () => {
                 const picksRes = await api.get('/strategy-miner/picks/today')
                 const data: StrategyMinerPick[] = picksRes.data ?? []
 
-                const VALID_DIMS = new Set(['20d'])
+                const VALID_DIMS = new Set(['5d', '10d', '20d'])
                 const cleanDim = (d: string | null | undefined) => (d && VALID_DIMS.has(d)) ? d : null
 
                 const minerPicks: StrategyPick[] = data
@@ -895,13 +899,19 @@ const StrategyPage = () => {
         }
 
         const THRESHOLDS: Record<string, { lo: number; hi: number }> = {
+            '5d':  { lo: 3, hi: 5 },
+            '10d': { lo: 3, hi: 5 },
             '20d': { lo: 3, hi: 5 },
         }
-        const DIM_DAYS: Record<string, number> = { '20d': 20 }
+        const DIM_DAYS: Record<string, number> = { '5d': 5, '10d': 10, '20d': 20 }
 
         const loadFallback = async () => {
-            const r20 = await api.get('/alpha-miner/signals/history?days=2&dimension=20d')
-            const all = [...(r20.data ?? [])]
+            const [r5, r10, r20] = await Promise.all([
+                api.get('/alpha-miner/signals/history?days=2&dimension=5d'),
+                api.get('/alpha-miner/signals/history?days=2&dimension=10d'),
+                api.get('/alpha-miner/signals/history?days=2&dimension=20d'),
+            ])
+            const all = [...(r5.data ?? []), ...(r10.data ?? []), ...(r20.data ?? [])]
             if (all.length === 0) { setLoading(false); return }
 
             const maxDate = all.reduce((m: string, s: any) => s.signal_date > m ? s.signal_date : m, '')
@@ -997,18 +1007,7 @@ const StrategyPage = () => {
                     </div>
                 </div>
 
-                {/* 樣本累積中警告 — 維度決策後移除 */}
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-2.5 flex items-start gap-2">
-                    <span className="text-amber-400 text-sm shrink-0 mt-[1px]">⚠</span>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-amber-200 text-xs font-semibold mb-0.5">20d 新策略樣本累積中</p>
-                        <p className="text-amber-200/75 text-xs leading-snug">
-                            目前勝率與預計報酬為策略整體估計值，20d 維度歷史 trade 樣本仍在累積（&lt; 30 筆），統計效度有限，僅供方向性參考
-                        </p>
-                    </div>
-                </div>
-
-                {error && (
+{error && (
                     <div className="bg-rose-900/20 border border-rose-800/50 rounded-2xl p-4 text-rose-400 text-sm">
                         載入失敗：{error}
                     </div>
@@ -1170,7 +1169,7 @@ const StrategyPage = () => {
                             )}
                             {!perfLoading && perfData && Object.keys(perfData).length > 0 && (
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                    {(['20d'] as const).map(dim => {
+                                    {(['5d', '10d', '20d'] as const).map(dim => {
                                         const p = perfData[dim]
                                         if (!p) return null
                                         return (
@@ -1267,8 +1266,8 @@ const StrategyPage = () => {
 
                             {!alphaLoading && alphaData && (() => {
                                 const strategies = alphaData.strategies ?? []
-                                const tloMap: Record<DimKey, number> = { '20d': 3 }
-                                const thiMap: Record<DimKey, number> = { '20d': 5 }
+                                const tloMap: Record<DimKey, number> = { '5d': 3, '10d': 3, '20d': 3 }
+                                const thiMap: Record<DimKey, number> = { '5d': 5, '10d': 5, '20d': 5 }
                                 const tlo = tloMap[activeDim]
                                 const thi = thiMap[activeDim]
                                 return (

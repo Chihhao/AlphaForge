@@ -211,6 +211,8 @@ class AlphaMinerService:
     GAP_MONTHS  = 1   # 訓練/測試之間的空白月數（避免標籤洩漏）
 
     DIMENSIONS = [
+        {"key": "5d",  "forward_days": 5,  "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
+        {"key": "10d", "forward_days": 10, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
         {"key": "20d", "forward_days": 20, "threshold_low": 0.03, "threshold_high": 0.05, "direction": "long"},
     ]
 
