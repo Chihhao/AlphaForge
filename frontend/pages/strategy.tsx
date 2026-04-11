@@ -274,20 +274,24 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                         </span>
                     )}
                     {(() => {
-                        const wr = pick.stock_win_rate ?? pick.strategy_win_rate
-                        const ret = pick.stock_avg_return ?? pick.strategy_avg_return
                         const dim = pick.stock_best_dim ?? pick.time_dimension
                         const count = pick.stock_trade_count ?? 0
-                        const isStrategy = pick.stock_win_rate == null
-                        if (wr == null) return null
-                        const tooltip = isStrategy
-                            ? `尚無此股個別回測紀錄，顯示 ${dim} 策略全市場 walk-forward 平均`
-                            : `此股 ${dim} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`
+                        const isFirstTime = pick.stock_win_rate == null
+                        if (isFirstTime) {
+                            return (
+                                <div className="w-full flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5" title={`此股首次進入 ${dim} 推薦，尚無個股回測紀錄`}>
+                                    <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/25 rounded px-1 py-0.5 leading-none">首次推薦</span>
+                                    <span className="text-xs text-zinc-500">{DIM_LABEL[dim] ?? dim}策略均值 {((pick.strategy_win_rate ?? 0) * 100).toFixed(0)}% · +{(pick.strategy_avg_return ?? 0).toFixed(1)}%</span>
+                                </div>
+                            )
+                        }
+                        const wr = pick.stock_win_rate!
+                        const ret = pick.stock_avg_return
                         return (
-                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5" title={tooltip}>
+                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5" title={`此股 ${dim} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`}>
                                 <span className={`font-mono text-xs ${wr >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
-                                    {DIM_LABEL[dim] ?? dim}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
-                                    {!isStrategy && count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
+                                    {DIM_LABEL[dim] ?? dim}勝率 {(wr * 100).toFixed(0)}%
+                                    {count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
                                 </span>
                                 {ret != null && (
                                     <>
@@ -316,26 +320,6 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
             {/* Expanded */}
             {expanded && (
                 <div className="mt-3 border-t border-zinc-800 pt-3" onClick={e => e.stopPropagation()}>
-                    {/* 買入理由 tagline */}
-                    {pick.buy_reasons && pick.buy_reasons.length > 0 && (() => {
-                        const factorTags = pick.buy_reasons.filter(r => !r.includes('個策略共同'))
-                        const countTag = pick.buy_reasons.find(r => r.includes('個策略共同'))
-                        return (
-                            <div className="flex flex-wrap items-center gap-1 mb-3">
-                                {countTag && (() => {
-                                    const m = countTag.match(/(\d+)\s*個策略/)
-                                    return m ? (
-                                        <span className="text-[10px] font-semibold text-zinc-500 shrink-0">{m[1]} 個策略共振</span>
-                                    ) : null
-                                })()}
-                                {factorTags.map((r, i) => (
-                                    <span key={i} className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 leading-none whitespace-nowrap">
-                                        {r}
-                                    </span>
-                                ))}
-                            </div>
-                        )
-                    })()}
                     {tradesLoading && <p className="text-zinc-600 text-xs">載入中…</p>}
 
                     {!tradesLoading && trades.length === 0 && (
@@ -871,14 +855,8 @@ const StrategyPage = () => {
                 const combined = minerPicks
                 if (combined.length > 0) {
                     setSignalDate(data[0]?.pick_date ?? '')
-                    // 按勝率排序；fallback 個股共用同一個 strategy_win_rate 時，
-                    // 用 weighted_score 當 tiebreaker，避免依賴 Array.sort 的穩定性 spec。
-                    combined.sort((a, b) => {
-                        const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
-                        const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
-                        if (wrB !== wrA) return wrB - wrA
-                        return (b.weighted_score ?? 0) - (a.weighted_score ?? 0)
-                    })
+                    // 按信號綜合分數排序（weighted_score 已含信號強度、多維共振等）
+                    combined.sort((a, b) => (b.weighted_score ?? 0) - (a.weighted_score ?? 0))
                     setPicks(combined)
                     setLoading(false)
                     // 所有 picks 都載入即時報價

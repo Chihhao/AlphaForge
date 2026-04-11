@@ -128,19 +128,23 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
           )}
         </div>
         {(() => {
-          const wr = pick.stock_win_rate ?? pick.strategy_win_rate
-          const ret = pick.stock_avg_return ?? pick.strategy_avg_return
           const count = pick.stock_trade_count ?? 0
-          const isStrategy = pick.stock_win_rate === null
-          if (wr === null) return null
-          const tooltip = isStrategy
-            ? `尚無此股個別回測紀錄，顯示 ${dimLabel || pick.time_dimension} 策略全市場 walk-forward 平均`
-            : `此股 ${dimLabel || pick.time_dimension} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`
+          const isFirstTime = pick.stock_win_rate === null
+          if (isFirstTime) {
+            return (
+              <div className="flex items-center gap-1.5 mt-0.5" title={`此股首次進入 ${dimLabel || pick.time_dimension} 推薦，尚無個股回測紀錄`}>
+                <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/25 rounded px-1 py-0.5 leading-none">首次推薦</span>
+                <span className="text-xs text-zinc-500">{dimLabel}策略均值 {((pick.strategy_win_rate ?? 0) * 100).toFixed(0)}% · +{(pick.strategy_avg_return ?? 0).toFixed(1)}%</span>
+              </div>
+            )
+          }
+          const wr = pick.stock_win_rate!
+          const ret = pick.stock_avg_return
           return (
-            <div className="flex items-center gap-2 mt-0.5" title={tooltip}>
+            <div className="flex items-center gap-2 mt-0.5" title={`此股 ${dimLabel || pick.time_dimension} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`}>
               <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
-                {dimLabel}{isStrategy ? '策略' : ''}勝率 {(wr * 100).toFixed(0)}%
-                {!isStrategy && count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
+                {dimLabel}勝率 {(wr * 100).toFixed(0)}%
+                {count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
               </span>
               {ret != null && (
                 <>
@@ -237,14 +241,8 @@ export default function StrategyMinerPreview() {
           }
         })
 
-        // 按勝率排序；fallback 個股共用同一個 strategy_win_rate 時，
-        // 用 weighted_score 當 tiebreaker，避免依賴 Array.sort 穩定性。
-        combined.sort((a, b) => {
-          const wrA = a.stock_win_rate ?? a.strategy_win_rate ?? 0
-          const wrB = b.stock_win_rate ?? b.strategy_win_rate ?? 0
-          if (wrB !== wrA) return wrB - wrA
-          return (b.weighted_score ?? 0) - (a.weighted_score ?? 0)
-        })
+        // 按信號綜合分數排序（weighted_score 已含信號強度、多維共振等）
+        combined.sort((a, b) => (b.weighted_score ?? 0) - (a.weighted_score ?? 0))
         const longTop3 = combined.filter(p => p.direction === 'long').slice(0, 3)
 
         setPicks(longTop3)
