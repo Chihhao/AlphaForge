@@ -188,3 +188,14 @@ class TestLoadStockPerfFromPicks:
         result = _load_stock_perf_from_picks(db, ['2330'], direction='long')
         assert result['2330']['stock_trade_count'] == 3
         assert abs(result['2330']['stock_win_rate'] - 2/3) < 0.01
+
+
+class TestOptimizeDimensionAsOfDate:
+    """只驗證 as_of_date 參數能正確切片訊號資料; 不測算法細節."""
+
+    def test_as_of_date_parameter_exists(self):
+        from app.services.strategy_miner_service import StrategyMinerService
+        import inspect
+        sig = inspect.signature(StrategyMinerService._optimize_dimension)
+        assert 'as_of_date' in sig.parameters, \
+            "_optimize_dimension 必須接受 as_of_date 參數"

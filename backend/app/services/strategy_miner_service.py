@@ -679,18 +679,28 @@ class StrategyMinerService:
 
     # ─── 核心回測引擎 ──────────────────────────────────────────────────────────
     @classmethod
-    def _optimize_dimension(cls, db: Session, dimension: str, direction: str = 'long') -> None:
+    def _optimize_dimension(
+        cls,
+        db: Session,
+        dimension: str,
+        direction: str = 'long',
+        as_of_date: Optional[date] = None,
+    ) -> None:
         strategy_key = f"{dimension}_{direction}" if direction == 'short' else dimension
-        logger.info(f"[StrategyMiner] 開始 {strategy_key} 維度參數尋優")
+        logger.info(f"[StrategyMiner] 開始 {strategy_key} 維度參數尋優 (as_of={as_of_date})")
 
-        # 載入歷史訊號（按 direction 過濾）
-        cutoff = date.today() - timedelta(days=365 * 2)
+        # 決定切片上界: None 使用今日 (原排程行為); 有值則以該日期切片 (walk-forward backfill)
+        cutoff_upper = as_of_date if as_of_date is not None else date.today()
+        cutoff_lower = cutoff_upper - timedelta(days=365 * 2)
+
+        # 載入歷史訊號 (按 direction 過濾 + 僅取 cutoff_upper 之前避免 look-ahead)
         signal_rows = (
             db.query(AlphaSignalHistory)
             .filter(
                 AlphaSignalHistory.time_dimension == dimension,
                 AlphaSignalHistory.direction == direction,
-                AlphaSignalHistory.signal_date >= cutoff,
+                AlphaSignalHistory.signal_date >= cutoff_lower,
+                AlphaSignalHistory.signal_date <= cutoff_upper,
             )
             .order_by(AlphaSignalHistory.signal_date)
             .all()
@@ -707,7 +717,7 @@ class StrategyMinerService:
 
         # 載入相關股票價格
         stock_ids = signals_df['stock_id'].unique().tolist()
-        price_dict, sorted_dates_dict, open_dict, atr_dict = cls._load_prices(db, stock_ids, cutoff)
+        price_dict, sorted_dates_dict, open_dict, atr_dict = cls._load_prices(db, stock_ids, cutoff_lower)
 
         # 訓練/測試切割（4/6 訓練、2/6 測試）
         n = len(signals_df)
@@ -750,7 +760,7 @@ class StrategyMinerService:
         optimal_params = params_list[optimal_param_idx]
 
         # 儲存 18 組回測結果到 strategy_backtest_params
-        today = date.today()
+        today = cutoff_upper
         db.execute(
             delete(StrategyBacktestParam).where(StrategyBacktestParam.strategy_id == strategy_key)
         )
