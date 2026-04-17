@@ -480,6 +480,91 @@ class StrategyMinerService:
         )
 
     @classmethod
+    def _evaluate_pick_concluded(
+        cls,
+        pick,
+        prices: Dict[date, float],
+        round_trip_cost: float = 0.0,
+    ) -> Optional[dict]:
+        """判定一筆 pick 是否已結案。
+
+        Args:
+            pick: StrategyMinerPick instance
+            prices: {trade_date: close_price} 僅該股後續交易日的收盤。
+                    呼叫端負責查好此 dict ( 排除 pick_date 當日、僅含 > pick_date 的日期 )。
+            round_trip_cost: 來回交易成本比率 ( 預設 0.0 ; 呼叫端可傳 ROUND_TRIP_COST=0.006 )。
+
+        Returns:
+            結案字典 {entry_date, entry_price, exit_date, exit_price, exit_reason,
+                      return_pct, hold_days, strategy_id, stock_id, direction}
+            或 None ( 尚未結案 )。
+        """
+        entry_price = float(pick.entry_price or 0.0)
+        if entry_price <= 0:
+            return None
+
+        is_short = (pick.direction == 'short')
+        tp = float(pick.take_profit_pct or 0.0)
+        sl = float(pick.stop_loss_pct or 0.0)
+        hd = int(pick.hold_days_max or 0)
+        if hd <= 0:
+            return None
+
+        tp_price_long = entry_price * (1 + tp)
+        sl_price_long = entry_price * (1 - sl)
+
+        # 僅用 pick_date 之後的日期, 且按日期順序走訪
+        sorted_dates = sorted(d for d in prices.keys() if d > pick.pick_date)
+        if not sorted_dates:
+            return None
+
+        for i, d in enumerate(sorted_dates, start=1):
+            close = prices[d]
+            if close is None or close <= 0:
+                continue
+
+            if is_short:
+                # 放空: 價格上漲 = 虧損、下跌 = 獲利
+                if close <= entry_price * (1 - tp):
+                    exit_reason = 'take_profit'
+                elif close >= entry_price * (1 + sl):
+                    exit_reason = 'stop_loss'
+                else:
+                    if i >= hd:
+                        exit_reason = 'time_limit'
+                    else:
+                        continue
+            else:
+                if close >= tp_price_long:
+                    exit_reason = 'take_profit'
+                elif close <= sl_price_long:
+                    exit_reason = 'stop_loss'
+                else:
+                    if i >= hd:
+                        exit_reason = 'time_limit'
+                    else:
+                        continue
+
+            raw_pct = (close - entry_price) / entry_price * 100.0
+            ret_pct = -raw_pct if is_short else raw_pct
+            ret_pct -= round_trip_cost * 100.0
+
+            return {
+                'entry_date': pick.pick_date,
+                'entry_price': entry_price,
+                'exit_date': d,
+                'exit_price': float(close),
+                'exit_reason': exit_reason,
+                'return_pct': round(ret_pct, 4),
+                'hold_days': i,
+                'strategy_id': pick.time_dimension or '20d',
+                'stock_id': pick.stock_id,
+                'direction': pick.direction or 'long',
+            }
+
+        return None
+
+    @classmethod
     def get_trades(cls, db: Session, stock_id: str) -> List[StrategyMinerTrade]:
         return (
             db.query(StrategyMinerTrade)
