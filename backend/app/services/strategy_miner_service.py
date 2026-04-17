@@ -335,14 +335,18 @@ class StrategyMinerService:
                     opt = None
             optimal[dim] = opt
 
-        # 3. 查最新收盤價
+        # 3. 查收盤價：以 latest_date 為準切片（避免 walk-forward backfill 時寫入未來價）
         stock_ids = list({r.stock_id for r in rows})
         sub = (
             db.query(
                 StockPrice.stock_id,
                 sa_func.max(StockPrice.date).label("max_date"),
             )
-            .filter(StockPrice.stock_id.in_(stock_ids), StockPrice.close > 0)
+            .filter(
+                StockPrice.stock_id.in_(stock_ids),
+                StockPrice.close > 0,
+                StockPrice.date <= latest_date,
+            )
             .group_by(StockPrice.stock_id)
             .subquery()
         )
