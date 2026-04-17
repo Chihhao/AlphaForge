@@ -113,6 +113,87 @@ def _load_stock_perf_map(
     return result
 
 
+def _load_stock_perf_from_picks(
+    db: Session, stock_ids: list, direction: str = 'long',
+) -> dict:
+    """基於 strategy_miner_picks 的真實推薦紀錄, 逐筆用當時存的 tp/sl/hd
+    追蹤後續 stock_prices 判定結案, 計算勝率/均報酬/筆數/最佳維度。
+
+    已結案筆數 = tp/sl 觸發 + 到 hold_days_max 到期。
+    持有中不計入 ( 符合使用者「命中率視角」需求 )。
+
+    回傳格式與 _load_stock_perf_map 一致, 方便端點層無縫替換。
+    """
+    if not stock_ids:
+        return {}
+
+    from collections import defaultdict
+
+    picks = (
+        db.query(StrategyMinerPick)
+        .filter(
+            StrategyMinerPick.stock_id.in_(stock_ids),
+            StrategyMinerPick.direction == direction,
+        )
+        .all()
+    )
+    if not picks:
+        return {}
+
+    sids_set = {p.stock_id for p in picks}
+    min_pick = min(p.pick_date for p in picks)
+    today = date.today()
+
+    price_rows = (
+        db.query(StockPrice.stock_id, StockPrice.date, StockPrice.close)
+        .filter(
+            StockPrice.stock_id.in_(sids_set),
+            StockPrice.date >= min_pick,
+            StockPrice.date <= today,
+            StockPrice.close > 0,
+        )
+        .all()
+    )
+    # dict 天然去重對抗 stock_prices 重複列
+    price_map: dict = defaultdict(dict)
+    for r in price_rows:
+        price_map[r.stock_id][r.date] = float(r.close)
+
+    by_stock_dim: dict = defaultdict(lambda: defaultdict(list))
+    for p in picks:
+        stock_prices = price_map.get(p.stock_id, {})
+        # 明確傳 ROUND_TRIP_COST, 因 Task 1 default 為 0.0
+        concluded = StrategyMinerService._evaluate_pick_concluded(
+            p, stock_prices, round_trip_cost=ROUND_TRIP_COST,
+        )
+        if concluded is None:
+            continue
+        dim = (p.time_dimension or '20d').replace('_short', '')
+        by_stock_dim[p.stock_id][dim].append(concluded['return_pct'])
+
+    result = {}
+    for sid, dim_rets in by_stock_dim.items():
+        best_dim = None
+        best_avg = -999.0
+        total_rets: list = []
+        for dim, rets in dim_rets.items():
+            avg = sum(rets) / len(rets) if rets else -999.0
+            if avg > best_avg:
+                best_avg = avg
+                best_dim = dim
+            total_rets.extend(rets)
+        if not total_rets:
+            continue
+        wins = sum(1 for x in total_rets if x > 0)
+        result[sid] = {
+            "stock_win_rate": round(wins / len(total_rets), 4),
+            "stock_avg_return": round(sum(total_rets) / len(total_rets), 1),
+            "stock_trade_count": len(total_rets),
+            "stock_best_dim": best_dim or DIMENSIONS[0],
+        }
+    return result
+
+
 def _load_market_baselines_from_snapshot(db: Session) -> Dict[str, float]:
     """從 Alpha Miner snapshot 取各維度市場基準勝率。
     回傳 {'5d': 0.194, '10d': 0.244, '30d': 0.261}"""
