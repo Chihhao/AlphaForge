@@ -12,6 +12,7 @@ from app.services.strategy_miner_service import (
     StrategyMinerService,
     _load_market_baselines_from_snapshot,
     _load_stock_perf_map,
+    ROUND_TRIP_COST,
 )
 from app.models.strategy_backtest_param import StrategyBacktestParam
 from app.models.strategy_miner_trade import StrategyMinerTrade
@@ -555,6 +556,64 @@ def get_trades(stock_id: str, db: Session = Depends(get_db)):
         }
         for t in trades
     ]
+
+
+@router.get("/history/{stock_id}")
+def get_history(stock_id: str, db: Session = Depends(get_db)):
+    """某股票的真實推薦歷史結案紀錄 ( 取代回測模擬 )。
+
+    僅回傳已結案 ( take_profit / stop_loss / time_limit ) 的紀錄,
+    持有中的 picks 不出現在清單。格式與 /trades/{stock_id} 相容,
+    前端 TradeHistoryList 可無縫替換。
+    """
+    picks = (
+        db.query(StrategyMinerPick)
+        .filter(StrategyMinerPick.stock_id == stock_id)
+        .order_by(StrategyMinerPick.pick_date.desc())
+        .all()
+    )
+    if not picks:
+        return []
+
+    min_pick = min(p.pick_date for p in picks)
+    max_pick = max(p.pick_date for p in picks)
+    max_hd = max(int(p.hold_days_max or 20) for p in picks)
+    end_bound = min(max_pick + timedelta(days=max_hd + 7), date.today())
+
+    price_rows = (
+        db.query(StockPrice.date, StockPrice.close)
+        .filter(
+            StockPrice.stock_id == stock_id,
+            StockPrice.date >= min_pick,
+            StockPrice.date <= end_bound,
+            StockPrice.close > 0,
+        )
+        .all()
+    )
+    # dict 天然去重對抗 stock_prices 重複列
+    prices: dict = {}
+    for r in price_rows:
+        prices[r.date] = float(r.close)
+
+    concluded = []
+    for p in picks:
+        result = StrategyMinerService._evaluate_pick_concluded(
+            p, prices, round_trip_cost=ROUND_TRIP_COST,
+        )
+        if result is None:
+            continue
+        concluded.append({
+            "strategy_id": result['strategy_id'],
+            "stock_id": result['stock_id'],
+            "entry_date": result['entry_date'].isoformat(),
+            "entry_price": result['entry_price'],
+            "exit_date": result['exit_date'].isoformat(),
+            "exit_price": result['exit_price'],
+            "exit_reason": result['exit_reason'],
+            "return_pct": result['return_pct'],
+            "hold_days": result['hold_days'],
+        })
+    return concluded
 
 
 @router.get("/performance")
