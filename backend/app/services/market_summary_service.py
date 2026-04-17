@@ -92,7 +92,8 @@ class MarketSummaryService:
                         if not bf_df.empty:
                             bf_row = bf_df.iloc[0]
                             prev_close = float(bf_row["Close"])
-                            db.add(StockPrice(
+                            from app.models.stock_price import bulk_upsert_stock_prices
+                            bulk_upsert_stock_prices(db, [StockPrice(
                                 stock_id="^TWII",
                                 date=true_prev_trading_day,
                                 open=float(bf_row["Open"]),
@@ -101,7 +102,7 @@ class MarketSummaryService:
                                 close=float(bf_row["Close"]),
                                 adj_close=float(bf_row.get("Adj Close", bf_row["Close"])),
                                 volume=int(bf_row["Volume"]) if bf_row["Volume"] == bf_row["Volume"] else 0,
-                            ))
+                            )])
                             db.commit()
                             print(f"[MarketSummaryService] auto-backfilled ^TWII {true_prev_trading_day}")
                     except Exception as bfe:

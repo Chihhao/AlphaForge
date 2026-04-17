@@ -113,9 +113,10 @@ class StockSyncService:
                 new_prices = [p for p in new_prices if p.date not in existing_dates]
 
             if new_prices:
-                db.bulk_save_objects(new_prices)
+                from app.models.stock_price import bulk_upsert_stock_prices
+                inserted = bulk_upsert_stock_prices(db, new_prices)
                 db.commit()
-                print(f"Synced {len(new_prices)} rows for {stock_id}")
+                print(f"Synced {inserted} rows for {stock_id}")
             
             return True
         except Exception as e:

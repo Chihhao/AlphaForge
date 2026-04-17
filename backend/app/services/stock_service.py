@@ -257,7 +257,8 @@ class StockService:
                     ))
             
             if new_prices:
-                db.bulk_save_objects(new_prices)
+                from app.models.stock_price import bulk_upsert_stock_prices
+                bulk_upsert_stock_prices(db, new_prices)
                 db.commit()
 
             # 重新命名列為中文回傳

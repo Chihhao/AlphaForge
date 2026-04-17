@@ -151,9 +151,10 @@ def backfill_stock(db, stock_id, start_date, end_date, dry_run=False):
         for _, row in new_records.iterrows()
     ]
 
+    from app.models.stock_price import bulk_upsert_stock_prices
     chunk_size = 500
     for i in range(0, len(objects), chunk_size):
-        db.bulk_save_objects(objects[i:i + chunk_size])
+        bulk_upsert_stock_prices(db, objects[i:i + chunk_size])
 
     db.commit()
     return len(new_records), len(existing_dates)

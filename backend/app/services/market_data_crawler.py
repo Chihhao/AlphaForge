@@ -307,13 +307,12 @@ class MarketDataCrawler:
                 ))
             
             if new_records:
-                # Chunk insert for large datasets
+                from app.models.stock_price import bulk_upsert_stock_prices
                 chunk_size = 500
                 for i in range(0, len(new_records), chunk_size):
                     chunk = new_records[i:i + chunk_size]
-                    db.bulk_save_objects(chunk)
+                    inserted_count += bulk_upsert_stock_prices(db, chunk)
                     db.commit()
-                    inserted_count += len(chunk)
 
             # 同步更新 stocks 表的股票名稱（upsert）
             if 'stock_name' in combined_df.columns:

@@ -85,7 +85,8 @@ def backfill_history(days: int = 60):
                         ))
                 
                 if new_records:
-                    db.bulk_save_objects(new_records)
+                    from app.models.stock_price import bulk_upsert_stock_prices
+                    bulk_upsert_stock_prices(db, new_records)
                     db.commit()
                     print(f" ✅ 成功寫入 {len(new_records)} 筆")
                 else:
