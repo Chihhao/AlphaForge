@@ -227,7 +227,7 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
         setExpanded(next)
         if (next && trades.length === 0) {
             setTradesLoading(true)
-            api.get(`/strategy-miner/trades/${pick.stock_id}`)
+            api.get(`/strategy-miner/history/${pick.stock_id}`)
                 .then(r => {
                     setTrades(r.data ?? [])
                     setTradesLoading(false)
@@ -276,11 +276,10 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                     {(() => {
                         const dim = pick.stock_best_dim ?? pick.time_dimension
                         const count = pick.stock_trade_count ?? 0
-                        const isFirstTime = pick.stock_win_rate == null
-                        if (isFirstTime) {
+                        if (count === 0) {
                             return (
-                                <div className="w-full flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5" title={`此股首次進入 ${dim} 推薦，尚無個股回測紀錄`}>
-                                    <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/25 rounded px-1 py-0.5 leading-none">首次推薦</span>
+                                <div className="w-full flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5" title={`此股 ${dim} 尚無真實推薦結案紀錄，資料累積中`}>
+                                    <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/25 rounded px-1 py-0.5 leading-none">資料累積中</span>
                                     <span className="text-xs text-zinc-500">{DIM_LABEL[dim] ?? dim}策略均值 {((pick.strategy_win_rate ?? 0) * 100).toFixed(0)}% · +{(pick.strategy_avg_return ?? 0).toFixed(1)}%</span>
                                 </div>
                             )

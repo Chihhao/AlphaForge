@@ -52,7 +52,9 @@ export default function TradeHistoryList({ trades, defaultDim = '20d', maxVisibl
       </div>
 
       {filtered.length === 0 && (
-        <p className="text-sm text-zinc-500">尚無交易紀錄</p>
+        <p className="text-sm text-zinc-500">
+          此股尚無真實推薦結案紀錄 (資料累積中，僅 20d 維度啟用)
+        </p>
       )}
 
       {/* 逐筆明細（可捲動） */}
