@@ -21,6 +21,10 @@ scheduler = BackgroundScheduler(
     executors={'default': {'type': 'threadpool', 'max_workers': 4}},
 )
 
+# 每日訊號儲存維度清單 — 與 AlphaMinerService.DIMENSIONS 保持同步
+# 2026-04-17: 修 commit 89ca3bb 漏改，原寫死 ["20d"] 導致 5d/10d 訊號從未入表
+SIGNAL_DIMENSIONS = ["5d", "10d", "20d"]
+
 def run_with_db(task_func):
     """輔助函數：執行任務並正確關閉資料庫會話"""
     db = SessionLocal()
@@ -214,11 +218,11 @@ def start_scheduler():
     scheduler.add_job(
         lambda: run_on_trading_day(lambda db: [
             AlphaMinerService.save_today_signals(db, dim, 'long')
-            for dim in ["20d"]
+            for dim in SIGNAL_DIMENSIONS
         ]),
         trigger=CronTrigger(day_of_week='mon-fri', hour=18, minute=10),
         id="save_signal_history",
-        name="Save today alpha signals to history (20d long)",
+        name=f"Save today alpha signals to history ({'/'.join(SIGNAL_DIMENSIONS)} long)",
         replace_existing=True
     )
 
@@ -278,7 +282,7 @@ def start_scheduler():
         except Exception as e:
             logger.error(f"[Scheduler][Retry] Alpha Miner 重訓失敗: {e}")
         try:
-            for dim in ["20d"]:
+            for dim in SIGNAL_DIMENSIONS:
                 AlphaMinerService.save_today_signals(db, dim, 'long')
             logger.info("[Scheduler][Retry] 訊號儲存完成")
         except Exception as e:
@@ -337,7 +341,7 @@ def start_scheduler():
         logger.info("[Scheduler][LateMargin] Alpha Miner 重訓完成")
 
         # 儲存訊號
-        for dim in ["20d"]:
+        for dim in SIGNAL_DIMENSIONS:
             AlphaMinerService.save_today_signals(db, dim, 'long')
         logger.info("[Scheduler][LateMargin] 訊號儲存完成")
 

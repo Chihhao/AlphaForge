@@ -408,11 +408,13 @@ class StrategyMinerService:
             combined.values(), key=lambda x: x['score'], reverse=True,
         )
 
-        # 6.5 全輸過濾：歷史真實 trades 平均報酬為負的個股，從源頭剔除。
-        # 不論樣本數，避免歷史回測「全輸」的個股寫入 picks 表（picks 表
+        # 6.5 全輸過濾：歷史真實 picks 平均報酬為負的個股，從源頭剔除。
+        # 不論樣本數，避免歷史全輸的個股寫入 picks 表（picks 表
         # 是歷史回溯的真相來源，不該夾雜後處理才會被砍掉的垃圾）。
+        # 2026-04-17: 從 _load_stock_perf_map (舊假回測 trades) 改為
+        # _load_stock_perf_from_picks (真實推薦歷史)，與 UI 顯示來源一致。
         candidate_ids = [item['primary'].stock_id for item in sorted_combined]
-        perf_map = _load_stock_perf_map(db, candidate_ids, direction=direction)
+        perf_map = _load_stock_perf_from_picks(db, candidate_ids, direction=direction)
         filtered_combined = []
         for item in sorted_combined:
             sid = item['primary'].stock_id
