@@ -12,6 +12,7 @@ from app.services.strategy_miner_service import (
     StrategyMinerService,
     _load_market_baselines_from_snapshot,
     _load_stock_perf_map,
+    _load_stock_perf_from_picks,
     ROUND_TRIP_COST,
 )
 from app.models.strategy_backtest_param import StrategyBacktestParam
@@ -138,7 +139,7 @@ def get_today_picks(db: Session = Depends(get_db)):
     all_picks = StrategyMinerService.get_today_picks(db)
     picks = [p for p in all_picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
     stock_ids = [p.stock_id for p in picks]
-    stock_perf = _load_stock_perf_map(db, stock_ids, direction='long')
+    stock_perf = _load_stock_perf_from_picks(db, stock_ids, direction='long')
     baselines = _load_market_baselines(db)
 
     # 優先使用 DB 儲存的 buy_reasons；若為 null（舊資料），使用 fallback 近似值
@@ -494,7 +495,7 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
     all_picks = StrategyMinerService.get_picks_history(db, days=days)
     picks = [p for p in all_picks if (getattr(p, 'direction', 'long') or 'long') == 'long']
     stock_ids = [p.stock_id for p in picks]
-    stock_perf = _load_stock_perf_map(db, stock_ids, direction='long')
+    stock_perf = _load_stock_perf_from_picks(db, stock_ids, direction='long')
     baselines = _load_market_baselines(db)
 
     result = []
