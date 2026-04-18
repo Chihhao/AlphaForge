@@ -18,5 +18,8 @@ class StrategyMinerPick(Base):
     buy_reasons     = Column(Text, nullable=True)  # JSON array of strategy name strings
 
     __table_args__ = (
-        UniqueConstraint('pick_date', 'stock_id', 'direction', name='uq_strategy_miner_pick_v2'),
+        UniqueConstraint(
+            'pick_date', 'stock_id', 'direction', 'time_dimension',
+            name='uq_strategy_miner_pick_v3',
+        ),
     )
