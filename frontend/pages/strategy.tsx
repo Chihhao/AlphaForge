@@ -164,6 +164,7 @@ interface StrategyMinerPick {
     hold_days_max: number
     time_dimension: string
     direction?: string        // 'long' / 'short'
+    resonance_count?: number  // 同股當日在幾個維度中出現 (per-dim 架構)
     buy_reasons?: string[]    // 買入理由（策略名稱列表）
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
@@ -196,6 +197,7 @@ interface StrategyPick {
     time_dimension: string
     direction: string         // 'long' / 'short'
     dims?: string[]           // 出現的維度列表（多維共鳴時 length > 1）
+    resonance_count?: number  // 後端動態計算, 同股當日涉及幾個 dim
     buy_reasons?: string[]    // 買入理由
     stock_win_rate?: number | null    // 個股回測勝率（來自 strategy_miner_trades）
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
@@ -261,6 +263,14 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                             } />
                         </svg>
                     </button>
+                    {(pick.resonance_count ?? 1) >= 2 && (
+                        <span
+                            className="text-xs font-bold text-amber-300 bg-amber-900/40 border border-amber-700/40 rounded px-1.5 py-0.5 leading-none whitespace-nowrap"
+                            title={`三維度中有 ${pick.resonance_count} 個都推薦此股`}
+                        >
+                            {pick.resonance_count}維共鳴
+                        </span>
+                    )}
                     {pick.stock_win_rate != null && (pick.stock_win_rate < 0.3 || (pick.stock_avg_return ?? 0) < -3) && (
                         <span title="此股歷史真實推薦績效偏弱，謹慎參考" className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
                             ⚠ 績效偏弱
@@ -820,6 +830,7 @@ const StrategyPage = () => {
                         time_dimension: dim,
                         direction: p.direction || 'long',
                         dims: (() => { try { return JSON.parse(p.strategy_ids).filter((d: string) => VALID_DIMS.has(d)) } catch { return [dim] } })(),
+                        resonance_count: p.resonance_count ?? 1,
                         buy_reasons: p.buy_reasons ?? [],
                         stock_win_rate: p.stock_win_rate ?? null,
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,

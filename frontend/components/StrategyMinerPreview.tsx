@@ -15,6 +15,7 @@ interface TodayPick {
   hold_days_max: number
   time_dimension: string
   direction?: string
+  resonance_count?: number
   buy_reasons?: string[]
   stock_win_rate?: number | null
   stock_avg_return?: number | null
@@ -33,6 +34,7 @@ interface PickPreview {
   time_dimension: string
   direction: string
   dims: string[]
+  resonance_count: number
   buy_reasons: string[]
   stock_win_rate: number | null
   stock_avg_return: number | null
@@ -116,6 +118,14 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
           }`}>{pick.direction === 'short' ? '空' : '多'}</span>
           <span className="text-sm font-semibold text-zinc-100">{pick.stock_name}</span>
           <span className="text-xs text-zinc-500 font-mono">{pick.stock_id}</span>
+          {pick.resonance_count >= 2 && (
+            <span
+              className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 font-semibold"
+              title={`三維度中有 ${pick.resonance_count} 個都推薦此股`}
+            >
+              {pick.resonance_count}維共鳴
+            </span>
+          )}
         </div>
         {pick.stock_win_rate !== null && (() => {
           const count = pick.stock_trade_count ?? 0
@@ -209,6 +219,7 @@ export default function StrategyMinerPreview() {
             weighted_score: p.weighted_score, time_dimension: dim,
             direction: p.direction || 'long',
             dims: (() => { try { return JSON.parse(p.strategy_ids).filter((d: string) => VALID_DIMS.has(d)) } catch { return [dim] } })(),
+            resonance_count: p.resonance_count ?? 1,
             buy_reasons: p.buy_reasons ?? [],
             stock_win_rate: p.stock_win_rate ?? null,
             stock_avg_return: (p as any).stock_avg_return ?? null,
@@ -217,9 +228,17 @@ export default function StrategyMinerPreview() {
           }
         })
 
-        // 按信號綜合分數排序（weighted_score 已含信號強度、多維共振等）
+        // 按信號綜合分數排序；per-dim 架構下同股可能有多筆, 去重保留最高分。
         combined.sort((a, b) => (b.weighted_score ?? 0) - (a.weighted_score ?? 0))
-        const longTop3 = combined.filter(p => p.direction === 'long').slice(0, 3)
+        const seen = new Set<string>()
+        const longTop3 = combined
+          .filter(p => p.direction === 'long')
+          .filter(p => {
+            if (seen.has(p.stock_id)) return false
+            seen.add(p.stock_id)
+            return true
+          })
+          .slice(0, 3)
 
         setPicks(longTop3)
 
