@@ -201,8 +201,6 @@ interface StrategyPick {
     stock_avg_return?: number | null  // 個股回測平均報酬（%）
     stock_trade_count?: number        // 個股交易筆數
     stock_best_dim?: string | null    // 最佳勝率維度
-    strategy_win_rate?: number | null  // 策略級勝率（fallback）
-    strategy_avg_return?: number | null // 策略級預計報酬（fallback）
     current_price?: number | null     // 即時/收盤價
     change_percent?: number | null    // 漲跌幅 (%)
 }
@@ -263,40 +261,27 @@ const PickCard = ({ pick, rank }: { pick: StrategyPick; rank: number }) => {
                             } />
                         </svg>
                     </button>
-                    {pick.dims && pick.dims.length > 1 && (
-                        <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
-                            多維
-                        </span>
-                    )}
                     {pick.stock_win_rate != null && (pick.stock_win_rate < 0.3 || (pick.stock_avg_return ?? 0) < -3) && (
-                        <span title="此股歷史回測績效偏弱，謹慎參考" className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
+                        <span title="此股歷史真實推薦績效偏弱，謹慎參考" className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
                             ⚠ 績效偏弱
                         </span>
                     )}
                     {(() => {
                         const dim = pick.stock_best_dim ?? pick.time_dimension
                         const count = pick.stock_trade_count ?? 0
-                        if (count === 0) {
-                            return (
-                                <div className="w-full flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5" title={`此股 ${dim} 尚無真實推薦結案紀錄，資料累積中`}>
-                                    <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/25 rounded px-1 py-0.5 leading-none">資料累積中</span>
-                                    <span className="text-xs text-zinc-500">{DIM_LABEL[dim] ?? dim}策略均值 {((pick.strategy_win_rate ?? 0) * 100).toFixed(0)}% · +{(pick.strategy_avg_return ?? 0).toFixed(1)}%</span>
-                                </div>
-                            )
-                        }
-                        const wr = pick.stock_win_rate!
+                        if (pick.stock_win_rate == null || count === 0) return null
+                        const wr = pick.stock_win_rate
                         const ret = pick.stock_avg_return
                         return (
-                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5" title={`此股 ${dim} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`}>
+                            <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-zinc-500 mt-0.5" title={`此股 ${dim} 歷史真實推薦平均（${count} 筆）`}>
                                 <span className={`font-mono text-xs ${wr >= 0.5 ? 'text-rose-400' : 'text-zinc-400'}`}>
-                                    {DIM_LABEL[dim] ?? dim}勝率 {(wr * 100).toFixed(0)}%
-                                    {count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
+                                    {DIM_LABEL[dim] ?? dim}勝率 {(wr * 100).toFixed(0)}% ({count}筆)
                                 </span>
                                 {ret != null && (
                                     <>
                                         <span className="text-zinc-700">|</span>
                                         <span className={`font-mono text-xs ${ret >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                            預計報酬 {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
+                                            平均報酬 {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
                                         </span>
                                     </>
                                 )}
@@ -814,12 +799,6 @@ const StrategyPage = () => {
     useEffect(() => {
         const loadPicks = async () => {
             try {
-                // 載入今日推薦清單。
-                // strategy_win_rate / strategy_avg_return 直接使用後端 picks API
-                // 已回傳的真實 walk-forward 數字（來自 strategy_backtest_param.win_rate_test
-                // / avg_return_test，含 0.6% 來回成本），不再以 /alpha-miner/strategies
-                // 的 in-sample top-decile 統計（lgb_20d.win_rate_positive / avg_return_top）
-                // 蓋過 — 後者是訓練集 top decile 的「正報酬比」，不適合作為使用者預期的勝率。
                 const picksRes = await api.get('/strategy-miner/picks/today')
                 const data: StrategyMinerPick[] = picksRes.data ?? []
 
@@ -846,8 +825,6 @@ const StrategyPage = () => {
                         stock_avg_return: p.stock_avg_return != null ? p.stock_avg_return : null,
                         stock_trade_count: p.stock_trade_count ?? 0,
                         stock_best_dim: cleanDim(p.stock_best_dim) ?? dim,
-                        strategy_win_rate: (p as any).strategy_win_rate ?? null,
-                        strategy_avg_return: (p as any).strategy_avg_return ?? null,
                     }
                 })
 

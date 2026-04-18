@@ -20,8 +20,6 @@ interface TodayPick {
   stock_avg_return?: number | null
   stock_trade_count?: number
   stock_best_dim?: string | null
-  strategy_win_rate?: number | null
-  strategy_avg_return?: number | null
 }
 
 interface PickPreview {
@@ -40,8 +38,6 @@ interface PickPreview {
   stock_avg_return: number | null
   stock_trade_count: number
   stock_best_dim: string | null
-  strategy_win_rate: number | null
-  strategy_avg_return: number | null
   current_price?: number
   change_pct?: number
   quote_data_date?: string
@@ -99,7 +95,6 @@ function isQuoteStale(dataDate?: string): boolean {
 }
 
 function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
-  const isMultiDim = pick.dims.length > 1
   const stale = isQuoteStale(pick.quote_data_date)
   const price = stale ? null : (pick.current_price || pick.entry_price)
   const dimLabel = DIM_LABEL[pick.time_dimension] ?? ''
@@ -121,27 +116,13 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
           }`}>{pick.direction === 'short' ? '空' : '多'}</span>
           <span className="text-sm font-semibold text-zinc-100">{pick.stock_name}</span>
           <span className="text-xs text-zinc-500 font-mono">{pick.stock_id}</span>
-          {isMultiDim && (
-            <span className="shrink-0 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 rounded px-1 py-0.5 leading-none whitespace-nowrap">
-              多維
-            </span>
-          )}
         </div>
-        {(() => {
+        {pick.stock_win_rate !== null && (() => {
           const count = pick.stock_trade_count ?? 0
-          const isFirstTime = pick.stock_win_rate === null
-          if (isFirstTime) {
-            return (
-              <div className="flex items-center gap-1.5 mt-0.5" title={`此股首次進入 ${dimLabel || pick.time_dimension} 推薦，尚無個股回測紀錄`}>
-                <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/25 rounded px-1 py-0.5 leading-none">首次推薦</span>
-                <span className="text-xs text-zinc-500">{dimLabel}策略均值 {((pick.strategy_win_rate ?? 0) * 100).toFixed(0)}% · +{(pick.strategy_avg_return ?? 0).toFixed(1)}%</span>
-              </div>
-            )
-          }
           const wr = pick.stock_win_rate!
           const ret = pick.stock_avg_return
           return (
-            <div className="flex items-center gap-2 mt-0.5" title={`此股 ${dimLabel || pick.time_dimension} 歷史回測平均（${count} 筆，含 0.6% 來回成本）`}>
+            <div className="flex items-center gap-2 mt-0.5" title={`此股 ${dimLabel || pick.time_dimension} 歷史真實推薦平均（${count} 筆）`}>
               <span className={`text-xs font-mono ${wr >= 0.5 ? 'text-rose-400/80' : 'text-zinc-500'}`}>
                 {dimLabel}勝率 {(wr * 100).toFixed(0)}%
                 {count > 0 && <span className="text-zinc-500 font-normal"> ({count}筆)</span>}
@@ -150,7 +131,7 @@ function PickRow({ pick, rank }: { pick: PickPreview; rank: number }) {
                 <>
                   <span className="text-zinc-700">|</span>
                   <span className={`text-xs font-mono ${ret >= 0 ? 'text-rose-400/80' : 'text-emerald-400'}`}>
-                    預計報酬 {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
+                    平均報酬 {ret >= 0 ? '+' : ''}{ret.toFixed(1)}%
                   </span>
                 </>
               )}
@@ -205,9 +186,6 @@ export default function StrategyMinerPreview() {
   useEffect(() => {
     let cancelled = false
 
-    // strategy_win_rate / strategy_avg_return 直接使用後端 picks API 已回傳的
-    // 真實 walk-forward 數字（含 0.6% 來回成本），不再以 /alpha-miner/strategies
-    // 的 in-sample top-decile 統計覆蓋。
     api.get<TodayPick[]>('/strategy-miner/picks/today')
       .then(picksRes => {
         if (cancelled) return
@@ -236,8 +214,6 @@ export default function StrategyMinerPreview() {
             stock_avg_return: (p as any).stock_avg_return ?? null,
             stock_trade_count: p.stock_trade_count ?? 0,
             stock_best_dim: cleanDim((p as any).stock_best_dim) ?? dim,
-            strategy_win_rate: p.strategy_win_rate ?? null,
-            strategy_avg_return: p.strategy_avg_return ?? null,
           }
         })
 
