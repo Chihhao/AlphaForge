@@ -386,52 +386,18 @@ class StrategyMinerService:
             after = len(by_dim[dim])
             logger.info(f"[StrategyMiner] {dir_label}/{dim} 觸發數門檻 >= {p70_val}: {before} → {after} 筆")
 
-        # 6. 合併：多維共鳴加分 10%/維度
-        combined: Dict[str, dict] = {}
+        # 6. per-dimension 排序 (每維度獨立 Top, 不再跨維度融合)
+        #    共鳴資訊由 API 層動態計算 (同 pick_date+stock_id+direction 有幾個 dim)
+        per_dim_sorted: Dict[str, list] = {}
         for dim, dim_map in by_dim.items():
-            for stock_id, r in dim_map.items():
-                base_score = r.trigger_count * (r.weighted_odds_ratio or 1.0)
-                if stock_id not in combined:
-                    combined[stock_id] = {
-                        'primary': r,
-                        'dims': [dim],
-                        'score': base_score,
-                    }
-                else:
-                    combined[stock_id]['dims'].append(dim)
-                    if base_score > combined[stock_id]['score']:
-                        combined[stock_id]['primary'] = r
-                        combined[stock_id]['score'] = base_score
-                    combined[stock_id]['score'] *= 1.10
-
-        sorted_combined = sorted(
-            combined.values(), key=lambda x: x['score'], reverse=True,
-        )
-
-        # 6.5 全輸過濾：歷史真實 picks 平均報酬為負的個股，從源頭剔除。
-        # 不論樣本數，避免歷史全輸的個股寫入 picks 表（picks 表
-        # 是歷史回溯的真相來源，不該夾雜後處理才會被砍掉的垃圾）。
-        # 2026-04-17: 從 _load_stock_perf_map (舊假回測 trades) 改為
-        # _load_stock_perf_from_picks (真實推薦歷史)，與 UI 顯示來源一致。
-        candidate_ids = [item['primary'].stock_id for item in sorted_combined]
-        perf_map = _load_stock_perf_from_picks(db, candidate_ids, direction=direction)
-        filtered_combined = []
-        for item in sorted_combined:
-            sid = item['primary'].stock_id
-            perf = perf_map.get(sid)
-            if perf is not None:
-                raw_count = perf.get('stock_trade_count') or 0
-                raw_avg = perf.get('stock_avg_return')
-                if raw_count > 0 and raw_avg is not None and raw_avg < 0:
-                    logger.info(
-                        f"[StrategyMiner] {dir_label} skip {sid} "
-                        f"(歷史 {raw_count} 筆平均 {raw_avg:.2f}% < 0)"
-                    )
-                    continue
-            filtered_combined.append(item)
-            if len(filtered_combined) >= max_picks:
-                break
-        sorted_combined = filtered_combined
+            items = [
+                {
+                    'primary': r,
+                    'score': r.trigger_count * (r.weighted_odds_ratio or 1.0),
+                }
+                for r in dim_map.values()
+            ]
+            per_dim_sorted[dim] = sorted(items, key=lambda x: x['score'], reverse=True)
 
         # 7. 從 AlphaMinerSnapshot 建立理由 map
         reasons_map: Dict[str, List[str]] = {}
@@ -472,7 +438,7 @@ class StrategyMinerService:
         except Exception as e:
             logger.warning(f"[StrategyMiner] {dir_label}理由建立失敗: {e}")
 
-        # 8. 刪除今日已有的同方向 picks（idempotent）
+        # 8. 刪除今日所有三維度同方向 picks (整批覆寫, 避免殘留舊融合列)
         db.execute(
             delete(StrategyMinerPick).where(
                 StrategyMinerPick.pick_date == pick_date,
@@ -480,51 +446,75 @@ class StrategyMinerService:
             )
         )
 
-        # 9. 寫入 picks
+        # 9. per-dim 全輸過濾 + Top 寫入
         count = 0
-        for item in sorted_combined:
-            r = item['primary']
-            dims = sorted(set(item['dims']))
-            # 步驟 4 已過濾 optimal 為 None 的維度，這裡 opt_params 必存在。
-            opt_params = optimal[r.time_dimension]
-            entry_price = price_map.get(r.stock_id, 0.0)
+        for dim, sorted_items in per_dim_sorted.items():
+            opt_params = optimal.get(dim)
+            if opt_params is None:
+                continue
 
+            # 9a. 全輸過濾: 歷史該股該方向平均報酬 <0 則跳過 (不論樣本數)。
+            # 統計口徑跨維度 (_load_stock_perf_from_picks 按 direction 合併),
+            # 維持與 UI 勝率顯示同源。
+            candidate_ids = [item['primary'].stock_id for item in sorted_items]
+            perf_map = _load_stock_perf_from_picks(db, candidate_ids, direction=direction)
+            filtered: list = []
+            for item in sorted_items:
+                sid = item['primary'].stock_id
+                perf = perf_map.get(sid)
+                if perf is not None:
+                    raw_count = perf.get('stock_trade_count') or 0
+                    raw_avg = perf.get('stock_avg_return')
+                    if raw_count > 0 and raw_avg is not None and raw_avg < 0:
+                        logger.info(
+                            f"[StrategyMiner] {dir_label}/{dim} skip {sid} "
+                            f"(歷史 {raw_count} 筆平均 {raw_avg:.2f}% < 0)"
+                        )
+                        continue
+                filtered.append(item)
+                if len(filtered) >= max_picks:
+                    break
+
+            # 9b. 寫入該 dim 的 picks
             tp_mult = opt_params.take_profit_pct
             sl_mult = opt_params.stop_loss_pct
             hd = opt_params.hold_days_max
 
-            # 查個股最新 ATR 轉換為實際百分比
-            atr_row = (
-                db.query(StockFeature.atr20)
-                .filter(StockFeature.stock_id == r.stock_id, StockFeature.date == latest_date)
-                .first()
-            )
-            if atr_row and atr_row.atr20 and entry_price > 0:
-                tp = tp_mult * atr_row.atr20 / entry_price
-                sl = sl_mult * atr_row.atr20 / entry_price
-            else:
-                tp = tp_mult * 0.03   # fallback: 假設 ATR ≈ 3% 股價
-                sl = sl_mult * 0.03
+            for item in filtered:
+                r = item['primary']
+                entry_price = price_map.get(r.stock_id, 0.0)
 
-            reasons = reasons_map.get(r.stock_id, [])
+                atr_row = (
+                    db.query(StockFeature.atr20)
+                    .filter(StockFeature.stock_id == r.stock_id, StockFeature.date == latest_date)
+                    .first()
+                )
+                if atr_row and atr_row.atr20 and entry_price > 0:
+                    tp = tp_mult * atr_row.atr20 / entry_price
+                    sl = sl_mult * atr_row.atr20 / entry_price
+                else:
+                    tp = tp_mult * 0.03
+                    sl = sl_mult * 0.03
 
-            db.add(StrategyMinerPick(
-                pick_date=pick_date,
-                stock_id=r.stock_id,
-                stock_name=r.stock_name,
-                strategy_ids=json.dumps(dims),
-                weighted_score=round(item['score'], 4),
-                entry_price=entry_price,
-                take_profit_pct=tp,
-                stop_loss_pct=sl,
-                hold_days_max=hd,
-                time_dimension=r.time_dimension,
-                direction=direction,
-                buy_reasons=json.dumps(reasons, ensure_ascii=False) if reasons else None,
-            ))
-            count += 1
+                reasons = reasons_map.get(r.stock_id, [])
 
-        logger.info(f"[StrategyMiner] {dir_label}推薦 {count} 筆")
+                db.add(StrategyMinerPick(
+                    pick_date=pick_date,
+                    stock_id=r.stock_id,
+                    stock_name=r.stock_name,
+                    strategy_ids=json.dumps([dim]),
+                    weighted_score=round(item['score'], 4),
+                    entry_price=entry_price,
+                    take_profit_pct=tp,
+                    stop_loss_pct=sl,
+                    hold_days_max=hd,
+                    time_dimension=dim,
+                    direction=direction,
+                    buy_reasons=json.dumps(reasons, ensure_ascii=False) if reasons else None,
+                ))
+                count += 1
+
+        logger.info(f"[StrategyMiner] {dir_label}推薦 {count} 筆 (per-dim)")
         return count
 
     # ─── 查詢介面 ──────────────────────────────────────────────────────────────

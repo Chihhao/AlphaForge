@@ -27,6 +27,17 @@ import json
 router = APIRouter(prefix="/strategy-miner", tags=["strategy-miner"])
 
 
+def _build_resonance_map(picks: list) -> dict:
+    """per-dim 架構下, 同 (pick_date, stock_id, direction) 可能出現多筆 (不同 dim),
+    共鳴數 = 維度種類數。回傳 {(pick_date, stock_id, direction): count}。
+    """
+    buckets: dict = {}
+    for p in picks:
+        key = (p.pick_date, p.stock_id, getattr(p, 'direction', 'long') or 'long')
+        buckets.setdefault(key, set()).add(p.time_dimension)
+    return {k: len(v) for k, v in buckets.items()}
+
+
 # 共用 service 層的 helper，避免重複定義。
 _load_market_baselines = _load_market_baselines_from_snapshot
 
@@ -141,6 +152,7 @@ def get_today_picks(db: Session = Depends(get_db)):
     stock_ids = [p.stock_id for p in picks]
     stock_perf = _load_stock_perf_from_picks(db, stock_ids, direction='long')
     baselines = _load_market_baselines(db)
+    resonance_map = _build_resonance_map(picks)
 
     # 優先使用 DB 儲存的 buy_reasons；若為 null（舊資料），使用 fallback 近似值
     any_missing = any(p.buy_reasons is None for p in picks)
@@ -196,6 +208,9 @@ def get_today_picks(db: Session = Depends(get_db)):
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
             "direction": getattr(p, 'direction', 'long') or 'long',
+            "resonance_count": resonance_map.get(
+                (p.pick_date, p.stock_id, getattr(p, 'direction', 'long') or 'long'), 1,
+            ),
             "buy_reasons": (
                 _json.loads(p.buy_reasons) if p.buy_reasons
                 else live_reasons.get(p.stock_id, [])
@@ -497,6 +512,7 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
     stock_ids = [p.stock_id for p in picks]
     stock_perf = _load_stock_perf_from_picks(db, stock_ids, direction='long')
     baselines = _load_market_baselines(db)
+    resonance_map = _build_resonance_map(picks)
 
     result = []
     for p in picks:
@@ -534,6 +550,9 @@ def get_picks_history(days: int = 7, db: Session = Depends(get_db)):
             "hold_days_max": p.hold_days_max,
             "time_dimension": p.time_dimension,
             "direction": getattr(p, 'direction', 'long') or 'long',
+            "resonance_count": resonance_map.get(
+                (p.pick_date, p.stock_id, getattr(p, 'direction', 'long') or 'long'), 1,
+            ),
             **perf,
         })
     return result
