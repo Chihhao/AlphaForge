@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.alphaforge.agent.night</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/chihhaolai/Documents/GitHub/AlphaForge/scripts/agent_run_night.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>3</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/chihhaolai/Library/Logs/AlphaForgeAgent/night-launchd.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/chihhaolai/Library/Logs/AlphaForgeAgent/night-launchd.err</string>
+  <key>TimeoutInterval</key>
+  <integer>7200</integer>
+</dict>
+</plist>
