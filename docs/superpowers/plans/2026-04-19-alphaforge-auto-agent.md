@@ -2,7 +2,7 @@
 
 # AlphaForge Auto Agent — Implementation Plan (Phase 1: Infrastructure)
 
-`文件版本: 2026-04-19a`
+`文件版本: 2026-04-19b`
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -18,6 +18,12 @@
 - notify-hub 整合 (依賴外部 spec, 另一 plan)
 - 真正接 LLM 執行 alpha 研究決策 (本 plan 產物可跑 prompt 骨架, 但需 notify-hub 上線才啟動完整 pipeline)
 - 前端改動 (spec T3 規則)
+
+**執行約定 (針對 implementer subagent)**:
+- Repo root: `/Users/chihhaolai/Documents/GitHub/AlphaForge`
+- 既有慣例: pytest rootdir = `backend/`, Python import 路徑為 `app.xxx` (不帶 `backend.` 前綴)
+- 跑 test 的 code block 會用 `cd /Users/.../AlphaForge/backend` 切入 backend/; 跑完後緊接著要執行 `git add backend/...` 或其他根目錄相對路徑的指令前, **必須先** `cd /Users/chihhaolai/Documents/GitHub/AlphaForge` 切回 repo root, 否則 `git add backend/...` 會找不到路徑。
+- 每個 bash code block 可視為獨立執行, implementer 自行在 block 之間維持正確 CWD。
 
 ---
 
@@ -139,7 +145,7 @@ Create `backend/tests/test_agent_deploy_lock.py`:
 import json
 from pathlib import Path
 import pytest
-from backend.app.agent.deploy_lock import (
+from app.agent.deploy_lock import (
     DeployLock, LockStatus, load, begin, advance, release, absent,
 )
 
@@ -194,9 +200,10 @@ def test_advance_rejects_invalid_transition(tmp_path: Path):
 
 ```bash
 cd /Users/chihhaolai/Documents/GitHub/AlphaForge
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_deploy_lock.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_deploy_lock.py -v
 ```
-Expected: `ModuleNotFoundError: No module named 'backend.app.agent.deploy_lock'`
+Expected: `ModuleNotFoundError: No module named 'app.agent.deploy_lock'`
 
 - [ ] **Step 3: Implement `deploy_lock.py`**
 
@@ -301,7 +308,8 @@ def release(lock_file: Path) -> DeployLock:
 - [ ] **Step 4: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_deploy_lock.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_deploy_lock.py -v
 ```
 Expected: 5 passed.
 
@@ -327,7 +335,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 Create `backend/tests/test_agent_path_tier.py`:
 ```python
 import pytest
-from backend.app.agent.path_tier import classify, Tier
+from app.agent.path_tier import classify, Tier
 
 
 @pytest.mark.parametrize("path,expected", [
@@ -361,7 +369,8 @@ def test_unknown_path_defaults_to_t3():
 - [ ] **Step 2: Run test to confirm FAIL**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_path_tier.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_path_tier.py -v
 ```
 Expected: `ModuleNotFoundError`.
 
@@ -431,9 +440,10 @@ def classify(path: str) -> Tier:
 - [ ] **Step 4: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_path_tier.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_path_tier.py -v
 ```
-Expected: 18 passed.
+Expected: 19 passed (18 parametrize + 1 unknown-defaults test).
 
 - [ ] **Step 5: Commit**
 
@@ -457,7 +467,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 Create `backend/tests/test_agent_smoke_test.py`:
 ```python
 from unittest.mock import patch, MagicMock
-from backend.app.agent.smoke_test import run_smoke, SmokeResult
+from app.agent.smoke_test import run_smoke, SmokeResult
 
 
 def _fake_response(status: int, body: dict | None = None):
@@ -468,7 +478,7 @@ def _fake_response(status: int, body: dict | None = None):
 
 
 def test_smoke_all_green():
-    with patch("backend.app.agent.smoke_test.httpx.get") as g:
+    with patch("app.agent.smoke_test.httpx.get") as g:
         g.return_value = _fake_response(200, {"status": "ok"})
         result = run_smoke(base_url="http://localhost:8000")
     assert isinstance(result, SmokeResult)
@@ -482,7 +492,7 @@ def test_smoke_one_red_returns_not_ok():
         if "picks/today" in url:
             return _fake_response(500)
         return _fake_response(200, {"status": "ok"})
-    with patch("backend.app.agent.smoke_test.httpx.get", side_effect=side_effect):
+    with patch("app.agent.smoke_test.httpx.get", side_effect=side_effect):
         result = run_smoke(base_url="http://localhost:8000")
     assert result.ok is False
     assert any("picks/today" in f for f in result.failures)
@@ -490,7 +500,7 @@ def test_smoke_one_red_returns_not_ok():
 
 def test_smoke_network_error_is_failure():
     import httpx
-    with patch("backend.app.agent.smoke_test.httpx.get",
+    with patch("app.agent.smoke_test.httpx.get",
                side_effect=httpx.ConnectError("boom")):
         result = run_smoke(base_url="http://localhost:8000")
     assert result.ok is False
@@ -500,7 +510,8 @@ def test_smoke_network_error_is_failure():
 - [ ] **Step 2: Run test to confirm FAIL**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_smoke_test.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_smoke_test.py -v
 ```
 Expected: `ModuleNotFoundError`.
 
@@ -547,7 +558,8 @@ def run_smoke(base_url: str, timeout: float = 5.0) -> SmokeResult:
 - [ ] **Step 4: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_smoke_test.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_smoke_test.py -v
 ```
 Expected: 3 passed.
 
@@ -575,7 +587,7 @@ Create `backend/tests/test_agent_site_restore.py`:
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
-from backend.app.agent.site_restore import run_checklist, SiteReport
+from app.agent.site_restore import run_checklist, SiteReport
 
 
 def _git_init(tmp_path: Path):
@@ -606,13 +618,13 @@ def test_dirty_repo_flags_critical(tmp_path: Path):
 
 def test_stale_in_progress_lock_flags_critical(tmp_path: Path):
     _git_init(tmp_path)
-    from backend.app.agent.deploy_lock import begin
+    from app.agent.deploy_lock import begin
     import time
     lock_file = tmp_path / "docs/state/deploy-lock.json"
     begin(lock_file, tick="0300", previous_commit_sha="a",
           previous_backend_image="img", new_commit_sha="b")
     # 假裝 30 分鐘前開始
-    with patch("backend.app.agent.site_restore._now_minus_minutes", return_value=31):
+    with patch("app.agent.site_restore._now_minus_minutes", return_value=31):
         report = run_checklist(repo_root=tmp_path)
     assert report.stale_lock is True
     assert report.critical is True
@@ -621,7 +633,8 @@ def test_stale_in_progress_lock_flags_critical(tmp_path: Path):
 - [ ] **Step 2: Run test to confirm FAIL**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_site_restore.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_site_restore.py -v
 ```
 Expected: `ModuleNotFoundError`.
 
@@ -635,7 +648,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List
-from backend.app.agent.deploy_lock import load as load_lock, LockStatus
+from app.agent.deploy_lock import load as load_lock, LockStatus
 
 TAIPEI_TZ = timezone(timedelta(hours=8))
 STALE_THRESHOLD_MIN = 30
@@ -703,7 +716,8 @@ def run_checklist(repo_root: Path) -> SiteReport:
 - [ ] **Step 4: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_site_restore.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_site_restore.py -v
 ```
 Expected: 3 passed.
 
@@ -722,139 +736,177 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 ---
 
-### Task 1.5: `alpha_ledger.py` — 近 N 日 IC / wr 查詢
+### Task 1.5: `alpha_ledger.py` — 近 N 日 wr / avg_return 查詢
 
 **Files:**
 - Create: `backend/app/agent/alpha_ledger.py`
 - Create: `backend/tests/test_agent_alpha_ledger.py`
 
-**Note:** 此 helper 讀既有 `strategy_miner_picks` 表。DB 連線沿用 `backend/app/db/session.py` (既有)。
+**Note:** 結案狀態不在 DB 欄位裡 (picks 表無 `concluded_at` / `return_pct` / `concluded_reason` 欄位), 由 `GET /strategy-miner/picks/concluded` endpoint 即時用 OHLCV 算出來。此 helper 直接打該 endpoint 解析 JSON 匯總, 不新寫 SQL。
 
-- [ ] **Step 1: Read existing DB session helper**
-
-```bash
-grep -n "def get_db\|SessionLocal\|async_session" /Users/chihhaolai/Documents/GitHub/AlphaForge/backend/app/db/session.py
+Endpoint response 格式:
+```json
+{
+  "items": [
+    {
+      "pick_date": "2026-04-18",
+      "stock_id": "2330",
+      "time_dimension": "10d",
+      "direction": "long",
+      "return_pct": 7.9,        // 百分比, 7.9 = +7.9%
+      "exit_reason": "take_profit" | "stop_loss" | "time_limit" | "settled",
+      ...
+    }
+  ],
+  "total": N
+}
 ```
-Expected: 看到 `SessionLocal` / `get_db` 等 API, 記下正確 import 路徑。
 
-- [ ] **Step 2: Write failing test**
+- [ ] **Step 1: Write failing test**
 
 Create `backend/tests/test_agent_alpha_ledger.py`:
 ```python
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
-from backend.app.agent.alpha_ledger import LedgerEntry, summarise
+import pytest
+from app.agent.alpha_ledger import LedgerEntry, summarise
+
+
+def _fake_response(items):
+    m = MagicMock()
+    m.status_code = 200
+    m.raise_for_status.return_value = None
+    m.json.return_value = {"items": items, "total": len(items)}
+    return m
 
 
 def test_summarise_with_closed_picks():
-    fake_rows = [
-        # (direction, time_dimension, return_pct, concluded_reason)
-        ("long", "5d", 0.03, "tp"),
-        ("long", "5d", -0.02, "sl"),
-        ("long", "5d", 0.01, "time_limit"),
-        ("long", "10d", 0.05, "tp"),
-        ("long", "20d", 0.08, "tp"),
+    today = date.today()
+    fake_items = [
+        {"pick_date": today.isoformat(), "time_dimension": "5d",
+         "direction": "long", "return_pct": 3.0, "exit_reason": "take_profit"},
+        {"pick_date": today.isoformat(), "time_dimension": "5d",
+         "direction": "long", "return_pct": -2.0, "exit_reason": "stop_loss"},
+        {"pick_date": today.isoformat(), "time_dimension": "5d",
+         "direction": "long", "return_pct": 1.0, "exit_reason": "time_limit"},
+        {"pick_date": today.isoformat(), "time_dimension": "10d",
+         "direction": "long", "return_pct": 5.0, "exit_reason": "take_profit"},
+        {"pick_date": today.isoformat(), "time_dimension": "20d",
+         "direction": "long", "return_pct": 8.0, "exit_reason": "take_profit"},
     ]
-    fake_session = MagicMock()
-    fake_session.execute.return_value.all.return_value = fake_rows
-
-    with patch("backend.app.agent.alpha_ledger.SessionLocal", return_value=fake_session):
+    with patch("app.agent.alpha_ledger.httpx.get",
+               return_value=_fake_response(fake_items)):
         result = summarise(days=7)
-
     assert isinstance(result, dict)
-    assert "5d" in result
     assert result["5d"].n == 3
-    assert result["5d"].wr == pytest.approx(2/3, abs=0.01) or result["5d"].wr == pytest.approx(1/3, abs=0.01)
+    assert result["5d"].wr == pytest.approx(2/3, abs=0.01)
+    assert result["5d"].avg_return == pytest.approx((3.0 - 2.0 + 1.0) / 3, abs=0.01)
+    assert result["10d"].n == 1
+    assert result["20d"].n == 1
 
 
-def test_summarise_empty_returns_zeros():
-    fake_session = MagicMock()
-    fake_session.execute.return_value.all.return_value = []
-    with patch("backend.app.agent.alpha_ledger.SessionLocal", return_value=fake_session):
+def test_summarise_filters_by_cutoff():
+    today = date.today()
+    old = (today - timedelta(days=30)).isoformat()
+    recent = today.isoformat()
+    fake_items = [
+        {"pick_date": old, "time_dimension": "5d",
+         "direction": "long", "return_pct": 100.0, "exit_reason": "take_profit"},
+        {"pick_date": recent, "time_dimension": "5d",
+         "direction": "long", "return_pct": 1.0, "exit_reason": "take_profit"},
+    ]
+    with patch("app.agent.alpha_ledger.httpx.get",
+               return_value=_fake_response(fake_items)):
         result = summarise(days=7)
-    # 允許回空 dict 或各維度 n=0
-    for dim in ("5d", "10d", "20d"):
-        if dim in result:
-            assert result[dim].n == 0
+    # old pick 超過 7 天 cutoff 應被濾掉
+    assert result["5d"].n == 1
+    assert result["5d"].avg_return == pytest.approx(1.0, abs=0.01)
+
+
+def test_summarise_empty_returns_empty_dict():
+    with patch("app.agent.alpha_ledger.httpx.get",
+               return_value=_fake_response([])):
+        result = summarise(days=7)
+    assert result == {}
 ```
 
-**Note**: 加 `import pytest` 在檔首。
-
-- [ ] **Step 3: Run test to confirm FAIL**
+- [ ] **Step 2: Run test to confirm FAIL**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_alpha_ledger.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_alpha_ledger.py -v
 ```
-Expected: `ModuleNotFoundError`.
+Expected: `ModuleNotFoundError: No module named 'app.agent.alpha_ledger'`.
 
-- [ ] **Step 4: Implement `alpha_ledger.py`**
+- [ ] **Step 3: Implement `alpha_ledger.py`**
 
 Create `backend/app/agent/alpha_ledger.py`:
 ```python
 from __future__ import annotations
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Dict
-from sqlalchemy import text
-from backend.app.db.session import SessionLocal
+import httpx
 
 
 @dataclass
 class LedgerEntry:
     dimension: str          # "5d" | "10d" | "20d"
     n: int
-    wr: float               # win rate (% 報酬 > 0)
-    avg_return: float       # 平均報酬 (e.g. 0.025 表 +2.5%)
+    wr: float               # win rate (return_pct > 0)
+    avg_return: float       # 平均 return_pct (percentage, 2.5 = +2.5%)
 
 
-def _rows_to_entries(rows) -> Dict[str, LedgerEntry]:
-    from collections import defaultdict
-    agg: Dict[str, list] = defaultdict(list)
-    for direction, dim, ret_pct, reason in rows:
-        if reason is None or ret_pct is None:
-            continue
-        agg[dim].append(ret_pct)
-    out: Dict[str, LedgerEntry] = {}
-    for dim, returns in agg.items():
-        n = len(returns)
-        if n == 0:
-            out[dim] = LedgerEntry(dim, 0, 0.0, 0.0)
-            continue
-        wins = sum(1 for r in returns if r > 0)
-        wr = wins / n
-        avg = sum(returns) / n
-        out[dim] = LedgerEntry(dim, n, wr, avg)
-    return out
+def summarise(days: int = 7,
+              base_url: str = "http://localhost:8000",
+              timeout: float = 5.0) -> Dict[str, LedgerEntry]:
+    """Fetch concluded picks via HTTP endpoint, aggregate by time_dimension.
 
+    Endpoint 回傳最多 60 日內已結案 picks。days 參數用 pick_date 再 cutoff 一次。
+    """
+    url = f"{base_url.rstrip('/')}/strategy-miner/picks/concluded"
+    resp = httpx.get(url, params={"limit": 200, "offset": 0}, timeout=timeout)
+    resp.raise_for_status()
+    items = resp.json().get("items", [])
 
-def summarise(days: int = 7) -> Dict[str, LedgerEntry]:
-    """讀近 `days` 內結案 picks, 依 time_dimension 匯總 wr / avg_return。"""
     cutoff = date.today() - timedelta(days=days)
-    session = SessionLocal()
-    try:
-        rows = session.execute(text("""
-            SELECT direction, time_dimension, return_pct, concluded_reason
-            FROM strategy_miner_picks
-            WHERE concluded_at IS NOT NULL
-              AND concluded_at >= :cutoff
-        """), {"cutoff": cutoff}).all()
-        return _rows_to_entries(rows)
-    finally:
-        session.close()
+    by_dim: Dict[str, list] = defaultdict(list)
+    for it in items:
+        pd = date.fromisoformat(it["pick_date"])
+        if pd < cutoff:
+            continue
+        dim = it.get("time_dimension") or "10d"
+        ret = it.get("return_pct")
+        if ret is None:
+            continue
+        by_dim[dim].append(ret)
+
+    out: Dict[str, LedgerEntry] = {}
+    for dim, returns in by_dim.items():
+        n = len(returns)
+        wins = sum(1 for r in returns if r > 0)
+        out[dim] = LedgerEntry(
+            dimension=dim, n=n,
+            wr=(wins / n) if n else 0.0,
+            avg_return=(sum(returns) / n) if n else 0.0,
+        )
+    return out
 ```
 
-- [ ] **Step 5: Run test to verify PASS**
+- [ ] **Step 4: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_alpha_ledger.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_alpha_ledger.py -v
 ```
-Expected: 2 passed (第一個 test 的 wr 斷言預期 2/3: tp (0.03) + time_limit (0.01) 都 > 0, sl (-0.02) 為負, 故 wr = 2/3)。
+Expected: 3 passed。
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add backend/app/agent/alpha_ledger.py backend/tests/test_agent_alpha_ledger.py
-git commit -m "agent(infra): alpha ledger summary (IC/wr by dimension)
+git commit -m "agent(infra): alpha ledger summary via /picks/concluded
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 ```
@@ -872,7 +924,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 Create `backend/tests/test_agent_report_builder.py`:
 ```python
 from datetime import date
-from backend.app.agent.report_builder import build_evening_skeleton, build_night_skeleton
+from app.agent.report_builder import build_evening_skeleton, build_night_skeleton
 
 
 def test_evening_skeleton_has_mandatory_sections():
@@ -897,7 +949,8 @@ def test_night_skeleton_has_mandatory_sections():
 - [ ] **Step 2: Run test to confirm FAIL**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_report_builder.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_report_builder.py -v
 ```
 Expected: `ModuleNotFoundError`.
 
@@ -995,9 +1048,10 @@ END: ok | deployed | aborted
 - [ ] **Step 4: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_report_builder.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_report_builder.py -v
 ```
-Expected: 2 passed.
+Expected: 2 passed (evening + night skeleton).
 
 - [ ] **Step 5: Commit**
 
@@ -1027,13 +1081,14 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# backend/tests/test_agent_run_cli.py → parents[1] = backend/
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 def test_cli_evening_prints_prompt():
     r = subprocess.run(
-        [sys.executable, "-m", "backend.scripts.agent_run", "--tick=evening", "--dry-run"],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        [sys.executable, "-m", "scripts.agent_run", "--tick=evening", "--dry-run"],
+        cwd=BACKEND_DIR, capture_output=True, text=True,
     )
     assert r.returncode == 0, r.stderr
     assert "Evening" in r.stdout or "evening" in r.stdout
@@ -1042,8 +1097,8 @@ def test_cli_evening_prints_prompt():
 
 def test_cli_night_prints_prompt():
     r = subprocess.run(
-        [sys.executable, "-m", "backend.scripts.agent_run", "--tick=night", "--dry-run"],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        [sys.executable, "-m", "scripts.agent_run", "--tick=night", "--dry-run"],
+        cwd=BACKEND_DIR, capture_output=True, text=True,
     )
     assert r.returncode == 0, r.stderr
     assert "Night" in r.stdout or "night" in r.stdout
@@ -1051,8 +1106,8 @@ def test_cli_night_prints_prompt():
 
 def test_cli_unknown_tick_fails():
     r = subprocess.run(
-        [sys.executable, "-m", "backend.scripts.agent_run", "--tick=noon", "--dry-run"],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        [sys.executable, "-m", "scripts.agent_run", "--tick=noon", "--dry-run"],
+        cwd=BACKEND_DIR, capture_output=True, text=True,
     )
     assert r.returncode != 0
 ```
@@ -1060,9 +1115,10 @@ def test_cli_unknown_tick_fails():
 - [ ] **Step 2: Run test to confirm FAIL**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_run_cli.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_run_cli.py -v
 ```
-Expected: `No module named backend.scripts.agent_run`.
+Expected: `No module named scripts.agent_run` (or `scripts` 還不是 package)。
 
 - [ ] **Step 3: Ensure `backend/scripts/__init__.py` exists**
 
@@ -1078,10 +1134,12 @@ Create `backend/scripts/agent_run.py`:
 Agent CLI entry. 被 launchd wrapper 呼叫, 輸出完整 tick prompt 到 stdout,
 由上游 pipe 給 `claude -p` 執行。
 
-Usage:
-    python -m backend.scripts.agent_run --tick=evening
-    python -m backend.scripts.agent_run --tick=night
-    python -m backend.scripts.agent_run --tick=night --dry-run  # 不執行 site_restore, 只印 prompt 骨架
+必須從 `backend/` 目錄執行 (pytest rootdir = backend/, 依賴 PYTHONPATH 為 backend/)。
+
+Usage (從 backend/ 目錄):
+    python -m scripts.agent_run --tick=evening
+    python -m scripts.agent_run --tick=night
+    python -m scripts.agent_run --tick=night --dry-run  # 不執行 site_restore, 只印 prompt 骨架
 """
 from __future__ import annotations
 import argparse
@@ -1104,7 +1162,7 @@ def _load_prompt(tick: str) -> str:
 def _render_site_restore_section(dry_run: bool) -> str:
     if dry_run:
         return "## site_restore (dry-run, skipped)\n"
-    from backend.app.agent.site_restore import run_checklist
+    from app.agent.site_restore import run_checklist
     report = run_checklist(repo_root=REPO_ROOT)
     lines = ["## site_restore 結果"]
     lines.append(f"- git_dirty: {report.git_dirty}")
@@ -1143,7 +1201,8 @@ if __name__ == "__main__":
 - [ ] **Step 5: Run test to verify PASS**
 
 ```bash
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_run_cli.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_run_cli.py -v
 ```
 Expected: 3 passed.
 
@@ -1198,7 +1257,7 @@ Create `backend/app/agent/prompts/tick_evening.md`:
    - 昨日 picks 結案分佈 (tp / sl / time_limit)
    - 近 7 日 picks 勝率是否退化
    - GET `http://localhost:8000/strategy-miner/picks/today` 200 OK
-2. 使用 `backend.app.agent.report_builder.build_evening_skeleton(date.today())` 產生骨架, 填入實際結果
+2. 使用 `app.agent.report_builder.build_evening_skeleton(date.today())` 產生骨架, 填入實際結果
 3. 若有異常, 寫 `docs/inbox/alert-YYYY-MM-DD-<slug>.md` 塞給 03:00 tick
 4. Commit report + (若有) alert inbox:
    `git commit -m "agent(1830): report - daily health check"`
@@ -1281,15 +1340,15 @@ E) Agent 自主新因子研究 → 只能落 T1 (research script), 不進 produc
 
 **任一 fail → 棄選該題, 改下一候選。Refactor-only 題每週 ≤ 1 次。**
 
-### Stage 4: Tier 判定 (使用 `backend.app.agent.path_tier.classify`)
+### Stage 4: Tier 判定 (使用 `app.agent.path_tier.classify`)
 - T0 / T1: 直接做
 - T2: 需題目已在 `project_next_steps.md` 或有昨日 approved proposal
 - T3: 只寫 proposal (`docs/proposals/YYYY-MM-DD-t3-<slug>.md`)
 
 ### Stage 5: 執行
 - 一題一 commit
-- 改 production → 跑 `./backend/.venv/bin/python -m pytest backend/tests/<相關模組>`
-- Deploy: 前先 `backend.app.agent.deploy_lock.begin(...)`, deploy 完呼 `smoke_test.run_smoke("http://localhost:8000")`
+- 改 production → 從 `backend/` 跑 `./.venv/bin/python -m pytest tests/<相關模組>`
+- Deploy: 前先 `app.agent.deploy_lock.begin(...)`, deploy 完呼 `smoke_test.run_smoke("http://localhost:8000")`
 - Smoke 紅 → `git reset --hard <tick_start_sha>` + docker tag rollback + `[CRITICAL]` email
 - Smoke 綠 → `deploy_lock.advance(... SUCCESS)`
 
@@ -1372,12 +1431,12 @@ mkdir -p "$LOG_DIR"
 TS=$(date +"%Y-%m-%d_%H%M")
 LOG="$LOG_DIR/evening-$TS.log"
 
-cd "$REPO"
+cd "$REPO/backend"
 
 {
   echo "=== evening tick start $TS ==="
 
-  PROMPT=$("$REPO/backend/.venv/bin/python" -m backend.scripts.agent_run --tick=evening)
+  PROMPT=$("$REPO/backend/.venv/bin/python" -m scripts.agent_run --tick=evening)
 
   if [[ -z "$PROMPT" ]]; then
     echo "ERROR: empty prompt from agent_run"
@@ -1411,12 +1470,12 @@ mkdir -p "$LOG_DIR"
 TS=$(date +"%Y-%m-%d_%H%M")
 LOG="$LOG_DIR/night-$TS.log"
 
-cd "$REPO"
+cd "$REPO/backend"
 
 {
   echo "=== night tick start $TS ==="
 
-  PROMPT=$("$REPO/backend/.venv/bin/python" -m backend.scripts.agent_run --tick=night)
+  PROMPT=$("$REPO/backend/.venv/bin/python" -m scripts.agent_run --tick=night)
 
   if [[ -z "$PROMPT" ]]; then
     echo "ERROR: empty prompt from agent_run"
@@ -1581,16 +1640,17 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - [ ] **Step 1: 跑 full test suite**
 
 ```bash
-cd /Users/chihhaolai/Documents/GitHub/AlphaForge
-./backend/.venv/bin/python -m pytest backend/tests/test_agent_*.py -v
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m pytest tests/test_agent_*.py -v
 ```
-Expected: 全綠, 15+ tests passed。
+Expected: 全綠, 38 tests passed (5 deploy_lock + 19 path_tier + 3 smoke + 3 site_restore + 3 alpha_ledger + 2 report_builder + 3 cli)。
 
-- [ ] **Step 2: Dry-run 兩個 tick**
+- [ ] **Step 2: Dry-run 兩個 tick (注意: 從 backend/ 跑)**
 
 ```bash
-./backend/.venv/bin/python -m backend.scripts.agent_run --tick=evening > /tmp/evening.md
-./backend/.venv/bin/python -m backend.scripts.agent_run --tick=night > /tmp/night.md
+cd /Users/chihhaolai/Documents/GitHub/AlphaForge/backend
+./.venv/bin/python -m scripts.agent_run --tick=evening --dry-run > /tmp/evening.md
+./.venv/bin/python -m scripts.agent_run --tick=night --dry-run > /tmp/night.md
 wc -l /tmp/evening.md /tmp/night.md
 grep "site_restore" /tmp/evening.md
 grep "Alpha ledger" /tmp/night.md || true  # night prompt 內本身沒 alpha ledger, 該段在 report skeleton
