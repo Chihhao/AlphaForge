@@ -2,7 +2,13 @@
 
 # notify-hub v0.1.0 Implementation Plan
 
-`文件版本: 2026-04-22a`
+`文件版本: 2026-04-24a`
+
+> **v2 修訂 (2026-04-24):**
+> - Task 3/4: `approvals.expires_at` 改 nullable, 靜音時段建立的 approval 先不設倒數 (修 quiet hours × timeout 撞車)
+> - Task 18: flush 推出成功後才設 expires_at, 啟動倒數
+> - 新增 Task 19.5: push failure retry scheduler + telegram 健康狀態快取刷新 (補 spec §7.2 漏掉的邏輯)
+> - Task 6/9/18: `TG_STATUS` 改成 push 行為的副作用 + retry job 主動 probe
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -481,7 +487,8 @@ class Approval(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), nullable=False
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # nullable: 靜音時段建立的 approval 先不設倒數, 等 flush_suppressed 推出後才設
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger)
     telegram_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -760,6 +767,45 @@ async def test_get_approval_by_id(session):
     )
     got = await crud.get_approval(session, ap.id)
     assert got.id == ap.id
+
+
+@pytest.mark.asyncio
+async def test_create_approval_in_quiet_hours_has_no_expires(session):
+    """靜音時段建立的 approval 不該設 expires_at, 避免還沒推給 user 就被 sweeper 掃掉。"""
+    c = Consumer(name="c3", token_hash="h")
+    session.add(c)
+    await session.commit()
+    ap = await crud.create_approval(
+        session, consumer_id=c.id, project="p", title="t",
+        items=[{"id": "1", "type": "x", "summary": "s", "detail": None, "position": 0}],
+        timeout_seconds=1200, metadata={},
+        push_state=PushState.suppressed_quiet_hours,
+    )
+    assert ap.expires_at is None
+    assert ap.push_state == PushState.suppressed_quiet_hours
+
+
+@pytest.mark.asyncio
+async def test_sweep_skips_suppressed_quiet_hours(session):
+    """即使 created_at 已過很久, suppressed 的 approval 也不該被 sweeper 掃成 timeout。"""
+    from sqlalchemy import update
+    from notify_hub.db.models import Approval
+    c = Consumer(name="c4", token_hash="h")
+    session.add(c)
+    await session.commit()
+    ap = await crud.create_approval(
+        session, consumer_id=c.id, project="p", title="t",
+        items=[{"id": "1", "type": "x", "summary": "s", "detail": None, "position": 0}],
+        timeout_seconds=1, metadata={},
+        push_state=PushState.suppressed_quiet_hours,
+    )
+    # 強制把 created_at 推到 1 小時前 (但 expires_at 仍是 None)
+    past = datetime.now(timezone.utc) - timedelta(hours=1)
+    await session.execute(update(Approval).where(Approval.id == ap.id).values(created_at=past))
+    await session.commit()
+
+    ids = await crud.sweep_timeouts(session)
+    assert ap.id not in ids
 ```
 
 - [ ] **Step 3: 跑 fail**
@@ -852,10 +898,15 @@ async def create_approval(
     push_state: PushState = PushState.scheduled,
 ) -> Approval:
     now = datetime.now(timezone.utc)
+    # 靜音時段: 先不設 expires_at, 等 flush_suppressed 推出後才開始倒數 (避免還沒被使用者看見就被 sweeper 掃成 timeout)
+    expires_at = (
+        None if push_state == PushState.suppressed_quiet_hours
+        else now + timedelta(seconds=timeout_seconds)
+    )
     ap = Approval(
         consumer_id=consumer_id, project=project, title=title,
         timeout_seconds=timeout_seconds, idempotency_key=idempotency_key,
-        extra_metadata=metadata, expires_at=now + timedelta(seconds=timeout_seconds),
+        extra_metadata=metadata, expires_at=expires_at,
         push_state=push_state,
     )
     for i, it in enumerate(items):
@@ -895,12 +946,25 @@ async def set_approval_push_info(
     session: AsyncSession, approval_id: uuid.UUID, *,
     chat_id: int | None, message_id: int | None,
     push_state: PushState, last_push_error: str | None = None,
+    start_countdown: bool = False,
 ) -> None:
+    """更新 push 結果與 Telegram message ref。
+
+    `start_countdown=True`: 同時把 expires_at 設為 now + timeout_seconds, 讓倒數開始
+    (供 flush_suppressed 在靜音時段推出成功後呼叫)。
+    """
+    values: dict = dict(
+        telegram_chat_id=chat_id, telegram_message_id=message_id,
+        push_state=push_state, last_push_error=last_push_error,
+    )
+    if start_countdown:
+        ap = await get_approval(session, approval_id)
+        if ap is not None:
+            values["expires_at"] = (
+                datetime.now(timezone.utc) + timedelta(seconds=ap.timeout_seconds)
+            )
     await session.execute(
-        update(Approval).where(Approval.id == approval_id).values(
-            telegram_chat_id=chat_id, telegram_message_id=message_id,
-            push_state=push_state, last_push_error=last_push_error,
-        )
+        update(Approval).where(Approval.id == approval_id).values(**values)
     )
     await session.commit()
 
@@ -962,11 +1026,15 @@ async def recompute_approval_status(session: AsyncSession, approval_id: uuid.UUI
 
 
 async def sweep_timeouts(session: AsyncSession) -> list[uuid.UUID]:
-    """返回被 timeout 結案的 approval ids，caller 負責編輯 Telegram 訊息。"""
+    """返回被 timeout 結案的 approval ids，caller 負責編輯 Telegram 訊息。
+
+    `expires_at IS NULL` 代表該 approval 仍在靜音時段 queue 等待 flush, 尚未開始倒數, 不應掃掉。
+    """
     now = datetime.now(timezone.utc)
     r = await session.execute(
         select(Approval).where(
             Approval.status == ApprovalStatus.pending,
+            Approval.expires_at.isnot(None),
             Approval.expires_at < now,
         ).options(selectinload(Approval.items), selectinload(Approval.decisions))
     )
@@ -1269,7 +1337,8 @@ class ApprovalCreated(BaseModel):
     request_id: str
     status: str
     created_at: datetime
-    expires_at: datetime
+    # 靜音時段建立時為 None, 等 flush_suppressed 推出後才設
+    expires_at: datetime | None = None
     push_state: str
 
 
@@ -1357,13 +1426,24 @@ __version__ = "0.1.0"
 ```python
 # src/notify_hub/main.py
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from fastapi import FastAPI, Response
 from notify_hub.config import Settings
 from notify_hub.db import session as dbsess
 from notify_hub.api import health
 
 
-TG_STATUS: dict = {"status": "unknown"}
+TG_STATUS: dict = {"status": "unknown", "last_updated": None, "last_error": None}
+
+
+def update_tg_status(*, ok: bool, error: str | None = None) -> None:
+    """由 push 行為與定時 probe (Task 19.5) 更新 telegram 健康狀態快取。
+
+    被 /healthz 讀取, 讓健康狀態反映真實 runtime 行為, 而非 startup 時那一秒的快照。
+    """
+    TG_STATUS["status"] = "ok" if ok else "degraded"
+    TG_STATUS["last_updated"] = datetime.now(timezone.utc).isoformat()
+    TG_STATUS["last_error"] = None if ok else (error or "unknown")
 
 
 def create_app(skip_telegram_check: bool = False) -> FastAPI:
@@ -1375,7 +1455,7 @@ def create_app(skip_telegram_check: bool = False) -> FastAPI:
         # 在這裡把 consumers 表用 env 同步 (Task 5 後續)
         if not skip_telegram_check:
             # 之後 Task 7 實作真實 getMe
-            TG_STATUS["status"] = "ok"
+            update_tg_status(ok=True)
         else:
             TG_STATUS["status"] = "skipped"
         yield
@@ -1924,6 +2004,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from notify_hub.db import crud
 from notify_hub.db.models import Consumer, PushState, ApprovalStatus
 from notify_hub.dependencies import current_consumer, get_session, get_settings
+from notify_hub.main import update_tg_status
 from notify_hub.schemas import ApprovalCreate, ApprovalCreated, ApprovalState, PerItemDecision
 from notify_hub.telegram.formatter import (
     build_approval_message, build_keyboard_top, split_long_message, short_id,
@@ -2037,12 +2118,14 @@ async def create_approval(
                     push_state=PushState.pushed,
                 )
                 ap.push_state = PushState.pushed
+                update_tg_status(ok=True)
             except Exception as e:
                 await crud.set_approval_push_info(
                     session, ap.id, chat_id=None, message_id=None,
                     push_state=PushState.push_failed, last_push_error=str(e)[:500],
                 )
                 ap.push_state = PushState.push_failed
+                update_tg_status(ok=False, error=str(e)[:200])
 
     return ApprovalCreated(
         request_id=str(ap.id), status=ap.status.value,
@@ -3486,6 +3569,12 @@ async def test_flush_pushes_suppressed(monkeypatch, pg_container):
         r = await s.execute(select(Approval))
         ap = r.scalar_one()
         assert ap.push_state == PushState.pushed
+        # flush 推出後才啟動倒數
+        assert ap.expires_at is not None
+        # timeout_seconds=3600 → expires_at 應落在未來 50-70 分鐘內
+        from datetime import datetime, timedelta, timezone
+        delta = ap.expires_at - datetime.now(timezone.utc)
+        assert timedelta(minutes=50) < delta < timedelta(minutes=70)
 ```
 
 - [ ] **Step 3: 實作 flush_suppressed**
@@ -3496,6 +3585,7 @@ from sqlalchemy import select
 from notify_hub.db.models import Approval, ApprovalStatus, PushState, Consumer
 from notify_hub.db.session import session_maker
 from notify_hub.db import crud
+from notify_hub.main import update_tg_status
 from notify_hub.telegram.formatter import (
     build_keyboard_top, split_long_message,
 )
@@ -3536,15 +3626,18 @@ async def flush_suppressed(*, settings, tg) -> None:
                     msg_id = r_send["message_id"]
                     for extra in parts[1:]:
                         await tg.send_message(chat_id=chat_id, text=extra)
+                    # 推出成功 → 啟動倒數 (靜音時段建立時沒設 expires_at, 這裡才開始算)
                     await crud.set_approval_push_info(
                         s, ap_full.id, chat_id=chat_id, message_id=msg_id,
-                        push_state=PushState.pushed,
+                        push_state=PushState.pushed, start_countdown=True,
                     )
+                    update_tg_status(ok=True)
                 except Exception as e:
                     await crud.set_approval_push_info(
                         s, ap_full.id, chat_id=None, message_id=None,
                         push_state=PushState.push_failed, last_push_error=str(e)[:500],
                     )
+                    update_tg_status(ok=False, error=str(e)[:200])
                 header = ""  # 後續訊息不重複 header
 ```
 
@@ -3679,6 +3772,234 @@ sched.add_job(
 ```bash
 ./.venv/bin/pytest tests/integration/test_cleanup.py -v
 git add -A && git commit -m "feat(scheduler): daily 04:00 cleanup of old jobs"
+```
+
+---
+
+## Task 19.5: Push failure retry + Telegram 健康狀態定時 probe
+
+補 spec §7.2 規範 (每小時重送 push_failed 但仍 pending 的 approval) + 確保 `/healthz` 的 telegram 狀態不只停留在 startup 那一刻。單一排程器職責涵蓋兩件事:
+
+1. 掃 `(status=pending AND push_state=push_failed)` 的 approval, 重送 sendMessage
+2. 不管有沒有東西要重送, 都打一次 Telegram `getMe` 更新 `TG_STATUS` cache
+
+**Files:**
+- Create: `src/notify_hub/scheduler/push_retry.py`
+- Modify: `src/notify_hub/scheduler/runtime.py`
+- Modify: `src/notify_hub/telegram/client.py` (加 `get_me` method)
+- Create: `tests/integration/test_push_retry.py`
+- Create: `tests/unit/test_tg_status_cache.py`
+
+- [ ] **Step 1: 寫 unit test (TG_STATUS cache 行為)**
+
+```python
+# tests/unit/test_tg_status_cache.py
+from notify_hub.main import TG_STATUS, update_tg_status
+
+
+def test_update_ok_sets_last_updated():
+    update_tg_status(ok=True)
+    assert TG_STATUS["status"] == "ok"
+    assert TG_STATUS["last_updated"] is not None
+    assert TG_STATUS["last_error"] is None
+
+
+def test_update_failure_captures_error():
+    update_tg_status(ok=False, error="429 Too Many Requests")
+    assert TG_STATUS["status"] == "degraded"
+    assert "429" in TG_STATUS["last_error"]
+```
+
+- [ ] **Step 2: 寫 integration test (retry 真的會重送 + cache 被刷新)**
+
+```python
+# tests/integration/test_push_retry.py
+import pytest
+from notify_hub.db import crud
+from notify_hub.db.models import PushState, ApprovalStatus
+from notify_hub.db.session import session_maker, init_engine
+from notify_hub.config import Settings
+from notify_hub.scheduler.push_retry import retry_and_probe
+from notify_hub.main import TG_STATUS
+
+
+class FakeTg:
+    def __init__(self, fail_send: bool = False):
+        self.sent = []
+        self.probed = 0
+        self.fail_send = fail_send
+
+    async def send_message(self, **kw):
+        if self.fail_send:
+            raise RuntimeError("telegram down")
+        self.sent.append(kw)
+        return {"message_id": 99, "chat": {"id": kw["chat_id"]}}
+
+    async def get_me(self):
+        self.probed += 1
+        return {"id": 12345, "username": "bot"}
+
+
+@pytest.mark.asyncio
+async def test_retry_resends_failed_approvals(monkeypatch, pg_container):
+    monkeypatch.setenv("DATABASE_URL", pg_container)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "s")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "http://x")
+    monkeypatch.setenv("NOTIFY_HUB_CONSUMER_TOKENS", "alphaforge:af")
+    monkeypatch.setenv("ALLOWED_CHAT_IDS", "42")
+    settings = Settings()
+    init_engine(settings)
+
+    async with session_maker()() as s:
+        c = await crud.upsert_consumer(s, "alphaforge", "h")
+        ap = await crud.create_approval(
+            s, consumer_id=c.id, project="p", title="t",
+            items=[{"id":"1","type":"a","summary":"x","detail":None,"position":0}],
+            timeout_seconds=1200, metadata={},
+        )
+        # 模擬先前 push 失敗
+        await crud.set_approval_push_info(
+            s, ap.id, chat_id=None, message_id=None,
+            push_state=PushState.push_failed, last_push_error="prior failure",
+        )
+
+    tg = FakeTg(fail_send=False)
+    await retry_and_probe(settings=settings, tg=tg)
+
+    # 重送成功: 呼叫 send_message 一次 + 更新 push_state=pushed
+    assert len(tg.sent) == 1
+    assert tg.probed == 1  # 每次 run 都 probe 一次
+    assert TG_STATUS["status"] == "ok"
+
+    async with session_maker()() as s:
+        got = await crud.get_approval(s, ap.id)
+        assert got.push_state == PushState.pushed
+        assert got.telegram_message_id == 99
+
+
+@pytest.mark.asyncio
+async def test_probe_marks_degraded_when_getme_fails(monkeypatch, pg_container):
+    monkeypatch.setenv("DATABASE_URL", pg_container)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "s")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "http://x")
+    monkeypatch.setenv("NOTIFY_HUB_CONSUMER_TOKENS", "alphaforge:af")
+    monkeypatch.setenv("ALLOWED_CHAT_IDS", "42")
+    settings = Settings()
+    init_engine(settings)
+
+    class BrokenTg:
+        async def send_message(self, **kw): raise RuntimeError("x")
+        async def get_me(self): raise RuntimeError("telegram unreachable")
+
+    await retry_and_probe(settings=settings, tg=BrokenTg())
+    assert TG_STATUS["status"] == "degraded"
+    assert "unreachable" in TG_STATUS["last_error"]
+```
+
+- [ ] **Step 3: 在 telegram client 加 `get_me`**
+
+```python
+# src/notify_hub/telegram/client.py 加 method
+async def get_me(self) -> dict:
+    return await self._call("getMe", {})
+```
+
+- [ ] **Step 4: 實作 push_retry.py**
+
+```python
+# src/notify_hub/scheduler/push_retry.py
+from sqlalchemy import select
+from notify_hub.db.models import Approval, ApprovalStatus, PushState
+from notify_hub.db.session import session_maker
+from notify_hub.db import crud
+from notify_hub.main import update_tg_status
+from notify_hub.telegram.formatter import (
+    build_approval_message, build_keyboard_top, split_long_message,
+)
+
+
+async def retry_and_probe(*, settings, tg) -> None:
+    """每小時跑: 重送 push_failed 的 approval + probe telegram 健康狀態。
+
+    兩件事綁同一 job 的理由: 重送也是一種 probe, 失敗/成功都可以拿來刷 TG_STATUS;
+    若當下沒 failed approval 要重送, 仍主動打 getMe 確保 healthz 不會因為沒流量而停滯。
+    """
+    allowed = settings.allowed_chat_ids
+    if not allowed:
+        return
+    chat_id = allowed[0]
+
+    # Step 1: 掃 push_failed AND 仍 pending (非 timeout/approved/rejected)
+    async with session_maker()() as s:
+        r = await s.execute(
+            select(Approval).where(
+                Approval.push_state == PushState.push_failed,
+                Approval.status == ApprovalStatus.pending,
+            )
+        )
+        failed = r.scalars().all()
+        any_push_result = False
+
+        for ap in failed:
+            ap_full = await crud.get_approval(s, ap.id)
+            text = build_approval_message(
+                project=ap_full.project, title=ap_full.title,
+                items=[{"item_id": it.item_id, "type": it.type, "summary": it.summary}
+                       for it in ap_full.items],
+            )
+            kb = build_keyboard_top(approval_id=str(ap_full.id))
+            parts = split_long_message(text)
+            try:
+                r_send = await tg.send_message(chat_id=chat_id, text=parts[0], reply_markup=kb)
+                for extra in parts[1:]:
+                    await tg.send_message(chat_id=chat_id, text=extra)
+                # 若原本是靜音時段建立 (expires_at IS NULL), start_countdown 會順便設倒數
+                needs_countdown = ap_full.expires_at is None
+                await crud.set_approval_push_info(
+                    s, ap_full.id,
+                    chat_id=chat_id, message_id=r_send["message_id"],
+                    push_state=PushState.pushed,
+                    start_countdown=needs_countdown,
+                )
+                update_tg_status(ok=True)
+                any_push_result = True
+            except Exception as e:
+                await crud.set_approval_push_info(
+                    s, ap_full.id, chat_id=None, message_id=None,
+                    push_state=PushState.push_failed, last_push_error=str(e)[:500],
+                )
+                update_tg_status(ok=False, error=str(e)[:200])
+                any_push_result = True
+
+    # Step 2: 若本輪沒有任何 push 刷到 cache, 主動 probe getMe
+    if not any_push_result:
+        try:
+            await tg.get_me()
+            update_tg_status(ok=True)
+        except Exception as e:
+            update_tg_status(ok=False, error=str(e)[:200])
+```
+
+- [ ] **Step 5: 加到 scheduler runtime**
+
+```python
+# scheduler/runtime.py 加
+from notify_hub.scheduler.push_retry import retry_and_probe
+
+sched.add_job(
+    retry_and_probe, IntervalTrigger(hours=1),
+    kwargs={"settings": settings, "tg": tg},
+    id="push_retry", replace_existing=True, max_instances=1,
+)
+```
+
+- [ ] **Step 6: 跑 pass + commit**
+
+```bash
+./.venv/bin/pytest tests/integration/test_push_retry.py tests/unit/test_tg_status_cache.py -v
+git add -A && git commit -m "feat(scheduler): hourly push retry + telegram health probe"
 ```
 
 ---

@@ -2,7 +2,13 @@
 
 # notify-hub — 設計規格
 
-`文件版本: 2026-04-22a`
+`文件版本: 2026-04-24a`
+
+> **v2 修訂 (2026-04-24):**
+> - §3.3 `approvals.expires_at` 改 nullable; 靜音時段建立的 approval 先不設, flush 推出後才啟動倒數 (避免 quiet hours × timeout 撞車)
+> - §4.7 `/healthz` telegram 狀態值擴充為 `ok / degraded / unknown / skipped`; 由 runtime push 行為與每小時 probe 更新, 不再只依賴 startup 那一瞬間
+> - §7.2 明確列為必做項 (push retry 每小時掃 push_failed), 不是 optional
+> - §7.4 timeout sweeper 明確排除 `expires_at IS NULL` 的 approval
 
 ## 0. 目的
 
@@ -114,7 +120,7 @@ v1 預期僅 1 筆 (部署者本人)。多 subscriber 時的廣播策略留到�
 | `idempotency_key` | varchar nullable | consumer 帶入，去重用 |
 | `timeout_seconds` | int | 預設 1200 |
 | `created_at` | timestamptz | |
-| `expires_at` | timestamptz | `created_at + timeout_seconds` |
+| `expires_at` | timestamptz nullable | 白天 = `created_at + timeout_seconds`; 靜音時段建立時 = `NULL`, 等 `quiet_hours_flush` 推出後才設為 `pushed_at + timeout_seconds` |
 | `decided_at` | timestamptz nullable | 最後一項被批完時間 |
 | `telegram_chat_id` | bigint nullable | 推播的 chat_id |
 | `telegram_message_id` | bigint nullable | 原訊息 id，編輯用 |
@@ -309,7 +315,15 @@ Hub 若 `notify_chat_id` 有值，觸發 Telegram push 告知使用者「任務�
 {"db": "ok", "telegram": "ok", "queue_size": 3, "version": "0.1.0"}
 ```
 
-若 `db` 或 `telegram` 非 `ok`，回 503。consumer 應在 tick 開頭先打一次。
+`telegram` 值:
+- `ok`: 最近一次 push 或 `getMe` probe 成功
+- `degraded`: 近一次 push 或 probe 失敗 (錯誤存於 `TG_STATUS.last_error` in-memory, 不在此 response 暴露)
+- `unknown`: 尚未有任何 push / probe 結果 (罕見, 啟動後短暫狀態)
+- `skipped`: 測試用, 啟動時不做 Telegram 健康檢查
+
+`db` 或 `telegram=degraded` 時回 503。Consumer 應在 tick 開頭先打一次; 若 503, 走 AlphaForge spec §4.4 的 `docs/proposals/` fallback。
+
+`telegram` 狀態不是靜態快照: push 成功 → `ok`, push 失敗 → `degraded`; 此外每小時 `push_retry` job (見 §7.2) 會主動 `getMe` 更新 cache, 避免沒流量時狀態永遠停滯。
 
 ### 4.8 `POST /tg/webhook`
 
@@ -501,7 +515,8 @@ Hub 在 spec 層**不需要額外做什麼**，只需確保: (a) 錯誤時給清
 ### 7.2 Hub 內部重試
 
 - Telegram push 失敗: 指數退避 (1s, 5s, 30s)，5 分鐘內重試；仍失敗則 `push_state=push_failed`，記錄 `last_push_error`
-- 每小時跑一次掃描，重送 `push_failed` 但仍 pending 的 approval
+- **每小時跑一次 `push_retry` 排程** (plan Task 19.5): 掃 `push_state=push_failed AND status=pending` 重送; 同一排程也主動打 `getMe` 刷新 `TG_STATUS` cache (即使當下沒 failed approval 要重送)
+- 重送成功若該 approval 原本在靜音時段建立 (`expires_at IS NULL`), 一併啟動倒數
 - **不主動發 Gmail 通知 Telegram 長期失效** (詳見 §10 決策)
 
 ### 7.3 Idempotency
@@ -516,7 +531,8 @@ Key 保留 7 天後連同 approval 一起 archive。
 ### 7.4 Timeout 自動結案
 
 背景 worker 每 30 秒掃一次 `approvals` 表:
-- `status=pending AND expires_at < now()` → 全部未決項目寫入 `decisions` 狀態 `timeout`，approval 狀態改 `timeout`
+- `status=pending AND expires_at IS NOT NULL AND expires_at < now()` → 全部未決項目寫入 `decisions` 狀態 `timeout`，approval 狀態改 `timeout`
+- **`expires_at IS NULL` 的 approval 代表仍在靜音時段 queue 等 flush, 尚未開始倒數, sweeper 必須跳過** (避免半夜建立的 approval 被 sweeper 強制掃掉, 使用者早上醒來看不到)
 - 編輯原 Telegram 訊息加註「⏱ 20 分鐘已到，未批覆自動結束」
 - Consumer long-poll 下次撥打會立刻拿到 `status=timeout`
 
