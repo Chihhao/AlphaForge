@@ -3127,7 +3127,7 @@ git add -A && git commit -m "feat(dispatcher): back button preserves decisions"
 
 **Approach:** 使用 `decisions.reject_reason=NULL` + 加一張 in-memory 狀態，簡化為「找最近 5 分鐘內 chat 送出的 `item_reject` 或 `reject_all` 決定若 `reject_reason` 仍 NULL，就拿下一則 message 當理由」。不需要新表，用 DB query 即可。
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_reject_reason.py
@@ -3241,7 +3241,7 @@ async def test_skip_reject_reason(app, monkeypatch):
             assert d.reject_reason is None
 ```
 
-- [ ] **Step 2: 加 crud helper: find_pending_reject**
+- [x] **Step 2: 加 crud helper: find_pending_reject**
 
 ```python
 # 加到 crud.py
@@ -3277,7 +3277,7 @@ async def mark_reject_reason_skipped(session: AsyncSession, decision_id: int) ->
     await session.commit()
 ```
 
-- [ ] **Step 3: 實作 ask_reject_reason + message 分派**
+- [x] **Step 3: 實作 ask_reject_reason + message 分派**
 
 ```python
 # dispatcher.py
@@ -3325,7 +3325,7 @@ async def _handle_task_command(msg, *, text, session, settings, tg):
     pass  # Task 22
 ```
 
-- [ ] **Step 4: 跑 pass + commit**
+- [x] **Step 4: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_reject_reason.py -v
