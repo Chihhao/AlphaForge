@@ -3009,7 +3009,7 @@ git add -A && git commit -m "feat(dispatcher): per-item approval panel"
 - Modify: `src/notify_hub/telegram/dispatcher.py`
 - Create: `tests/integration/test_back_button.py`
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_back_button.py
@@ -3078,7 +3078,7 @@ async def test_back_preserves_decisions(app, monkeypatch):
             assert item1_d[0].decision.value == "approved"
 ```
 
-- [ ] **Step 2: 實作 back 分支**
+- [x] **Step 2: 實作 back 分支**
 
 加入 `_render_top_keyboard`:
 
@@ -3109,7 +3109,7 @@ handler:
         return
 ```
 
-- [ ] **Step 3: 跑 pass + commit**
+- [x] **Step 3: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_back_button.py -v
