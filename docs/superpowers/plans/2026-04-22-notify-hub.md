@@ -3342,7 +3342,7 @@ git add -A && git commit -m "feat(dispatcher): ForceReply reject reason capture 
 - Modify: `src/notify_hub/main.py` (start scheduler in lifespan)
 - Create: `tests/integration/test_timeout_close.py`
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_timeout_close.py
@@ -3392,7 +3392,7 @@ async def test_sweep_closes_expired(monkeypatch, pg_container):
         assert any(d.decision.value == "timeout" for d in got.decisions)
 ```
 
-- [ ] **Step 2: 實作 sweeper + runtime**
+- [x] **Step 2: 實作 sweeper + runtime**
 
 ```python
 # src/notify_hub/scheduler/timeout_sweeper.py
@@ -3444,7 +3444,7 @@ def build_scheduler(*, settings, tg) -> AsyncIOScheduler:
     return sched
 ```
 
-- [ ] **Step 3: 在 main.py 啟動 scheduler**
+- [x] **Step 3: 在 main.py 啟動 scheduler**
 
 ```python
 from notify_hub.scheduler.runtime import build_scheduler
@@ -3460,7 +3460,7 @@ async def lifespan(app):
     ...
 ```
 
-- [ ] **Step 4: 跑 pass + commit**
+- [x] **Step 4: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_timeout_close.py -v
