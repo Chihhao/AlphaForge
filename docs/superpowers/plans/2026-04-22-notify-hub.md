@@ -3790,7 +3790,7 @@ git add -A && git commit -m "feat(scheduler): daily 04:00 cleanup of old jobs"
 - Create: `tests/integration/test_push_retry.py`
 - Create: `tests/unit/test_tg_status_cache.py`
 
-- [ ] **Step 1: 寫 unit test (TG_STATUS cache 行為)**
+- [x] **Step 1: 寫 unit test (TG_STATUS cache 行為)**
 
 ```python
 # tests/unit/test_tg_status_cache.py
@@ -3810,7 +3810,7 @@ def test_update_failure_captures_error():
     assert "429" in TG_STATUS["last_error"]
 ```
 
-- [ ] **Step 2: 寫 integration test (retry 真的會重送 + cache 被刷新)**
+- [x] **Step 2: 寫 integration test (retry 真的會重送 + cache 被刷新)**
 
 ```python
 # tests/integration/test_push_retry.py
@@ -3898,7 +3898,7 @@ async def test_probe_marks_degraded_when_getme_fails(monkeypatch, pg_container):
     assert "unreachable" in TG_STATUS["last_error"]
 ```
 
-- [ ] **Step 3: 在 telegram client 加 `get_me`**
+- [x] **Step 3: 在 telegram client 加 `get_me`** (skip — 已在 Task 7 實作完)
 
 ```python
 # src/notify_hub/telegram/client.py 加 method
@@ -3906,7 +3906,7 @@ async def get_me(self) -> dict:
     return await self._call("getMe", {})
 ```
 
-- [ ] **Step 4: 實作 push_retry.py**
+- [x] **Step 4: 實作 push_retry.py**
 
 ```python
 # src/notify_hub/scheduler/push_retry.py
@@ -3982,7 +3982,7 @@ async def retry_and_probe(*, settings, tg) -> None:
             update_tg_status(ok=False, error=str(e)[:200])
 ```
 
-- [ ] **Step 5: 加到 scheduler runtime**
+- [x] **Step 5: 加到 scheduler runtime**
 
 ```python
 # scheduler/runtime.py 加
@@ -3995,7 +3995,7 @@ sched.add_job(
 )
 ```
 
-- [ ] **Step 6: 跑 pass + commit**
+- [x] **Step 6: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_push_retry.py tests/unit/test_tg_status_cache.py -v
