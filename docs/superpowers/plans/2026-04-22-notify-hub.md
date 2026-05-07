@@ -3477,7 +3477,7 @@ git add -A && git commit -m "feat(scheduler): timeout sweeper every 30s"
 - Create: `tests/integration/test_quiet_hours_flush.py`
 - Create: `tests/unit/test_quiet_hours.py`
 
-- [ ] **Step 1: 寫 unit test**
+- [x] **Step 1: 寫 unit test**
 
 ```python
 # tests/unit/test_quiet_hours.py
@@ -3522,7 +3522,7 @@ def test_boundary_07_00():
     assert is_quiet_hour_now(s, datetime(2026, 4, 22, 7, 0, tzinfo=tz)) is False
 ```
 
-- [ ] **Step 2: 寫 integration test**
+- [x] **Step 2: 寫 integration test**
 
 ```python
 # tests/integration/test_quiet_hours_flush.py
@@ -3577,7 +3577,7 @@ async def test_flush_pushes_suppressed(monkeypatch, pg_container):
         assert timedelta(minutes=50) < delta < timedelta(minutes=70)
 ```
 
-- [ ] **Step 3: 實作 flush_suppressed**
+- [x] **Step 3: 實作 flush_suppressed**
 
 ```python
 # 加到 quiet_hours_flush.py
@@ -3641,7 +3641,7 @@ async def flush_suppressed(*, settings, tg) -> None:
                 header = ""  # 後續訊息不重複 header
 ```
 
-- [ ] **Step 4: 加到 scheduler**
+- [x] **Step 4: 加到 scheduler**
 
 ```python
 # scheduler/runtime.py 加
@@ -3664,7 +3664,7 @@ def build_scheduler(*, settings, tg) -> AsyncIOScheduler:
     return sched
 ```
 
-- [ ] **Step 5: 跑 pass + commit**
+- [x] **Step 5: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/unit/test_quiet_hours.py tests/integration/test_quiet_hours_flush.py -v
