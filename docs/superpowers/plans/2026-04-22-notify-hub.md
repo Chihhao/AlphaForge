@@ -3680,7 +3680,7 @@ git add -A && git commit -m "feat(scheduler): quiet hours flush at end time"
 - Modify: `src/notify_hub/scheduler/runtime.py`
 - Create: `tests/integration/test_cleanup.py`
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_cleanup.py
@@ -3724,7 +3724,7 @@ async def test_cleanup_deletes_old_jobs(monkeypatch, pg_container):
         assert r.scalar_one_or_none() is None
 ```
 
-- [ ] **Step 2: 實作 cleanup**
+- [x] **Step 2: 實作 cleanup**
 
 ```python
 # src/notify_hub/scheduler/cleanup.py
@@ -3755,7 +3755,7 @@ async def run_cleanup() -> None:
     # approvals 只做歸檔 (spec §3.7 不刪)，暫不實作 archived 欄位 → v0.1.0 不需要
 ```
 
-- [ ] **Step 3: 加 cron**
+- [x] **Step 3: 加 cron**
 
 ```python
 # scheduler/runtime.py 加
@@ -3767,7 +3767,7 @@ sched.add_job(
 )
 ```
 
-- [ ] **Step 4: 跑 pass + commit**
+- [x] **Step 4: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_cleanup.py -v
