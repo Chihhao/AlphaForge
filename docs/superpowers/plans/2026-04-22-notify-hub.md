@@ -4011,7 +4011,7 @@ git add -A && git commit -m "feat(scheduler): hourly push retry + telegram healt
 - Modify: `src/notify_hub/main.py`
 - Create: `tests/integration/test_jobs_api.py`
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_jobs_api.py
@@ -4072,7 +4072,7 @@ async def test_agent_mismatch_400(app):
         assert r.status_code == 400
 ```
 
-- [ ] **Step 2: 實作 jobs router**
+- [x] **Step 2: 實作 jobs router**
 
 ```python
 # src/notify_hub/api/jobs.py
@@ -4152,7 +4152,7 @@ async def complete_job(
 
 register: `app.include_router(jobs.router)`
 
-- [ ] **Step 3: 跑 pass + commit**
+- [x] **Step 3: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_jobs_api.py -v
