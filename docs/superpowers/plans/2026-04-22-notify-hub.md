@@ -4167,7 +4167,7 @@ git add -A && git commit -m "feat(api): POST /v1/jobs + GET /v1/jobs/next + /com
 - Modify: `src/notify_hub/api/jobs.py` (加 push 後段)
 - Create: `tests/integration/test_job_complete_push.py`
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_job_complete_push.py
@@ -4206,7 +4206,7 @@ async def test_complete_pushes_notify_chat(app, monkeypatch):
     assert sent[0]["chat_id"] == 42
 ```
 
-- [ ] **Step 2: 修 complete endpoint 加 push**
+- [x] **Step 2: 修 complete endpoint 加 push**
 
 ```python
 # src/notify_hub/api/jobs.py (替換 complete_job)
@@ -4240,7 +4240,7 @@ async def complete_job(
     return {"ok": True}
 ```
 
-- [ ] **Step 3: 跑 pass + commit**
+- [x] **Step 3: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_job_complete_push.py -v
@@ -4255,7 +4255,7 @@ git add -A && git commit -m "feat(api): job complete triggers telegram notify"
 - Modify: `src/notify_hub/telegram/dispatcher.py`
 - Create: `tests/integration/test_task_command.py`
 
-- [ ] **Step 1: 寫 test**
+- [x] **Step 1: 寫 test**
 
 ```python
 # tests/integration/test_task_command.py
@@ -4310,7 +4310,7 @@ async def test_task_command_creates_job(app, monkeypatch):
         assert job.notify_chat_id == 42
 ```
 
-- [ ] **Step 2: 實作 /task handler**
+- [x] **Step 2: 實作 /task handler**
 
 ```python
 # dispatcher.py
@@ -4339,7 +4339,7 @@ async def _handle_task_command(msg, *, text, session, settings, tg):
     )
 ```
 
-- [ ] **Step 3: 確保 consumers 表有 alphaforge 資料**
+- [x] **Step 3: 確保 consumers 表有 alphaforge 資料**
 
 要在啟動時把 env 裡宣告的 consumers 同步進 DB。修改 `main.py` lifespan:
 
@@ -4363,7 +4363,7 @@ async def lifespan(app):
 
 因為 auth.py 的 `verify_consumer_token` 用明碼比對，但 consumers 表存 hash。需統一: 要嘛 auth 改存明碼到 memory 比對 consumer_name (目前實作已經是對 memory dict 比對)，要嘛 DB 對照 hash。當前設計 auth 走 memory dict (快)，DB 只存 consumer name。OK 設計一致。
 
-- [ ] **Step 4: 跑 pass + commit**
+- [x] **Step 4: 跑 pass + commit**
 
 ```bash
 ./.venv/bin/pytest tests/integration/test_task_command.py -v
@@ -4379,7 +4379,7 @@ git add -A && git commit -m "feat(dispatcher): /task command creates agent_job +
 - Create: `docker-compose.yml`
 - Create: `.dockerignore`
 
-- [ ] **Step 1: 寫 Dockerfile**
+- [x] **Step 1: 寫 Dockerfile**
 
 ```dockerfile
 FROM python:3.12-slim AS builder
@@ -4401,7 +4401,7 @@ EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn notify_hub.main:app --host 0.0.0.0 --port 8080"]
 ```
 
-- [ ] **Step 2: docker-compose.yml**
+- [x] **Step 2: docker-compose.yml**
 
 ```yaml
 version: "3.9"
@@ -4426,7 +4426,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
 ```
 
-- [ ] **Step 3: .dockerignore**
+- [x] **Step 3: .dockerignore**
 
 ```
 .venv
@@ -4438,13 +4438,13 @@ tests
 .env
 ```
 
-- [ ] **Step 4: 本機 build 驗證**
+- [x] **Step 4: 本機 build 驗證**
 
 ```bash
 docker build -t notify-hub:dev ~/Documents/GitHub/notify-hub
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "build: Dockerfile + docker-compose with alembic migration on start"
@@ -4457,7 +4457,7 @@ git add -A && git commit -m "build: Dockerfile + docker-compose with alembic mig
 **Files:**
 - Create: `README.md`
 
-- [ ] **Step 1: 寫 README**
+- [x] **Step 1: 寫 README**
 
 ```markdown
 ###### tags: `notify-hub`,`README`
@@ -4546,7 +4546,7 @@ python tests/smoke/smoke_test.py
 MIT
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add -A && git commit -m "docs: README with quickstart + API reference"
@@ -4560,7 +4560,7 @@ git add -A && git commit -m "docs: README with quickstart + API reference"
 - Create: `tests/smoke/smoke_test.py`
 - Create: `tests/smoke/README.md`
 
-- [ ] **Step 1: 寫 smoke_test.py**
+- [x] **Step 1: 寫 smoke_test.py**
 
 ```python
 #!/usr/bin/env python3
@@ -4620,7 +4620,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 2: 手動跑 smoke (部署後)**
+- [ ] **Step 2: 手動跑 smoke (部署後)** _← 等 NAS 部署後人工驗證_
 
 ```bash
 export NOTIFY_HUB_URL=http://localhost:8080
@@ -4634,7 +4634,7 @@ python ~/Documents/GitHub/notify-hub/tests/smoke/smoke_test.py
 3. 按「👀 逐項批」，再按項目 1 同意、項目 2 拒絕 → `wait` 回 `mixed`
 4. 拒絕後收到 ForceReply，回一句話驗證 reject_reason 被存
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "test(smoke): end-to-end script against real Telegram bot"
@@ -4644,7 +4644,7 @@ git add -A && git commit -m "test(smoke): end-to-end script against real Telegra
 
 ## 全量整合驗證
 
-- [ ] **Step 1: 跑全部測試**
+- [x] **Step 1: 跑全部測試** — 72/72 綠 (2026-05-08)
 
 ```bash
 cd ~/Documents/GitHub/notify-hub
