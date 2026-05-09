@@ -4660,26 +4660,23 @@ cd ~/Documents/GitHub/notify-hub
 
 目標 80%。
 
-- [ ] **Step 2: NAS 部署驗證**
+- [x] **Step 2: NAS 部署驗證** (2026-05-09)
 
-```bash
-# 本機 git commit 後等 Synology Drive 同步
-# SSH 進 NAS:
-cd /volume1/docker/notify-hub
-docker-compose up -d --build
-docker logs -f notify-hub   # 看 startup + migration
-curl http://localhost:8080/healthz
-```
+實際路徑為 `/volume1/homes/chihhaolai/Drive/Documents-mac-m1/GitHub/notify-hub` (走 Synology Drive sync, 非 plan 寫的 `/volume1/docker/notify-hub`)。docker-compose 加了 internal postgres service + 雙 network (`notify-hub-internal` + `homelab-gateway`)。Dockerfile CMD 修為 `--factory create_app` (memory 早記過, 抄 plan 漏掉)。host port 8081。
 
-- [ ] **Step 3: nginx-router 設定新 location**
+- [x] **Step 3: nginx-router 設定新 location** (2026-05-09)
 
-(按 spec §8.3 模板)
+`/notify-hub/` location 加在 `/alphaforge` 之後 `/` catch-all 之前, `proxy_pass http://notify-hub:8080/` (結尾 slash strip prefix)。兩個 container 共在 `homelab-gateway` external network 所以 nginx-router 可用 container name 解析。
 
-- [ ] **Step 4: setWebhook 指向生產 URL**
+- [x] **Step 4: setWebhook 指向生產 URL** (2026-05-09)
 
-- [ ] **Step 5: 從 Mac 跑 smoke_test.py 打 NAS**
+踩到 SSL 雷: 路由器把外部 443 forward 到 NAS 8443, NAS 上 8443 server block 用 `c6c31c44` self-signed cert → Telegram 拒。改 `/etc/nginx/app.d/server.ReverseProxy.conf` 把 8443 cert 從 c6c31c44 換成 `51795a90` (Let's Encrypt) + `nginx -s reload`, setWebhook URL 改 domain `https://junesnow39.synology.me/notify-hub/tg/webhook` (Let's Encrypt cert SAN 不含 IP)。
 
-- [ ] **Step 6: 標 v0.1.0 tag**
+- [x] **Step 5: 從 Mac 跑 smoke_test.py 打 NAS** (2026-05-09)
+
+`NOTIFY_HUB_URL=https://junesnow39.synology.me/notify-hub` + token 跑通: healthz 200 → POST /v1/approvals 201 push_state=pushed → wait long-poll → user 按「全部同意」→ status=approved + per_item 兩件都 approved。
+
+- [x] **Step 6: 標 v0.1.0 tag** (2026-05-09)
 
 ```bash
 cd ~/Documents/GitHub/notify-hub
