@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+import httpx
+
 
 class HubDegradedError(Exception):
     """notify-hub call failed (network / HTTP / auth)."""
@@ -37,3 +39,43 @@ def _load_config() -> _Config:
     if not token:
         raise ConfigError("NOTIFY_HUB_TOKEN not set")
     return _Config(base_url=url.rstrip("/"), token=token)
+
+
+def approve_request(
+    project: str,
+    title: str,
+    items: list[dict],
+    timeout_seconds: int = 1200,
+    idempotency_key: str | None = None,
+    metadata: dict | None = None,
+    _transport: httpx.BaseTransport | None = None,
+) -> str:
+    """POST /v1/approvals, return request_id。Hub fail raise HubDegradedError。
+
+    `_transport` 給測試 inject MockTransport, production code 不 pass。
+    """
+    cfg = _load_config()
+    body = {
+        "project": project,
+        "title": title,
+        "items": items,
+        "timeout_seconds": timeout_seconds,
+        "metadata": metadata or {},
+    }
+    headers = {
+        "Authorization": f"Bearer {cfg.token}",
+        "Content-Type": "application/json",
+    }
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
+
+    try:
+        with httpx.Client(base_url=cfg.base_url, timeout=30.0, transport=_transport) as client:
+            r = client.post("/v1/approvals", json=body, headers=headers)
+    except httpx.HTTPError as e:
+        raise HubDegradedError(f"POST /v1/approvals failed: {type(e).__name__}: {e}") from e
+
+    if r.status_code != 201:
+        raise HubDegradedError(f"POST /v1/approvals returned {r.status_code}: {r.text[:200]}")
+
+    return r.json()["request_id"]
