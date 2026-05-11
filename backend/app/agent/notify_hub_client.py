@@ -12,6 +12,7 @@ Exceptions:
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -79,3 +80,46 @@ def approve_request(
         raise HubDegradedError(f"POST /v1/approvals returned {r.status_code}: {r.text[:200]}")
 
     return r.json()["request_id"]
+
+
+def wait_result(
+    request_id: str,
+    overall_timeout_seconds: int = 1200,
+    _transport: httpx.BaseTransport | None = None,
+) -> dict:
+    """Long-poll loop, 多次 GET /<id>/wait?timeout=55 直到 status != pending or
+    cumulative time >= overall_timeout。
+
+    Return:
+      - status='approved' | 'rejected': 含 decided_at + per_item
+      - status='timeout': overall 過, 含 request_id
+    Hub fail raise HubDegradedError。
+    """
+    cfg = _load_config()
+    headers = {"Authorization": f"Bearer {cfg.token}"}
+
+    deadline = time.monotonic() + overall_timeout_seconds
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return {"status": "timeout", "request_id": request_id}
+        # 每次 long-poll 上限 55s (notify-hub server cap), 但不超過 remaining
+        per_call = min(55, max(1, int(remaining)))
+
+        try:
+            with httpx.Client(base_url=cfg.base_url, timeout=per_call + 5, transport=_transport) as client:
+                r = client.get(
+                    f"/v1/approvals/{request_id}/wait",
+                    params={"timeout": per_call},
+                    headers=headers,
+                )
+        except httpx.HTTPError as e:
+            raise HubDegradedError(f"GET wait failed: {type(e).__name__}: {e}") from e
+
+        if r.status_code != 200:
+            raise HubDegradedError(f"GET wait returned {r.status_code}: {r.text[:200]}")
+
+        body = r.json()
+        if body.get("status") != "pending":
+            return body
+        # 仍 pending, loop 再來

@@ -7,6 +7,7 @@ from app.agent.notify_hub_client import (
     HubDegradedError,
     _load_config,
     approve_request,
+    wait_result,
 )
 
 
@@ -96,5 +97,87 @@ def test_approve_request_401_raises(monkeypatch):
     with pytest.raises(HubDegradedError, match="401"):
         approve_request(
             project="alphaforge", title="t", items=[{"id": "1", "type": "t", "summary": "s"}],
+            _transport=_mock_transport(handler),
+        )
+
+
+# ── wait_result ──────────────────────────────────────────────
+
+
+def test_wait_result_first_call_approved(monkeypatch):
+    _env(monkeypatch)
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(200, json={
+            "request_id": "abc-123",
+            "status": "approved",
+            "decided_at": "2026-05-11T03:05:00Z",
+            "per_item": [{"id": "1", "decision": "approved", "reject_reason": None}],
+        })
+
+    result = wait_result(
+        request_id="abc-123",
+        overall_timeout_seconds=60,
+        _transport=_mock_transport(handler),
+    )
+    assert result["status"] == "approved"
+    assert result["per_item"][0]["decision"] == "approved"
+    assert len(calls) == 1
+
+
+def test_wait_result_multi_round_until_approved(monkeypatch):
+    _env(monkeypatch)
+    sequence = ["pending", "pending", "approved"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        idx = handler.calls
+        handler.calls += 1
+        status = sequence[idx]
+        body = {"request_id": "abc", "status": status, "per_item": []}
+        if status == "approved":
+            body["decided_at"] = "2026-05-11T03:05:00Z"
+        return httpx.Response(200, json=body)
+    handler.calls = 0
+
+    result = wait_result(
+        request_id="abc",
+        overall_timeout_seconds=300,
+        _transport=_mock_transport(handler),
+    )
+    assert result["status"] == "approved"
+    assert handler.calls == 3
+
+
+def test_wait_result_overall_timeout(monkeypatch):
+    _env(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "request_id": "abc",
+            "status": "pending",
+            "per_item": [],
+        })
+
+    result = wait_result(
+        request_id="abc",
+        overall_timeout_seconds=1,
+        _transport=_mock_transport(handler),
+    )
+    assert result["status"] == "timeout"
+    assert result["request_id"] == "abc"
+
+
+def test_wait_result_connect_error_raises(monkeypatch):
+    _env(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("network down")
+
+    with pytest.raises(HubDegradedError, match="wait"):
+        wait_result(
+            request_id="abc",
+            overall_timeout_seconds=60,
             _transport=_mock_transport(handler),
         )
