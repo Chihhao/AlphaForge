@@ -195,3 +195,57 @@ def _fallback_to_proposals(
 
     candidate.write_text("\n".join(lines), encoding="utf-8")
     return candidate
+
+
+def approve_and_wait(
+    project: str,
+    title: str,
+    items: list[dict],
+    timeout_seconds: int = 1200,
+    idempotency_key: str | None = None,
+    metadata: dict | None = None,
+    proposals_dir: Union[Path, str] = Path("docs/proposals"),
+    _transport: httpx.BaseTransport | None = None,
+) -> dict:
+    """Sync mode: POST + long-poll wait, hub 失效自動 fallback to docs/proposals/。
+
+    Return shape:
+      {"status": "approved" | "rejected", "decided_at": "...", "per_item": [...]}
+      {"status": "timeout", "request_id": "..."}
+      {"status": "degraded", "proposal_path": "docs/proposals/..."}
+
+    `proposals_dir` 給測試 inject tmp_path; production 預設 docs/proposals/。
+    `_transport` 給測試 inject MockTransport。
+    """
+    date_str = datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d")
+    request_id: str | None = None
+
+    try:
+        request_id = approve_request(
+            project=project, title=title, items=items,
+            timeout_seconds=timeout_seconds,
+            idempotency_key=idempotency_key,
+            metadata=metadata,
+            _transport=_transport,
+        )
+    except HubDegradedError:
+        path = _fallback_to_proposals(
+            items=items, title=title, date=date_str,
+            request_id=None, proposals_dir=proposals_dir,
+        )
+        return {"status": "degraded", "proposal_path": str(path)}
+
+    try:
+        result = wait_result(
+            request_id=request_id,
+            overall_timeout_seconds=timeout_seconds,
+            _transport=_transport,
+        )
+    except HubDegradedError:
+        path = _fallback_to_proposals(
+            items=items, title=title, date=date_str,
+            request_id=request_id, proposals_dir=proposals_dir,
+        )
+        return {"status": "degraded", "proposal_path": str(path)}
+
+    return result

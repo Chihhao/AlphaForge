@@ -9,6 +9,7 @@ from app.agent.notify_hub_client import (
     HubDegradedError,
     _fallback_to_proposals,
     _load_config,
+    approve_and_wait,
     approve_request,
     wait_result,
 )
@@ -238,3 +239,117 @@ def test_fallback_includes_request_id_when_given(tmp_path: Path):
         proposals_dir=tmp_path,
     )
     assert "request_id: abc-123" in path.read_text(encoding="utf-8")
+
+
+# ── approve_and_wait ─────────────────────────────────────────
+
+
+def test_approve_and_wait_happy(monkeypatch, tmp_path):
+    _env(monkeypatch)
+    state = {"posted": False}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            state["posted"] = True
+            return httpx.Response(201, json={
+                "request_id": "abc",
+                "status": "pending",
+                "created_at": "2026-05-11T03:00:00Z",
+                "expires_at": "2026-05-11T03:20:00Z",
+                "push_state": "pushed",
+            })
+        # wait
+        return httpx.Response(200, json={
+            "request_id": "abc", "status": "approved",
+            "decided_at": "2026-05-11T03:05:00Z",
+            "per_item": [{"id": "1", "decision": "approved", "reject_reason": None}],
+        })
+
+    result = approve_and_wait(
+        project="alphaforge",
+        title="t",
+        items=[{"id": "1", "type": "t3", "summary": "s"}],
+        timeout_seconds=60,
+        proposals_dir=tmp_path,
+        _transport=_mock_transport(handler),
+    )
+    assert state["posted"]
+    assert result["status"] == "approved"
+
+
+def test_approve_and_wait_post_fail_fallback(monkeypatch, tmp_path):
+    _env(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    items = [{"id": "1", "type": "t3", "summary": "s", "detail": "d"}]
+    result = approve_and_wait(
+        project="alphaforge",
+        title="2026-05-11 night",
+        items=items,
+        timeout_seconds=60,
+        proposals_dir=tmp_path,
+        _transport=_mock_transport(handler),
+    )
+    assert result["status"] == "degraded"
+    proposal = Path(result["proposal_path"])
+    assert proposal.exists()
+    content = proposal.read_text(encoding="utf-8")
+    assert "request_id: null" in content
+    assert "Item 1: t3 — s" in content
+
+
+def test_approve_and_wait_wait_fail_fallback_with_request_id(monkeypatch, tmp_path):
+    _env(monkeypatch)
+    state = {"phase": "post"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if state["phase"] == "post":
+            state["phase"] = "wait"
+            return httpx.Response(201, json={
+                "request_id": "abc-123",
+                "status": "pending",
+                "created_at": "2026-05-11T03:00:00Z",
+                "expires_at": "2026-05-11T03:20:00Z",
+                "push_state": "pushed",
+            })
+        raise httpx.ConnectError("down during wait")
+
+    result = approve_and_wait(
+        project="alphaforge",
+        title="t",
+        items=[{"id": "1", "type": "t3", "summary": "s"}],
+        timeout_seconds=60,
+        proposals_dir=tmp_path,
+        _transport=_mock_transport(handler),
+    )
+    assert result["status"] == "degraded"
+    assert "request_id: abc-123" in Path(result["proposal_path"]).read_text(encoding="utf-8")
+
+
+def test_approve_and_wait_overall_timeout(monkeypatch, tmp_path):
+    _env(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(201, json={
+                "request_id": "abc",
+                "status": "pending",
+                "created_at": "2026-05-11T03:00:00Z",
+                "expires_at": "2026-05-11T03:20:00Z",
+                "push_state": "pushed",
+            })
+        return httpx.Response(200, json={
+            "request_id": "abc", "status": "pending", "per_item": [],
+        })
+
+    result = approve_and_wait(
+        project="alphaforge", title="t",
+        items=[{"id": "1", "type": "t3", "summary": "s"}],
+        timeout_seconds=1,
+        proposals_dir=tmp_path,
+        _transport=_mock_transport(handler),
+    )
+    assert result["status"] == "timeout"
+    assert result["request_id"] == "abc"
