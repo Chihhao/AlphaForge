@@ -24,7 +24,7 @@ Phase 2 把這個 placeholder 兌現:
   - `approve_request()` / `wait_result()` 低階 API (測試 + 將來 async 預留)
   - `_fallback_to_proposals()` 內部 helper
   - `HubDegradedError` / `ConfigError` exception
-- 改 `backend/app/agent/prompts/tick_evening.md` + `tick_night.md` Stage 6 (placeholder → 具體 Bash 呼叫)
+- 改 `backend/app/agent/prompts/tick_night.md` Stage 6 (placeholder → 具體 Bash 呼叫); **evening tick 是 T0 體檢型, 無 Stage 6, 不動**
 - 加 `backend/.env.example`: `NOTIFY_HUB_URL` / `NOTIFY_HUB_TOKEN` (user 自填 `.env`, `.gitignore` 已擋)
 - Test: unit (mock httpx) + integration (mock server) + e2e script (`backend/scripts/notify_hub_e2e.py` 手動跑 NAS)
 
