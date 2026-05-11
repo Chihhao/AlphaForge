@@ -30,7 +30,7 @@ def _load_env_file(path: Path) -> None:
 
 def main() -> int:
     repo_backend = Path(__file__).resolve().parents[1]
-    _load_env_file(repo_backend / ".env")
+    _load_env_file(repo_backend / ".notify-hub.env")
     sys.path.insert(0, str(repo_backend))
 
     from app.agent.notify_hub_client import approve_and_wait
