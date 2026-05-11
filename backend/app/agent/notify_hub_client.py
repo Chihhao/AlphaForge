@@ -141,16 +141,24 @@ def _slugify(s: str, max_len: int = 50) -> str:
     return s[:max_len] or "untitled"
 
 
+def _repo_root_proposals_dir() -> Path:
+    """notify_hub_client.py 在 backend/app/agent/, parents[3] = repo root。"""
+    return Path(__file__).resolve().parents[3] / "docs" / "proposals"
+
+
 def _fallback_to_proposals(
     items: list[dict],
     title: str,
     date: str,
     request_id: str | None = None,
-    proposals_dir: Union[Path, str] = Path("docs/proposals"),
+    proposals_dir: Union[Path, str, None] = None,
 ) -> Path:
     """Hub 失效時落盤一份 proposal markdown。
-    Return: 寫入的 file path (相對或絕對, 依 proposals_dir)。
+    proposals_dir=None 用 repo_root/docs/proposals/ (基於 __file__ 推導, cwd 無關)。
+    Return: 寫入的 file path。
     """
+    if proposals_dir is None:
+        proposals_dir = _repo_root_proposals_dir()
     proposals_dir = Path(proposals_dir)
     proposals_dir.mkdir(parents=True, exist_ok=True)
 
@@ -204,7 +212,7 @@ def approve_and_wait(
     timeout_seconds: int = 1200,
     idempotency_key: str | None = None,
     metadata: dict | None = None,
-    proposals_dir: Union[Path, str] = Path("docs/proposals"),
+    proposals_dir: Union[Path, str, None] = None,
     _transport: httpx.BaseTransport | None = None,
 ) -> dict:
     """Sync mode: POST + long-poll wait, hub 失效自動 fallback to docs/proposals/。
@@ -214,8 +222,8 @@ def approve_and_wait(
       {"status": "timeout", "request_id": "..."}
       {"status": "degraded", "proposal_path": "docs/proposals/..."}
 
-    `proposals_dir` 給測試 inject tmp_path; production 預設 docs/proposals/。
-    `_transport` 給測試 inject MockTransport。
+    `proposals_dir=None` 用 repo_root/docs/proposals/ (基於 __file__ 推導);
+    給測試 inject tmp_path; `_transport` 給測試 inject MockTransport。
     """
     date_str = datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d")
     request_id: str | None = None
