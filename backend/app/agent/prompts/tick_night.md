@@ -53,12 +53,42 @@ E) Agent 自主新因子研究 → 只能落 T1 (research script), 不進 produc
 - Smoke 紅 → `git reset --hard <tick_start_sha>` + docker tag rollback + `[CRITICAL]` email
 - Smoke 綠 → `deploy_lock.advance(... SUCCESS)`
 
-### Stage 6: Approval (若 notify-hub 已上線)
-累積 pending proposals → 呼叫 `notify_hub.approve_request(...)`, 策略:
-- T3 action (本 tick 需落地) → sync (timeout 1200 sec)
-- Memory / frontend / budget → async
+### Stage 6: Approval (notify-hub 整合, Phase 2)
 
-**Hub 失效或未實作**: 所有 proposal 落盤 `docs/proposals/<slug>.md`, 寄 `[CRITICAL]` 通知使用者用 git mv 備援。
+累積本 tick 的 pending proposals (Stage 5 各題的 T3 action / memory-add / time-extension / frontend-proposal), 用以下 Bash 跑 (`items_json` 是上一步累積的清單, agent 自己組):
+
+```bash
+cd backend && ./.venv/bin/python -c "
+import json, sys, hashlib, datetime
+sys.path.insert(0, '.')
+from app.agent.notify_hub_client import approve_and_wait
+
+items = json.loads(r'''<JSON_ARRAY_OF_ITEMS_FROM_STAGE_5>''')
+title = f'{datetime.date.today().isoformat()} night tick — {len(items)} 項待批准'
+idem = f'{datetime.date.today().isoformat()}-night-' + hashlib.sha256(title.encode()).hexdigest()[:8]
+
+result = approve_and_wait(
+    project='alphaforge',
+    title=title,
+    items=items,
+    timeout_seconds=1200,
+    idempotency_key=idem,
+)
+print(json.dumps(result, ensure_ascii=False))
+"
+```
+
+依 stdout 的 `status` 欄位 dispatch:
+
+- `approved` → 執行各 item (T3 commit + smoke_test / memory-add 寫檔 / 其餘 type 對應動作); 日報記 `## Approval` 段含 per_item.decision
+- `rejected` → skip 對應 item; 日報註記 per_item 的 `reject_reason`
+- `timeout` → 寫日報 `## Approval timeout (request_id=<id>) — 隔天人工處理`, T3 全 skip
+- `degraded` →
+  1. 用 `mcp__claude_ai_Gmail__send` tool 寄 `[AlphaForge][CRITICAL] notify-hub 失效, 落盤 <proposal_path>` 給自己
+  2. 日報註記 `## Hub 失效 fallback (proposal_path=<path>)`
+  3. T3 全 skip (T2 in-backlog 仍可做)
+
+**Hub 失效或未實作**: helper 內自動 fallback 落盤 `docs/proposals/<slug>.md`, agent 看 `status='degraded'` 自己寄 Gmail。
 
 ### Stage 7: 收尾
 - 用 `report_builder.build_night_skeleton(date.today())` 產生日報骨架
