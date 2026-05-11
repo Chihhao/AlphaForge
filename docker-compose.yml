@@ -13,12 +13,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # 避免與 Synology 原生 PostgreSQL (5432) 衝突
+      - "5433:5432"
+    networks:
+      - homelab-gateway
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: alphaforge_backend  # Use existing image to avoid re-build
     container_name: alphaforge-backend
     restart: unless-stopped
     ports:
@@ -27,17 +27,14 @@ services:
       - ./backend/.env
     environment:
       - TZ=Asia/Taipei
-      - DATABASE_URL=postgresql://alphaforge:alphaforge_secret@postgres:5432/alphaforge
+      - DATABASE_URL=postgresql://alphaforge:alphaforge_secret@alphaforge-postgres:5432/alphaforge
     depends_on:
       - postgres
+    networks:
+      - homelab-gateway
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        # Relative path - browser will call via HTTPS through reverse proxy
-        NEXT_PUBLIC_API_URL: /alphaforge/api
+    image: alphaforge_frontend  # Use existing image to avoid re-build
     container_name: alphaforge-frontend
     restart: unless-stopped
     ports:
@@ -45,9 +42,15 @@ services:
     environment:
       - TZ=Asia/Taipei
       - NEXT_PUBLIC_API_URL=/alphaforge/api
-      - INTERNAL_API_URL=http://backend:8000
+      - INTERNAL_API_URL=http://alphaforge-backend:8000
     depends_on:
       - backend
+    networks:
+      - homelab-gateway
 
 volumes:
   postgres_data:
+
+networks:
+  homelab-gateway:
+    external: true
