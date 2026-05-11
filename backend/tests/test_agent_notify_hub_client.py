@@ -1,10 +1,13 @@
 import os
+from pathlib import Path
+
 import pytest
 import httpx
 
 from app.agent.notify_hub_client import (
     ConfigError,
     HubDegradedError,
+    _fallback_to_proposals,
     _load_config,
     approve_request,
     wait_result,
@@ -181,3 +184,57 @@ def test_wait_result_connect_error_raises(monkeypatch):
             overall_timeout_seconds=60,
             _transport=_mock_transport(handler),
         )
+
+
+# ── _fallback_to_proposals ───────────────────────────────────
+
+
+def test_fallback_writes_file_with_frontmatter(tmp_path: Path):
+    items = [
+        {"id": "1", "type": "t3-action", "summary": "改 X", "detail": "因 Y"},
+        {"id": "2", "type": "memory-add", "summary": "記 Z", "detail": None},
+    ]
+    path = _fallback_to_proposals(
+        items=items,
+        title="2026-05-11 night tick - 2 項",
+        date="2026-05-11",
+        proposals_dir=tmp_path,
+    )
+    assert path.exists()
+    content = path.read_text(encoding="utf-8")
+    assert content.startswith("---\n")
+    assert "status: pending" in content
+    assert "reason: notify-hub unreachable" in content
+    assert "request_id: null" in content
+    assert "## Item 1: t3-action — 改 X" in content
+    assert "因 Y" in content
+    assert "## Item 2: memory-add — 記 Z" in content
+
+
+def test_fallback_slug_from_title(tmp_path: Path):
+    path = _fallback_to_proposals(
+        items=[{"id": "1", "type": "t", "summary": "s"}],
+        title="Night Tick 2026-05-11",
+        date="2026-05-11",
+        proposals_dir=tmp_path,
+    )
+    assert path.name.startswith("2026-05-11-night-tick-2026-05-11")
+    assert path.suffix == ".md"
+
+
+def test_fallback_collision_appends_hash(tmp_path: Path):
+    items = [{"id": "1", "type": "t", "summary": "s"}]
+    path1 = _fallback_to_proposals(items, title="X", date="2026-05-11", proposals_dir=tmp_path)
+    path2 = _fallback_to_proposals(items, title="X", date="2026-05-11", proposals_dir=tmp_path)
+    assert path1 != path2
+    assert path2.exists()
+
+
+def test_fallback_includes_request_id_when_given(tmp_path: Path):
+    path = _fallback_to_proposals(
+        items=[{"id": "1", "type": "t", "summary": "s"}],
+        title="t", date="2026-05-11",
+        request_id="abc-123",
+        proposals_dir=tmp_path,
+    )
+    assert "request_id: abc-123" in path.read_text(encoding="utf-8")

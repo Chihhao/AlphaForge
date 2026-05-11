@@ -11,11 +11,19 @@ Exceptions:
 """
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from typing import Union
 
 import httpx
+
+
+TAIPEI_TZ = timezone(timedelta(hours=8))
 
 
 class HubDegradedError(Exception):
@@ -123,3 +131,67 @@ def wait_result(
         if body.get("status") != "pending":
             return body
         # 仍 pending, loop 再來
+
+
+def _slugify(s: str, max_len: int = 50) -> str:
+    """中文友善的 slugify: 留 a-z 0-9 與 CJK, 其餘 → '-'。"""
+    s = s.lower()
+    s = re.sub(r"[^a-z0-9一-鿿]+", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s[:max_len] or "untitled"
+
+
+def _fallback_to_proposals(
+    items: list[dict],
+    title: str,
+    date: str,
+    request_id: str | None = None,
+    proposals_dir: Union[Path, str] = Path("docs/proposals"),
+) -> Path:
+    """Hub 失效時落盤一份 proposal markdown。
+    Return: 寫入的 file path (相對或絕對, 依 proposals_dir)。
+    """
+    proposals_dir = Path(proposals_dir)
+    proposals_dir.mkdir(parents=True, exist_ok=True)
+
+    slug = _slugify(title)
+    base_name = f"{date}-{slug}"
+    candidate = proposals_dir / f"{base_name}.md"
+    if candidate.exists():
+        title_hash = hashlib.sha256(title.encode("utf-8")).hexdigest()[:4]
+        candidate = proposals_dir / f"{base_name}-{title_hash}.md"
+        # 仍 collision 再加 timestamp
+        if candidate.exists():
+            ts = datetime.now(TAIPEI_TZ).strftime("%H%M%S")
+            candidate = proposals_dir / f"{base_name}-{title_hash}-{ts}.md"
+
+    now = datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d %H:%M")
+    request_id_field = request_id if request_id else "null"
+    lines = [
+        "---",
+        "status: pending",
+        f"created_at: {now}",
+        f"slug: {slug}",
+        "reason: notify-hub unreachable; agent fallback (HubDegradedError)",
+        f"request_id: {request_id_field}",
+        "---",
+        "",
+        f"# {title}",
+        "",
+    ]
+    for i, item in enumerate(items, 1):
+        item_type = item.get("type", "unknown")
+        summary = item.get("summary", "")
+        detail = item.get("detail")
+        lines.append(f"## Item {i}: {item_type} — {summary}")
+        lines.append("")
+        if detail:
+            lines.append(detail)
+            lines.append("")
+
+    lines.append("---")
+    lines.append("備援: 看完用 `git mv docs/proposals/<this>.md docs/proposals/approved/` 表態。")
+    lines.append("")
+
+    candidate.write_text("\n".join(lines), encoding="utf-8")
+    return candidate
