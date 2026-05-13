@@ -2,7 +2,7 @@
 
 # AlphaForge Auto Agent — Install Guide
 
-`文件版本: 2026-04-19a`
+`文件版本: 2026-05-13a`
 
 ## 前置
 
@@ -32,16 +32,30 @@ tail -f ~/Library/Logs/AlphaForgeAgent/evening-*.log
 bash scripts/agent_install_launchd.sh uninstall
 ```
 
-## Phase 1 範圍限制
+## Phase 2 啟用 (2026-05-13 上線)
 
-目前 wrapper **只印 prompt, 不真的呼叫 `claude -p`**。要啟用完整 agent 需等:
+Wrapper 已切到 `claude -p --dangerously-skip-permissions` pipe 模式, 真實跑 agent。需要的環境:
 
-1. notify-hub spec + 實作完成 (外部依賴)
-2. Wrapper script 改 `AGENT_DRY_RUN=1` 為實際 `claude -p "$PROMPT"` pipe
+- `claude` CLI 在 `/Users/chihhaolai/.local/bin/claude` (Claude Code 已裝)
+- `backend/.notify-hub.env` 已填 `NOTIFY_HUB_URL` / `NOTIFY_HUB_TOKEN` (wrapper source 給 agent Stage 6 用)
+- `backend/.venv` 已建 + Phase 1/2 helpers (`app.agent.*`) import OK
 
-兩者完成前, 建議:
-- 保留 launchd 安裝但**不要真的啟用時段自動跑** (uninstall 後等 phase 2)
-- 僅用 `launchctl start` 手動觸發驗證 log / prompt 格式
+排程:
+- evening (`com.alphaforge.agent.evening`): **18:30** 跑 T0 體檢
+- night (`com.alphaforge.agent.night`): **03:00** 跑 T0-T2 主力 + Stage 6 approval 推 Telegram
+
+### Dry-run 驗證 (建議先跑)
+
+第一次正式排程跑會真的 commit / 寄 Gmail / 推 Telegram, 建議先 dry-run:
+
+```bash
+AGENT_DRY_RUN=1 bash scripts/agent_run_evening.sh
+AGENT_DRY_RUN=1 bash scripts/agent_run_night.sh
+tail ~/Library/Logs/AlphaForgeAgent/evening-*.log
+tail ~/Library/Logs/AlphaForgeAgent/night-*.log
+```
+
+預期: log 內含完整 prompt + `=== <tick> tick end ===`, **不含** `--- invoking claude -p ---` 字串 (dry-run 不跑 claude)。
 
 ## 日誌位置
 
