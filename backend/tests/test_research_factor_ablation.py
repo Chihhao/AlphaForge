@@ -6,24 +6,22 @@ from scripts.research_factor_ablation import (
     FACTOR_COLUMNS,
     _join_picks_features,
     per_factor_ic,
+    quality_gate_impact,
+    universe_slice_alpha,
 )
 
 
 def test_factor_columns_list_includes_chip():
     """FACTOR_COLUMNS 必須涵蓋技術 / 基本面 / 籌碼 / 市場 / 波動 / 背離 全部。"""
-    # 技術
     assert "rsi14" in FACTOR_COLUMNS
     assert "ma_trend" in FACTOR_COLUMNS
-    # 基本面
     assert "roe" in FACTOR_COLUMNS
     assert "rev_surprise" in FACTOR_COLUMNS
-    # 籌碼
     assert "foreign_buy_5d" in FACTOR_COLUMNS
     assert "trust_buy_10d" in FACTOR_COLUMNS
     assert "dealer_buy_20d" in FACTOR_COLUMNS
     assert "margin_chg_5d" in FACTOR_COLUMNS
     assert "short_chg_5d" in FACTOR_COLUMNS
-    # 流動性 / 波動率 / 背離
     assert "log_amihud_20d" in FACTOR_COLUMNS
     assert "atr_pct" in FACTOR_COLUMNS
     assert "divergence_avg" in FACTOR_COLUMNS
@@ -52,7 +50,6 @@ def test_join_picks_features_matches_by_sid_date():
 
 
 def test_per_factor_ic_strong_positive_signal():
-    """因子值跟報酬完全 monotonic 正相關 → IC ≈ 1, spread 大。"""
     n = 100
     rng = np.random.default_rng(42)
     factor = rng.uniform(0, 100, n)
@@ -66,7 +63,6 @@ def test_per_factor_ic_strong_positive_signal():
 
 
 def test_per_factor_ic_no_signal():
-    """因子值跟報酬無相關 → IC ≈ 0, spread 小。"""
     n = 200
     rng = np.random.default_rng(7)
     factor = rng.uniform(0, 100, n)
@@ -78,9 +74,42 @@ def test_per_factor_ic_no_signal():
 
 
 def test_per_factor_ic_skips_all_null_factor():
-    """若整欄 NaN, 函式不 crash, 輸出 n=0。"""
     df = pd.DataFrame({"factor_x": [None]*10, "return_pct": [1.0]*10})
     out = per_factor_ic(df, ["factor_x"])
     row = out[out["factor"] == "factor_x"].iloc[0]
     assert row["n"] == 0
     assert pd.isna(row["ic"])
+
+
+# ── quality_gate_impact ──────────────────────────────────────
+
+
+def test_quality_gate_impact_separates_pass_fail():
+    df = pd.DataFrame([
+        {"quality_gate_passed": True, "return_pct": 5.0},
+        {"quality_gate_passed": True, "return_pct": 3.0},
+        {"quality_gate_passed": True, "return_pct": -1.0},
+        {"quality_gate_passed": False, "return_pct": -3.0},
+        {"quality_gate_passed": False, "return_pct": -2.0},
+    ])
+    out = quality_gate_impact(df)
+    assert out["passed"]["n"] == 3
+    assert out["passed"]["wr"] == pytest.approx(66.67, abs=0.5)
+    assert out["failed"]["n"] == 2
+    assert out["failed"]["wr"] == 0.0
+
+
+def test_universe_slice_alpha_by_dimension():
+    df = pd.DataFrame([
+        {"time_dimension": "5d", "return_pct": 2.0},
+        {"time_dimension": "5d", "return_pct": -1.0},
+        {"time_dimension": "5d", "return_pct": 3.0},
+        {"time_dimension": "10d", "return_pct": -2.0},
+        {"time_dimension": "10d", "return_pct": -1.0},
+    ])
+    out = universe_slice_alpha(df, by="time_dimension")
+    out_dict = {row["slice"]: row for _, row in out.iterrows()}
+    assert out_dict["5d"]["n"] == 3
+    assert out_dict["5d"]["wr"] == pytest.approx(66.67, abs=0.5)
+    assert out_dict["10d"]["n"] == 2
+    assert out_dict["10d"]["wr"] == 0.0

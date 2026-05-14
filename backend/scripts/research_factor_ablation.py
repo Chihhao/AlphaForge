@@ -14,7 +14,6 @@ from pathlib import Path
 import pandas as pd
 from scipy import stats
 
-# 對齊 stock_feature.py 的 40+ 因子列表 (不含 id/stock_id/date/close/volume 等 non-feature)
 FACTOR_COLUMNS = [
     # 技術 (價格 / MA / bias / RSI / KD / MACD / 布林)
     "change_pct",
@@ -24,9 +23,7 @@ FACTOR_COLUMNS = [
     "k", "d",
     "macd_dif", "macd_dea", "macd_osc",
     "bb_pctb",
-    # 量
     "vol_ratio",
-    # 技術新 (Phase 5B / 7)
     "price_vs_high20", "ma_trend",
     "atr20", "atr_pct", "ivol_20d",
     "log_amihud_20d",
@@ -34,7 +31,7 @@ FACTOR_COLUMNS = [
     # 基本面
     "yield_rate", "roe", "pb_ratio", "revenue_yoy",
     "rev_surprise", "rev_accel",
-    # 籌碼 (Phase 4B / 5B / 6 / 7 / 9)
+    # 籌碼
     "foreign_net_buy", "foreign_buy_5d", "foreign_buy_10d", "foreign_buy_20d",
     "trust_net_buy", "trust_buy_5d", "trust_buy_10d", "trust_buy_20d",
     "dealer_net_buy", "dealer_buy_5d", "dealer_buy_10d", "dealer_buy_20d",
@@ -47,9 +44,7 @@ FACTOR_COLUMNS = [
 
 
 def _join_picks_features(picks: pd.DataFrame, features: pd.DataFrame) -> pd.DataFrame:
-    """join stock_picks (用 pick_date) + stock_features (用 date) by (stock_id, date)。
-    inner join, 結果含 pick 的所有欄位 + features 的因子欄位。
-    """
+    """join stock_picks (用 pick_date) + stock_features (用 date) by (stock_id, date)。"""
     picks = picks.copy()
     features = features.copy()
     picks["_d"] = pd.to_datetime(picks["pick_date"]).dt.date.astype(str)
@@ -65,16 +60,7 @@ def _join_picks_features(picks: pd.DataFrame, features: pd.DataFrame) -> pd.Data
 
 
 def per_factor_ic(df: pd.DataFrame, factors: list[str]) -> pd.DataFrame:
-    """每個因子算:
-      - ic: Spearman 相關係數 (factor value vs return_pct), 排序相關性
-      - p_value: 顯著性
-      - top_q_wr, bot_q_wr: top / bottom quintile 的勝率
-      - top_q_avg, bot_q_avg: top / bottom quintile 平均報酬
-      - spread_pp: top wr - bot wr (percentage point)
-      - n: 有效樣本數 (factor 與 return 都 not null)
-
-    NaN policy: 各因子個別處理, 整欄全 NaN 時 n=0 / ic=NaN。
-    """
+    """每個因子算 IC + p_value + top/bot quintile wr/avg + spread_pp + n。"""
     rows = []
     for factor in factors:
         if factor not in df.columns:
@@ -115,3 +101,50 @@ def per_factor_ic(df: pd.DataFrame, factors: list[str]) -> pd.DataFrame:
             "spread_pp": spread_pp,
         })
     return pd.DataFrame(rows).sort_values("ic", ascending=False, na_position="last")
+
+
+def quality_gate_impact(df: pd.DataFrame, gate_col: str = "quality_gate_passed") -> dict:
+    """有/沒 pass quality gate 兩組對比。
+    回 {"passed": {n, wr, avg}, "failed": {n, wr, avg}}。
+    若 gate_col 不在 df 內, 整體當 "passed" group。
+    """
+    if gate_col not in df.columns:
+        sub = df.dropna(subset=["return_pct"])
+        n = len(sub)
+        return {
+            "passed": {"n": n,
+                       "wr": (sub["return_pct"] > 0).mean() * 100 if n else float("nan"),
+                       "avg": sub["return_pct"].mean() if n else float("nan")},
+            "failed": {"n": 0, "wr": float("nan"), "avg": float("nan")},
+        }
+    result = {}
+    for label, val in [("passed", True), ("failed", False)]:
+        sub = df[df[gate_col] == val].dropna(subset=["return_pct"])
+        n = len(sub)
+        result[label] = {
+            "n": n,
+            "wr": (sub["return_pct"] > 0).mean() * 100 if n else float("nan"),
+            "avg": sub["return_pct"].mean() if n else float("nan"),
+        }
+    return result
+
+
+def universe_slice_alpha(df: pd.DataFrame, by: str) -> pd.DataFrame:
+    """按 by 欄位切片, 每組算 n / wr / avg。
+    常用 by: time_dimension / direction / 自訂 market_cap_bucket 等。
+    """
+    if by not in df.columns:
+        return pd.DataFrame([{"slice": "__all__", "n": len(df),
+                              "wr": (df["return_pct"] > 0).mean() * 100 if len(df) else float("nan"),
+                              "avg": df["return_pct"].mean() if len(df) else float("nan")}])
+    rows = []
+    for slice_val, sub in df.groupby(by):
+        sub = sub.dropna(subset=["return_pct"])
+        n = len(sub)
+        rows.append({
+            "slice": str(slice_val),
+            "n": n,
+            "wr": (sub["return_pct"] > 0).mean() * 100 if n else float("nan"),
+            "avg": sub["return_pct"].mean() if n else float("nan"),
+        })
+    return pd.DataFrame(rows).sort_values("n", ascending=False)
