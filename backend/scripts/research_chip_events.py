@@ -1,6 +1,9 @@
 """Phase 2: 籌碼連續淨買 event 偵測 + 事件後報酬分析。
 
 純 read-only, 用既有 stock_chip_data (NAS 93 萬筆) + stock_prices 跑分析。
+
+Usage (從 backend/ 目錄):
+    ./.venv/bin/python -m scripts.research_chip_events
 """
 from __future__ import annotations
 
@@ -10,6 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 import numpy as np
+from sqlalchemy import create_engine, text
+
 
 TAIPEI_TZ = timezone(timedelta(hours=8))
 
@@ -39,11 +44,7 @@ def event_post_returns(
     prices: pd.DataFrame,
     horizons: list[int] = [5, 10, 20],
 ) -> pd.DataFrame:
-    """對每個 event 算 horizon 個**交易日**後的累積報酬 (%)。
-
-    使用 trading day index (依 prices 表內每股的實際 trading days), 不算 calendar days。
-    若 horizon 超過該股可用 trading day, 該 horizon ret = NaN。
-    """
+    """對每個 event 算 horizon 個交易日後的累積報酬 (%) — trading day index."""
     prices = prices.copy().sort_values(["stock_id", "date"]).reset_index(drop=True)
     prices["date"] = pd.to_datetime(prices["date"]).dt.date
     prices["_td_idx"] = prices.groupby("stock_id").cumcount()
@@ -71,3 +72,20 @@ def event_post_returns(
             except KeyError:
                 pass
     return out
+
+
+def walk_forward_summary(events_with_ret: pd.DataFrame, horizons: list[int] = [5, 10, 20]) -> pd.DataFrame:
+    """按 quarter 切 events, 算各 horizon 的 n / wr / avg。"""
+    df = events_with_ret.copy()
+    df["event_date"] = pd.to_datetime(df["event_date"])
+    df["quarter"] = df["event_date"].dt.to_period("Q").astype(str)
+    rows = []
+    for q, sub in df.groupby("quarter"):
+        row = {"quarter": q, "n": len(sub)}
+        for h in horizons:
+            col = f"ret_{h}d"
+            valid = sub[col].dropna()
+            row[f"wr_{h}d"] = (valid > 0).mean() * 100 if len(valid) else float("nan")
+            row[f"avg_{h}d"] = valid.mean() if len(valid) else float("nan")
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values("quarter")

@@ -4,6 +4,7 @@ import pytest
 from scripts.research_chip_events import (
     find_consecutive_buy_events,
     event_post_returns,
+    walk_forward_summary,
 )
 
 
@@ -48,11 +49,7 @@ def test_find_consecutive_buy_events_multi_stock():
     assert set(events["stock_id"].tolist()) == {"2330", "2454"}
 
 
-# ── event_post_returns ───────────────────────────────────────
-
-
 def test_event_post_returns_5d():
-    """event 後 5 個交易日報酬計算 (使用 trading day index)。"""
     prices = pd.DataFrame([
         {"stock_id": "2330", "date": "2026-05-01", "close": 100.0},
         {"stock_id": "2330", "date": "2026-05-02", "close": 102.0},
@@ -67,7 +64,6 @@ def test_event_post_returns_5d():
     ])
     out = event_post_returns(events, prices, horizons=[5])
     row = out.iloc[0]
-    # event_date=5/1 (close=100), event+5 trading days = 5/6 (close=110) → +10%
     assert row["ret_5d"] == pytest.approx(10.0, abs=0.1)
 
 
@@ -83,3 +79,22 @@ def test_event_post_returns_skips_when_horizon_overflows():
     out = event_post_returns(events, prices, horizons=[5])
     row = out.iloc[0]
     assert pd.isna(row["ret_5d"])
+
+
+# ── walk_forward_summary ─────────────────────────────────────
+
+
+def test_walk_forward_summary_aggregates_by_quarter():
+    events_with_ret = pd.DataFrame([
+        {"event_date": pd.to_datetime("2026-01-15").date(), "ret_5d": 1.5, "ret_10d": 3.0},
+        {"event_date": pd.to_datetime("2026-02-15").date(), "ret_5d": -0.5, "ret_10d": 1.0},
+        {"event_date": pd.to_datetime("2026-03-15").date(), "ret_5d": 2.0, "ret_10d": 4.0},
+        {"event_date": pd.to_datetime("2026-04-15").date(), "ret_5d": 0.0, "ret_10d": -1.0},
+        {"event_date": pd.to_datetime("2026-05-15").date(), "ret_5d": 3.0, "ret_10d": 5.0},
+    ])
+    out = walk_forward_summary(events_with_ret, horizons=[5, 10])
+    assert set(out["quarter"].tolist()) == {"2026Q1", "2026Q2"}
+    q1 = out[out["quarter"] == "2026Q1"].iloc[0]
+    assert q1["n"] == 3
+    assert q1["wr_5d"] == pytest.approx(66.67, abs=0.5)
+    assert q1["avg_5d"] == pytest.approx(1.0, abs=0.01)
