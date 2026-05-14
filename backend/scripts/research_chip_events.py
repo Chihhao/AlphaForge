@@ -15,10 +15,7 @@ TAIPEI_TZ = timezone(timedelta(hours=8))
 
 
 def find_consecutive_buy_events(df: pd.DataFrame, factor_col: str, min_days: int = 3) -> pd.DataFrame:
-    """對每個 stock 找 factor_col > 0 連續 ≥ min_days 的 event。
-
-    Event 定義: 連續 N 日同正後**第 N 日**該日為 event date (即連續 streak 的最後一天)。
-    """
+    """對每個 stock 找 factor_col > 0 連續 ≥ min_days 的 event。"""
     df = df.copy().sort_values(["stock_id", "date"]).reset_index(drop=True)
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df["_positive"] = df[factor_col] > 0
@@ -35,3 +32,42 @@ def find_consecutive_buy_events(df: pd.DataFrame, factor_col: str, min_days: int
         .drop(columns=["_streak_group"])
     )
     return streaks[streaks["consecutive_days"] >= min_days].reset_index(drop=True)
+
+
+def event_post_returns(
+    events: pd.DataFrame,
+    prices: pd.DataFrame,
+    horizons: list[int] = [5, 10, 20],
+) -> pd.DataFrame:
+    """對每個 event 算 horizon 個**交易日**後的累積報酬 (%)。
+
+    使用 trading day index (依 prices 表內每股的實際 trading days), 不算 calendar days。
+    若 horizon 超過該股可用 trading day, 該 horizon ret = NaN。
+    """
+    prices = prices.copy().sort_values(["stock_id", "date"]).reset_index(drop=True)
+    prices["date"] = pd.to_datetime(prices["date"]).dt.date
+    prices["_td_idx"] = prices.groupby("stock_id").cumcount()
+    p_lookup = prices.set_index(["stock_id", "date"])
+    p_by_idx = prices.set_index(["stock_id", "_td_idx"])
+
+    out = events.copy()
+    for h in horizons:
+        out[f"ret_{h}d"] = float("nan")
+    for i, e in out.iterrows():
+        sid = e["stock_id"]
+        edate = e["event_date"]
+        try:
+            base_idx = int(p_lookup.loc[(sid, edate), "_td_idx"])
+        except KeyError:
+            continue
+        try:
+            base_close = float(p_lookup.loc[(sid, edate), "close"])
+        except KeyError:
+            continue
+        for h in horizons:
+            try:
+                future_close = float(p_by_idx.loc[(sid, base_idx + h), "close"])
+                out.at[i, f"ret_{h}d"] = (future_close / base_close - 1) * 100
+            except KeyError:
+                pass
+    return out
