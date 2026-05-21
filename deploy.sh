@@ -1,8 +1,11 @@
 #!/bin/bash
 
 # ==========================================
-# AlphaForge NAS 一鍵部署腳本 (v1.0)
+# AlphaForge NAS 一鍵部署腳本 (v1.1)
 # ==========================================
+# v1.1: docker-compose backend/frontend 改用 pre-built image (commit c52843d)
+#       後 --build 已成空操作; 改為先 docker build 產生 image, 再 up
+#       --force-recreate 重建容器。前端必帶 NEXT_PUBLIC_API_URL build arg。
 
 # 設定
 NAS_HOST="10.0.4.3"
@@ -24,19 +27,19 @@ read -p "請選擇部署項目 [1-4, q]: " choice
 
 case $choice in
     1)
-        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && env DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 sudo -E docker-compose up -d --build frontend"
+        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo env DOCKER_BUILDKIT=1 docker build -t alphaforge_frontend --build-arg NEXT_PUBLIC_API_URL=/alphaforge/api ./frontend && sudo docker-compose up -d --force-recreate frontend"
         echo "正在更新前端服務..."
         ;;
     2)
-        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo docker-compose up -d --build backend"
+        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo env DOCKER_BUILDKIT=1 docker build -t alphaforge_backend ./backend && sudo docker-compose up -d --force-recreate backend"
         echo "正在更新後端服務..."
         ;;
     3)
-        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && env DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 sudo -E docker-compose up -d --build"
+        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo env DOCKER_BUILDKIT=1 docker build -t alphaforge_backend ./backend && sudo env DOCKER_BUILDKIT=1 docker build -t alphaforge_frontend --build-arg NEXT_PUBLIC_API_URL=/alphaforge/api ./frontend && sudo docker-compose up -d --force-recreate"
         echo "正在更新全系統服務..."
         ;;
     4)
-        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo docker-compose build --no-cache && sudo docker-compose up -d"
+        DEPLOY_CMD="export PATH=/usr/local/bin:\$PATH && cd $NAS_PROJECT_DIR && sudo env DOCKER_BUILDKIT=1 docker build --no-cache -t alphaforge_backend ./backend && sudo env DOCKER_BUILDKIT=1 docker build --no-cache -t alphaforge_frontend --build-arg NEXT_PUBLIC_API_URL=/alphaforge/api ./frontend && sudo docker-compose up -d --force-recreate"
         echo "正在強制重新建置所有服務..."
         ;;
     q)
