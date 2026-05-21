@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # 應用程式配置
     APP_NAME: str = "AlphaForge"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     
     # 資料庫配置（PostgreSQL on NAS）
     DATABASE_URL: str = os.getenv(
